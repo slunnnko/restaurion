@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Briefcase, UserCheck, PlusCircle, ShieldCheck, FileText } from 'lucide-react';
+import { Briefcase, UserCheck, Plus, ShieldCheck, FileText } from 'lucide-react';
 
 interface MobileBottomNavProps {
   activeTab: 'jobs' | 'available' | 'vop';
@@ -17,13 +17,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenVerificationModal,
 }) => {
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#140e0a]/95 backdrop-blur-md border-t border-amber-900/40 px-2 py-1.5 shadow-2xl safe-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#181A20] border-t-2 border-[#111111] dark:border-stone-600 px-2 py-1.5 safe-bottom transition-colors">
       <div className="flex items-center justify-around">
         {/* Zakázky */}
         <button
           onClick={() => setActiveTab('jobs')}
-          className={`flex flex-col items-center py-1 px-2 rounded-lg transition-colors ${
-            activeTab === 'jobs' ? 'text-amber-400 font-bold' : 'text-stone-400 hover:text-stone-100'
+          className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'jobs'
+              ? 'bg-[#FEF08A] text-[#111111] font-extrabold border border-[#111111]'
+              : 'text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold'
           }`}
         >
           <Briefcase className="w-5 h-5 mb-0.5" />
@@ -33,39 +35,43 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {/* Nabízím se */}
         <button
           onClick={() => setActiveTab('available')}
-          className={`flex flex-col items-center py-1 px-2 rounded-lg transition-colors ${
-            activeTab === 'available' ? 'text-blue-400 font-bold' : 'text-stone-400 hover:text-stone-100'
+          className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition-all ${
+            activeTab === 'available'
+              ? 'bg-[#2563EB] text-white font-extrabold border border-[#111111]'
+              : 'text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold'
           }`}
         >
           <UserCheck className="w-5 h-5 mb-0.5" />
           <span className="text-[10px]">Nabízím se</span>
         </button>
 
-        {/* Středové akční tlačítko +Přidat */}
+        {/* Středové akční tlačítko + Přidat */}
         <button
           onClick={onOpenCreateJob}
           className="flex flex-col items-center -mt-4 group"
         >
-          <div className="w-12 h-12 rounded-full bg-amber-600 text-white flex items-center justify-center shadow-lg group-active:scale-95 transition-transform border-2 border-[#140e0a]">
-            <PlusCircle className="w-7 h-7" />
+          <div className="w-12 h-12 rounded-2xl bg-[#FEF08A] text-[#111111] flex items-center justify-center border-2 border-[#111111] shadow-[2px_2px_0px_#111111] group-active:scale-95 transition-transform">
+            <Plus className="w-6 h-6 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] font-bold text-amber-400 mt-0.5">Přidat</span>
+          <span className="text-[10px] font-extrabold text-[#111111] dark:text-[#FEF08A] mt-0.5">Přidat</span>
         </button>
 
         {/* Ověření MK */}
         <button
           onClick={onOpenVerificationModal}
-          className="flex flex-col items-center py-1 px-2 rounded-lg text-stone-400 hover:text-stone-100 transition-colors"
+          className="flex flex-col items-center py-1 px-2 rounded-xl text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold transition-colors"
         >
-          <ShieldCheck className="w-5 h-5 mb-0.5 text-emerald-400" />
+          <ShieldCheck className="w-5 h-5 mb-0.5 text-emerald-600 dark:text-emerald-400" />
           <span className="text-[10px]">Ověření MK</span>
         </button>
 
         {/* Podmínky / VOP */}
         <button
           onClick={() => setActiveTab('vop')}
-          className={`flex flex-col items-center py-1 px-2 rounded-lg transition-colors ${
-            activeTab === 'vop' ? 'text-amber-400 font-bold' : 'text-stone-400 hover:text-stone-100'
+          className={`flex flex-col items-center py-1 px-2 rounded-xl transition-colors ${
+            activeTab === 'vop'
+              ? 'bg-[#FEF08A] text-[#111111] font-extrabold border border-[#111111]'
+              : 'text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold'
           }`}
         >
           <FileText className="w-5 h-5 mb-0.5" />

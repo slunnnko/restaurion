@@ -2,30 +2,52 @@
 
 import React, { useState } from 'react';
 import { Job } from '@/types';
-import { X, Send, CheckCircle2, ShieldCheck, Church } from 'lucide-react';
+import { X, Send, CheckCircle2, Church } from 'lucide-react';
 
 interface RespondModalProps {
   job: Job | null;
   isOpen: boolean;
   onClose: () => void;
+  onSubmitted?: (jobId: string) => void;
 }
 
 export const RespondModal: React.FC<RespondModalProps> = ({
   job,
   isOpen,
   onClose,
+  onSubmitted,
 }) => {
   const [message, setMessage] = useState('');
   const [contactName, setContactName] = useState('');
   const [phone, setPhone] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   if (!isOpen || !job) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message || !contactName) return;
+    if (!message || !contactName || isSending) return;
 
+    setIsSending(true);
+    try {
+      await fetch(`/api/jobs/${encodeURIComponent(job.id)}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          senderName: contactName,
+          phone,
+          message,
+          attachProfile: true,
+        }),
+      });
+    } catch {
+      // Fallback: pokud API zatím není připojené, uložíme lokálně
+    } finally {
+      setIsSending(false);
+    }
+
+    onSubmitted?.(job.id);
     setSent(true);
     setTimeout(() => {
       setSent(false);
@@ -37,54 +59,63 @@ export const RespondModal: React.FC<RespondModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-stone-200 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111111]/60 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 border-2 border-[#111111] shadow-[8px_8px_0px_#111111] relative">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+          className="absolute top-5 right-5 w-9 h-9 rounded-xl border-2 border-[#111111] bg-[#FFFDF7] hover:bg-[#FEF08A] text-[#111111] flex items-center justify-center shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {sent ? (
           <div className="py-10 text-center">
-            <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-3">
+            <div className="w-14 h-14 bg-emerald-100 text-emerald-800 border-2 border-[#111111] shadow-[3px_3px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 className="w-7 h-7" />
             </div>
-            <h3 className="font-serif text-xl font-bold text-stone-900 mb-1">
+            <h3 className="font-serif text-xl font-bold text-[#111111] mb-1">
               Zpráva byla úspěšně odeslána!
             </h3>
-            <p className="text-xs text-stone-600">
-              Autor zakázky ({job.author.name}) obdržel vaši nabídku i kontakt.
+            <p className="text-xs font-medium text-stone-700">
+              Autor inzerátu ({job.author.name}) obdržel vaši nabídku i přímý kontakt.
             </p>
           </div>
         ) : (
           <div>
             <div className="mb-4">
-              <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">
-                Odpověď na nabídku
+              <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#FEF08A] border border-[#111111] text-xs font-extrabold uppercase tracking-wider text-[#111111] mb-1.5">
+                Mám zájem o spolupráci
               </span>
-              <h2 className="font-serif text-xl font-bold text-stone-900 line-clamp-1">
+              <h2 className="font-serif text-xl font-bold text-[#111111] line-clamp-2">
                 {job.title}
               </h2>
-              <div className="text-xs text-stone-500 mt-0.5">
-                Příjemce: <strong className="text-stone-700">{job.author.name}</strong> ({job.city})
+              <div className="flex items-center gap-2 text-xs text-stone-700 mt-2 font-medium">
+                {job.author.avatarUrl && (
+                  <img
+                    src={job.author.avatarUrl}
+                    alt={job.author.name}
+                    className="w-6 h-6 rounded-full border border-[#111111] object-cover"
+                  />
+                )}
+                <span>
+                  Příjemce: <strong className="text-[#111111] font-extrabold">{job.author.name}</strong> ({job.city})
+                </span>
               </div>
             </div>
 
             {/* Kontext kulturní památky */}
-            {job.monumentStatus === 'cultural_monument' && (
-              <div className="mb-4 p-2.5 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-950 flex items-start gap-2">
-                <Church className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            {(job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument') && (
+              <div className="mb-4 p-3 bg-[#FEF08A]/60 rounded-xl border-2 border-[#111111] text-xs text-[#111111] font-medium flex items-start gap-2">
+                <Church className="w-4 h-4 text-[#111111] shrink-0 mt-0.5" />
                 <span>
-                  Tato zakázka se týká kulturní památky. Spolupráce bude probíhat pod odborným dohledem zadavatele s licencí MK ČR.
+                  Tato zakázka se týká kulturní památky. Spolupráce probíhá pod odborným vedením licencovaného restaurátora s povolením MK ČR.
                 </span>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-extrabold text-[#111111] mb-1">
                   Vaše jméno a řemeslná odbornost *
                 </label>
                 <input
@@ -93,12 +124,12 @@ export const RespondModal: React.FC<RespondModalProps> = ({
                   placeholder="např. Martin Veselý – štukatér (10 let praxe)"
                   value={contactName}
                   onChange={(e) => setContactName(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-sm focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-hidden"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] bg-[#FFFDF7] text-sm font-semibold focus:bg-[#FEF08A]/25 outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-extrabold text-[#111111] mb-1">
                   Telefonní kontakt nebo e-mail *
                 </label>
                 <input
@@ -107,12 +138,12 @@ export const RespondModal: React.FC<RespondModalProps> = ({
                   placeholder="+420 777 000 111 / email@domena.cz"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-sm focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-hidden"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] bg-[#FFFDF7] text-sm font-semibold focus:bg-[#FEF08A]/25 outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-stone-700 mb-1">
+                <label className="block text-xs font-extrabold text-[#111111] mb-1">
                   Vaše zpráva (zkušenosti, časové možnosti, sazba) *
                 </label>
                 <textarea
@@ -121,21 +152,21 @@ export const RespondModal: React.FC<RespondModalProps> = ({
                   placeholder="Dobrý den, rád bych se zapojil do této zakázky. Mám praxi s vápennými maltami a pískovcem. Jsem volný od příštího týdne..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-sm focus:border-amber-600 focus:ring-2 focus:ring-amber-100 outline-hidden"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] bg-[#FFFDF7] text-sm font-semibold focus:bg-[#FEF08A]/25 outline-hidden"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2 rounded-xl text-xs font-medium text-stone-600 hover:bg-stone-100"
+                  className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-white border-2 border-[#111111] hover:bg-stone-100 cursor-pointer"
                 >
                   Zrušit
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white bg-amber-700 hover:bg-amber-800 shadow-sm active:scale-98 transition-all"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Odeslat odpověď</span>

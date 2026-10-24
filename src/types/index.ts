@@ -46,16 +46,46 @@ export interface UserProfile {
   schoolOrBackground?: string; // např. "Fakulta restaurování Univerzita Pardubice (Litomyšl)"
 }
 
+export interface MatchedPartner {
+  id?: string;
+  name: string;
+  roleLabel?: string;
+}
+
+export interface JobReview {
+  rating: number;
+  text: string;
+  authorName: string;
+  createdAt: string;
+}
+
+export interface JobResponseItem {
+  id: string;
+  jobId: string;
+  applicantId?: string;
+  senderName: string;
+  senderEmail?: string;
+  senderPhone: string;
+  message: string;
+  attachProfile: boolean;
+  status: string;
+  createdAt: string;
+}
+
+export type JobStatus = 'active' | 'completed';
+
 export interface Job {
   id: string;
   title: string;
   description: string;
   jobType: JobType;
   monumentStatus: MonumentStatus;
+  status?: JobStatus;
   monumentName?: string;
   monumentRegNumber?: string;
+  imageUrl?: string;
   requiredCrafts: string[];
-  region: 'Jihomoravský kraj' | 'Pardubický kraj (Litomyšl / Svitavy)' | 'Vysočina' | 'Celá ČR';
+  region: string;
   city: string;
   startDate?: string;
   deadline?: string;
@@ -64,6 +94,19 @@ export interface Job {
   createdAt: string;
   responsesCount: number;
   urgent?: boolean;
+  completedAt?: string;
+  matchedPartner?: MatchedPartner;
+  review?: JobReview;
+}
+
+export interface SiteSettings {
+  heroTitle: string;
+  heroSubtitle: string;
+  heroBadge1: string;
+  heroBadge2: string;
+  heroBadge3: string;
+  announcementBanner: string;
+  footerText: string;
 }
 
 export interface FilterState {
@@ -72,4 +115,5 @@ export interface FilterState {
   craft: string;
   monumentStatus: string;
   jobType: string;
+  statusFilter: 'active' | 'completed' | 'all';
 }

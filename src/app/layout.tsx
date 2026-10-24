@@ -1,22 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Lato, Libre_Baskerville } from "next/font/google";
 import "./globals.css";
 
-const lato = Lato({
-  subsets: ["latin", "latin-ext"],
-  weight: ["300", "400", "700", "900"],
-  variable: "--font-lato",
-});
-
-const libreBaskerville = Libre_Baskerville({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-libre-baskerville",
-});
-
 export const metadata: Metadata = {
-  title: "Restaurion | Platforma pro památková řemesla",
+  title: "Restaurion | Najdi práci nebo parťáka v památkové péči",
   description:
     "Profesní síť propojující licencované restaurátory s povolením MK ČR a umělecká řemesla. Zakázky, subdodávky a legální spolupráce na kulturních památkách.",
 };
@@ -26,7 +12,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#140e0a",
+  themeColor: "#FEF08A",
 };
 
 export default function RootLayout({
@@ -35,8 +21,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cs" className={`h-full antialiased ${lato.variable} ${libreBaskerville.variable}`}>
-      <body className="min-h-full flex flex-col font-sans">
+    <html lang="cs" className="h-full antialiased">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-full flex flex-col font-sans bg-[#FFFDF7] text-[#111111]">
         {children}
       </body>
     </html>

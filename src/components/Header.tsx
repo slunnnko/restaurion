@@ -2,27 +2,108 @@
 
 import React from 'react';
 import { HammerLogo } from './HammerLogo';
+import { UserProfile } from '@/types';
+import { ShieldCheck, Camera, Moon, Sun } from 'lucide-react';
 
 interface HeaderProps {
   onOpenCreateJob?: () => void;
   onOpenVerificationModal?: () => void;
+  currentUser?: UserProfile;
+  onOpenCurrentUserProfile?: () => void;
   selectedRegion?: string;
   onSelectRegion?: (region: string) => void;
+  isDark?: boolean;
+  onToggleDark?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = () => {
+export const Header: React.FC<HeaderProps> = ({
+  onOpenVerificationModal,
+  currentUser,
+  onOpenCurrentUserProfile,
+  isDark = false,
+  onToggleDark,
+}) => {
   return (
-    <header className="sticky top-0 z-30 bg-[#140e0a]/95 backdrop-blur-xl border-b border-amber-900/40 shadow-md">
+    <header className="sticky top-0 z-30 bg-white dark:bg-[#181A20] border-b-2 border-[#111111] dark:border-[#E2E8F0]/30 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand vlevo (viditelné i na mobilní verzi) */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-xs">
-              <HammerLogo className="w-6 h-6" />
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-3">
+          {/* Logo & Brand vlevo */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FEF08A] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] flex items-center justify-center text-[#111111] shrink-0">
+              <HammerLogo className="w-5 h-5" />
             </div>
-            <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-stone-100">
-              Restaurion
-            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-[#111111] dark:text-white">
+                Restaurion
+              </span>
+              <span className="hidden lg:inline-block text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-100 dark:bg-[#262933] border border-[#111111] dark:border-stone-500 text-[#111111] dark:text-stone-200">
+                Památková řemesla
+              </span>
+            </div>
+          </div>
+
+          {/* Pravá strana: Přepínač Dark Mode + Ověření licence MK ČR + Profil přihlášeného uživatele s fotkou */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {onToggleDark && (
+              <button
+                onClick={onToggleDark}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-[#FEF08A] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all text-xs font-extrabold cursor-pointer"
+                title={isDark ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
+              >
+                {isDark ? (
+                  <>
+                    <Sun className="w-4 h-4 text-[#FEF08A] shrink-0" />
+                    <span>Světlý</span>
+                  </>
+                ) : (
+                  <>
+                    <Moon className="w-4 h-4 text-[#111111] shrink-0" />
+                    <span>Tmavý</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {onOpenVerificationModal && (
+              <button
+                onClick={onOpenVerificationModal}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-100 dark:bg-emerald-950/90 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all text-xs font-extrabold cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                <span>Ověřit licenci MK ČR</span>
+              </button>
+            )}
+
+            {currentUser && onOpenCurrentUserProfile && (
+              <button
+                onClick={onOpenCurrentUserProfile}
+                className="inline-flex items-center gap-2 pl-1.5 pr-2.5 sm:pr-3 py-1 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer"
+                title="Zobrazit profil a upravit profilovou fotku"
+              >
+                <div className="relative w-8 h-8 rounded-full border-2 border-[#111111] dark:border-stone-300 overflow-hidden bg-stone-200 shrink-0">
+                  {currentUser.avatarUrl ? (
+                    <img
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center font-bold text-xs text-[#111111]">
+                      {currentUser.name.charAt(0)}
+                    </span>
+                  )}
+                </div>
+                <div className="text-left hidden sm:block">
+                  <div className="text-xs font-extrabold text-[#111111] dark:text-white leading-tight">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[10px] font-bold text-stone-600 dark:text-stone-300 flex items-center gap-1">
+                    <Camera className="w-2.5 h-2.5" />
+                    <span>Můj profil</span>
+                  </div>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>
