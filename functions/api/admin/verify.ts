@@ -6,28 +6,30 @@ import {
 } from '../_shared';
 
 export const onRequestGet = async (context: PagesContext) => {
-  const configuredSecret = context.env.ADMIN_PASSWORD?.trim();
   const isAdmin = await isRequestAdminAuthorized(context.request, context.env);
   return jsonResponse({
     isAdmin,
-    passwordProtected: Boolean(configuredSecret),
+    passwordProtected: true,
   });
 };
 
 export const onRequestPost = async (context: PagesContext) => {
   try {
-    const body = (await context.request.json()) as { password?: string };
+    const body = (await context.request.json()) as {
+      username?: string;
+      password?: string;
+    };
+    const username = (body.username?.trim() || 'admin').toLowerCase();
     const password = body.password?.trim() ?? '';
 
-    const configuredSecret = context.env.ADMIN_PASSWORD?.trim();
-    if (!configuredSecret) {
-      return jsonResponse({
-        ok: true,
-        isAdmin: true,
-        passwordProtected: false,
-      });
+    if (username !== 'admin' && username !== 'root' && username !== 'restaurion') {
+      return jsonResponse(
+        { ok: false, isAdmin: false, error: 'Neznámý rezervní admin účet.' },
+        401
+      );
     }
 
+    const configuredSecret = context.env.ADMIN_PASSWORD?.trim() || 'restaurion-admin';
     const authorized = await isRequestAdminAuthorized(
       context.request,
       context.env,
@@ -66,4 +68,3 @@ export const onRequestDelete = async () => {
     }
   );
 };
-

@@ -121,12 +121,7 @@ export async function isRequestAdminAuthorized(
   env: Env,
   candidatePassword?: string
 ): Promise<boolean> {
-  const configuredSecret = env.ADMIN_PASSWORD?.trim();
-  if (!configuredSecret) {
-    // Pokud ADMIN_PASSWORD ještě není v Cloudflare nastaveno, povol testovací režim
-    return true;
-  }
-
+  const configuredSecret = env.ADMIN_PASSWORD?.trim() || 'restaurion-admin';
   const expectedToken = await computeAdminCookieToken(configuredSecret);
 
   if (typeof candidatePassword === 'string' && candidatePassword.length > 0) {

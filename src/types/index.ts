@@ -52,11 +52,41 @@ export interface MatchedPartner {
   roleLabel?: string;
 }
 
+export interface ReviewReply {
+  text: string;
+  authorId: string;
+  authorName: string;
+  createdAt: string;
+}
+
 export interface JobReview {
   rating: number;
   text: string;
   authorName: string;
   createdAt: string;
+  reply?: ReviewReply;
+}
+
+/**
+ * Hodnocení držené přímo na osobě (profilu), ze kterého vede vazba na zakázku.
+ * Zůstává zachováno i v případě, že někdo původní inzerát zakázky smaže.
+ * Na každé hodnocení lze reagovat pouze jednou (pole `reply`), aby nevznikalo diskuzní vlákno.
+ */
+export interface UserReview {
+  id: string;
+  jobId?: string;
+  jobTitle: string;
+  jobCity?: string;
+  completedAt?: string;
+  reviewerId: string;
+  reviewerName: string;
+  revieweeId: string;
+  revieweeName: string;
+  revieweeRoleLabel?: string;
+  rating: number;
+  text: string;
+  createdAt: string;
+  reply?: ReviewReply;
 }
 
 export interface JobResponseItem {
@@ -70,6 +100,7 @@ export interface JobResponseItem {
   attachProfile: boolean;
   status: string;
   createdAt: string;
+  isRead?: boolean;
 }
 
 export type JobStatus = 'active' | 'completed';

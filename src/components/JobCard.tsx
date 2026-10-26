@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Job } from '@/types';
+import { Job, UserReview } from '@/types';
 import {
   MapPin,
   Calendar,
@@ -14,6 +14,9 @@ import {
   UserCheck,
   Camera,
   Settings2,
+  CheckCircle2,
+  Handshake,
+  Star,
 } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
@@ -22,12 +25,20 @@ interface JobCardProps {
   onRespond: (job: Job) => void;
   onViewAuthor: (authorId: string) => void;
   onManage?: (job: Job) => void;
+  linkedReview?: UserReview;
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, onManage }) => {
+export const JobCard: React.FC<JobCardProps> = ({
+  job,
+  onRespond,
+  onViewAuthor,
+  onManage,
+  linkedReview,
+}) => {
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
   const isLicensedAuthor = job.author.role === 'licensed_restorer';
+  const isCompleted = job.status === 'completed';
 
   // Barevně rozlišené odznaky a ikonky dle zadání:
   // - Hledám subdodavatele: ikonka kladívka (HammerLogo), barva zelená jako v aktuální verzi
@@ -42,7 +53,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             'bg-emerald-100 dark:bg-emerald-950 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/80 font-extrabold',
           iconColorClass: 'text-emerald-700 dark:text-emerald-400',
           tileClass:
-            'bg-emerald-600 text-white border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]',
+            'bg-emerald-600 text-white border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]',
           topStripClass: 'bg-emerald-600',
           icon: HammerLogo,
         };
@@ -53,7 +64,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             'bg-[#FFE4DE] dark:bg-[#4A180D] text-[#7C1D0B] dark:text-[#FFB4A2] border-2 border-[#111111] dark:border-[#FF5733]/80 font-extrabold',
           iconColorClass: 'text-[#E03E1A] dark:text-[#FF7F66]',
           tileClass:
-            'bg-[#FF5733] text-white border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]',
+            'bg-[#FF5733] text-white border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]',
           topStripClass: 'bg-[#FF5733]',
           icon: ShieldCheck,
         };
@@ -64,7 +75,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             'bg-[#DBEAFE] dark:bg-[#172554] text-[#1E3A8A] dark:text-[#93C5FD] border-2 border-[#111111] dark:border-[#3B82F6]/80 font-extrabold',
           iconColorClass: 'text-[#2563EB] dark:text-[#60A5FA]',
           tileClass:
-            'bg-[#2563EB] text-white border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]',
+            'bg-[#2563EB] text-white border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]',
           topStripClass: 'bg-[#2563EB]',
           icon: UserCheck,
         };
@@ -72,10 +83,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
         return {
           label: 'Poptávka práce',
           badgeClass:
-            'bg-stone-100 dark:bg-stone-800 text-[#111111] dark:text-stone-100 border-2 border-[#111111] dark:border-stone-500 font-extrabold',
+            'bg-stone-100 dark:bg-stone-800 text-[#111111] dark:text-stone-100 border-2 border-[#111111] dark:border-stone-400 font-extrabold',
           iconColorClass: 'text-[#111111] dark:text-stone-200',
           tileClass:
-            'bg-stone-800 text-white border-2 border-[#111111] shadow-[2px_2px_0px_#111111]',
+            'bg-stone-800 text-white border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]',
           topStripClass: 'bg-stone-800',
           icon: HammerLogo,
         };
@@ -84,16 +95,35 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
 
   const badgeInfo = getJobTypeBadge();
   const BadgeIcon = badgeInfo.icon;
+  const activeReview = linkedReview || job.review;
 
   return (
-    <article className="bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 rounded-2xl shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0px_#111111] dark:hover:shadow-[7px_7px_0px_#000000] transition-all duration-150 flex flex-col justify-between overflow-hidden group">
-      {/* Horní barevný proužek podle typu inzerátu */}
+    <article
+      id={`job-card-${job.id}`}
+      className={`rounded-2xl border-2 transition-all duration-150 flex flex-col justify-between overflow-hidden group ${
+        isCompleted
+          ? 'bg-stone-100/95 dark:bg-[#161820] border-stone-500 dark:border-stone-500 shadow-[5px_5px_0px_#78716C] dark:shadow-[5px_5px_0px_#94A3B8] opacity-75 grayscale-[55%] hover:opacity-95 hover:grayscale-[15%]'
+          : 'bg-white dark:bg-[#1C1E26] border-[#111111] dark:border-stone-300 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#F8FAFC] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[7px_7px_0px_#111111] dark:hover:shadow-[7px_7px_0px_#FFFFFF]'
+      }`}
+    >
+      {/* Horní barevný proužek podle typu inzerátu (zašedlý u ukončených) */}
       <div>
-        <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-600 ${badgeInfo.topStripClass}`} />
+        <div
+          className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-400 ${
+            isCompleted ? 'bg-stone-500 dark:bg-stone-600' : badgeInfo.topStripClass
+          }`}
+        />
 
         <div className="p-4 sm:p-5 pb-0">
           {/* Horní řádek odznaků */}
           <div className="flex flex-wrap items-center gap-2 mb-3.5">
+            {isCompleted && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-stone-300 dark:bg-stone-800 text-stone-900 dark:text-stone-200 border-2 border-stone-700 dark:border-stone-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Neaktivní / Ukončeno {job.completedAt ? `(${job.completedAt})` : ''}</span>
+              </span>
+            )}
+
             {/* Typ inzerátu s barevnou ikonkou */}
             <span
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${badgeInfo.badgeClass}`}
@@ -113,14 +143,14 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
               </span>
             )}
 
-            {job.urgent && (
+            {job.urgent && !isCompleted && (
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-[#FF5733] text-white border-2 border-[#111111]">
                 Spěchá
               </span>
             )}
           </div>
 
-          {/* Výrazná barevná dlaždice s ikonkou + Titulek (přesně dle obrázku 2) */}
+          {/* Výrazná barevná dlaždice s ikonkou + Titulek */}
           <div className="flex items-start gap-3 mb-3">
             <div
               className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${badgeInfo.tileClass}`}
@@ -133,9 +163,9 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             </h3>
           </div>
 
-          {/* Volitelná fotografie ze zakázky / detailu díla (inspirováno variantou 13) */}
+          {/* Volitelná fotografie ze zakázky / detailu díla */}
           {job.imageUrl && (
-            <div className="mb-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 overflow-hidden bg-stone-100 dark:bg-stone-900 relative h-44 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000]">
+            <div className="mb-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 overflow-hidden bg-stone-100 dark:bg-stone-900 relative h-44 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#F8FAFC]">
               <img
                 src={job.imageUrl}
                 alt={job.title}
@@ -171,7 +201,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             {job.requiredCrafts.map((craft, idx) => (
               <span
                 key={idx}
-                className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-500"
+                className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-400"
               >
                 {craft}
               </span>
@@ -208,13 +238,49 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
           </div>
         </div>
 
-        {/* Autor zakázky (s profilovou fotkou dle varianty 2) + CTA tlačítko „Mám zájem“ */}
-        <div className="flex items-center justify-between gap-2.5 bg-white dark:bg-[#222530] p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]">
+        {/* U ukončené zakázky zobrazíme vazbu na realizátora a odkaz na jeho hodnocení */}
+        {isCompleted && job.matchedPartner && (
+          <div className="mb-3 p-2.5 rounded-xl bg-stone-200/80 dark:bg-stone-800/90 border-2 border-stone-600 dark:border-stone-500 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 dark:text-stone-300">
+                <Handshake className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                <span>Realizoval:</span>
+                {job.matchedPartner.id ? (
+                  <button
+                    type="button"
+                    onClick={() => onViewAuthor(job.matchedPartner!.id!)}
+                    className="font-extrabold text-[#111111] dark:text-white underline hover:text-emerald-700 dark:hover:text-[#FEF08A] cursor-pointer"
+                  >
+                    {job.matchedPartner.name}
+                  </button>
+                ) : (
+                  <span className="font-extrabold text-[#111111] dark:text-white">
+                    {job.matchedPartner.name}
+                  </span>
+                )}
+              </span>
+              {activeReview && (
+                <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-[#FEF08A] font-extrabold shrink-0">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                  {activeReview.rating}/5
+                </span>
+              )}
+            </div>
+            {activeReview && (
+              <p className="mt-1 text-[11px] text-stone-700 dark:text-stone-300 italic line-clamp-2">
+                „{activeReview.text}“
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Autor zakázky + CTA tlačítko „Mám zájem“ (nebo štítek Ukončeno) */}
+        <div className="flex items-center justify-between gap-2.5 bg-white dark:bg-[#222530] p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
           <button
             onClick={() => onViewAuthor(job.author.id)}
             className="flex items-center gap-2.5 text-left group/author min-w-0 cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-full border-2 border-[#111111] dark:border-stone-300 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-serif font-bold text-sm shrink-0 overflow-hidden shadow-[1px_1px_0px_#111111]">
+            <div className="w-10 h-10 rounded-full border-2 border-[#111111] dark:border-stone-200 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-serif font-bold text-sm shrink-0 overflow-hidden shadow-[1px_1px_0px_#111111] dark:shadow-[1px_1px_0px_#F8FAFC]">
               {job.author.avatarUrl ? (
                 <img
                   src={job.author.avatarUrl}
@@ -251,13 +317,20 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
             </div>
           </button>
 
-          <button
-            onClick={() => onRespond(job)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all shrink-0 cursor-pointer"
-          >
-            <span>Mám zájem</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          {isCompleted ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-stone-500 dark:border-stone-500 shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Uzavřeno</span>
+            </span>
+          ) : (
+            <button
+              onClick={() => onRespond(job)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] active:scale-95 transition-all shrink-0 cursor-pointer"
+            >
+              <span>Mám zájem</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Čas vložení a rychlá správa zakázky */}
@@ -279,11 +352,11 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onRespond, onViewAuthor, 
               <button
                 type="button"
                 onClick={() => onManage(job)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border border-[#111111] dark:border-stone-500 text-[11px] font-extrabold text-[#111111] dark:text-[#FEF08A] transition-colors cursor-pointer"
-                title="Upravit inzerát, zobrazit reakce, propojit realizátora nebo ukončit"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border border-[#111111] dark:border-stone-400 text-[11px] font-extrabold text-[#111111] dark:text-[#FEF08A] transition-colors cursor-pointer"
+                title="Spravovat v Administraci"
               >
                 <Settings2 className="w-3 h-3" />
-                <span>Upravit</span>
+                <span>Administrace</span>
               </button>
             )}
           </div>

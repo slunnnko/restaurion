@@ -89,7 +89,11 @@ export const onRequestPost = async (context: PagesContext) => {
   try {
     const body = (await context.request.json()) as {
       jobId?: string;
-      action?: 'update' | 'reopen' | 'delete';
+      action?: 'update' | 'reopen' | 'delete' | 'reply_review';
+      reviewId?: string;
+      replyText?: string;
+      replyAuthorId?: string;
+      replyAuthorName?: string;
       status?: 'active' | 'completed';
       title?: string;
       description?: string;
@@ -105,14 +109,43 @@ export const onRequestPost = async (context: PagesContext) => {
       reviewAuthorName?: string;
     };
 
+    // Jednorázová reakce hodnoceného na recenzi (1/1 – nelze přepsat ani vytvořit vlákno)
+    if (body.action === 'reply_review') {
+      const reviewId = body.reviewId?.trim();
+      const replyText = body.replyText?.trim();
+      if (!reviewId || !replyText) {
+        return jsonResponse({ error: 'Chybí ID hodnocení nebo text reakce.' }, 400);
+      }
+
+      await db
+        .prepare(
+          `UPDATE job_reviews
+           SET reply_author_id = ?,
+               reply_author_name = ?,
+               reply_text = ?,
+               reply_created_at = datetime('now')
+           WHERE id = ? AND (reply_text IS NULL OR reply_text = '')`
+        )
+        .bind(
+          body.replyAuthorId?.trim() || null,
+          body.replyAuthorName?.trim() || 'Hodnocený odborník',
+          replyText,
+          reviewId
+        )
+        .run();
+
+      return jsonResponse({ ok: true, reviewId });
+    }
+
     const jobId = body.jobId?.trim();
     if (!jobId) {
       return jsonResponse({ error: 'Chybí ID zakázky (jobId).' }, 400);
     }
 
+    // Smazání inzerátu zakázky: maže se pouze inzerát v tabulce `jobs`, záznamy v `job_reviews` zůstávají u lidí!
     if (body.action === 'delete') {
       await db.prepare('DELETE FROM jobs WHERE id = ?').bind(jobId).run();
-      return jsonResponse({ ok: true, deletedId: jobId });
+      return jsonResponse({ ok: true, deletedId: jobId, reviewsPreserved: true });
     }
 
     const nextTitle = body.title?.trim() || null;
@@ -188,13 +221,20 @@ export const onRequestPost = async (context: PagesContext) => {
       if (reviewText && partnerName) {
         await db
           .prepare(
-            `INSERT OR REPLACE INTO job_reviews (
-               id, job_id, reviewer_id, reviewer_name, reviewee_id, reviewee_name, rating, review_text, created_at
-             ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, datetime('now'))`
+            `INSERT INTO job_reviews (
+               id, job_id, job_title, reviewer_id, reviewer_name, reviewee_id, reviewee_name, rating, review_text, created_at
+             ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, datetime('now'))
+             ON CONFLICT(id) DO UPDATE SET
+               job_title = excluded.job_title,
+               reviewee_id = excluded.reviewee_id,
+               reviewee_name = excluded.reviewee_name,
+               rating = excluded.rating,
+               review_text = excluded.review_text`
           )
           .bind(
             `rev-${jobId}`,
             jobId,
+            nextTitle || 'Realizovaná zakázka',
             reviewAuthor || 'Zadavatel zakázky',
             partnerId,
             partnerName,
@@ -213,7 +253,7 @@ export const onRequestPost = async (context: PagesContext) => {
         )}`
       )
       .bind(jobId)
-      .first< Parameters<typeof mapRowToJob>[0] >();
+      .first<Parameters<typeof mapRowToJob>[0]>();
 
     if (!row) {
       return jsonResponse({ ok: true, id: jobId });

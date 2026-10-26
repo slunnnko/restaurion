@@ -10,11 +10,11 @@
 Design kombinuje moderní, odvážný **Neo-Brutalismus** s prvky **B2B katalogu**:
 - **Ohraničení (Borders):** Všechny karty, modály, tlačítka, filtry a odznaky mají výrazný rámeček:
   - Světlý režim: `border-2 border-[#111111]`
-  - Tmavý režim: `dark:border-stone-500` (případně `dark:border-[#FEF08A]` u aktivních prvků)
-- **Tvrdé offsetové stíny (Hard Offset Shadows):** Žádné rozmazané šedé stíny (`shadow-md`, `shadow-lg` jsou zakázané). Používají se výhradně ostré posunuté stíny:
-  - Karty a panely: `shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000]`
-  - Hero sekce: `shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]`
-  - Tlačítka a taby: `shadow-[3px_3px_0px_#111111]` nebo `shadow-[2px_2px_0px_#111111]`
+  - Tmavý režim: `dark:border-stone-300` (případně `dark:border-[#FEF08A]` u aktivních prvků)
+- **Tvrdé offsetové stíny (Hard Offset Shadows):** Žádné rozmazané šedé stíny (`shadow-md`, `shadow-lg` jsou zakázané). Používají se výhradně ostré posunuté stíny, které jsou ve světlém režimu černé (`#111111`) a **v tmavém režimu invertované do bílé (`#F8FAFC` / `#FFFFFF`)**:
+  - Karty a panely: `shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#F8FAFC]` (hover: `hover:shadow-[7px_7px_0px_#111111] dark:hover:shadow-[7px_7px_0px_#FFFFFF]`)
+  - Modály: `shadow-[8px_8px_0px_#111111] dark:shadow-[8px_8px_0px_#F8FAFC]`
+  - Tlačítka a taby: `shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#F8FAFC]` nebo `shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]`
 - **Typografie (`src/app/layout.tsx` & `src/app/globals.css`):**
   - Nadpisy (`font-serif` / `font-display`): **`Space Grotesk`** (tučné, moderní)
   - Běžný text a UI (`font-sans`): **`Plus Jakarta Sans`**
