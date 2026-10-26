@@ -559,28 +559,28 @@ export default function Home() {
       />
 
       {/* Hero sekce – méně ostrá máslově žlutá (#FEF08A) ve světlém režimu, tmavý kontrastní panel s máslově žlutým akcentem v Dark Mode */}
-      <section className="bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white py-8 sm:py-10 px-4 sm:px-6 lg:px-8 border-b-2 border-[#111111] dark:border-stone-400 transition-colors">
+      <section className="bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white py-5 sm:py-9 px-4 sm:px-6 lg:px-8 border-b-2 border-[#111111] dark:border-stone-400 transition-colors">
         <div className="max-w-7xl mx-auto">
           <div className="max-w-4xl text-left">
-            <h1 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#111111] dark:text-[#FEF08A] leading-tight mb-3 tracking-tight">
+            <h1 className="font-serif text-2xl sm:text-4xl lg:text-5xl font-bold text-[#111111] dark:text-[#FEF08A] leading-tight mb-2.5 sm:mb-3 tracking-tight">
               {siteSettings.heroTitle}
             </h1>
 
-            <p className="text-sm sm:text-base text-stone-900 dark:text-stone-200 font-semibold leading-relaxed mb-5 max-w-3xl">
+            <p className="text-xs sm:text-base text-stone-900 dark:text-stone-200 font-semibold leading-relaxed mb-4 sm:mb-5 max-w-3xl">
               {siteSettings.heroSubtitle}
             </p>
 
-            {/* Klíčové výhody – 3 fajfky pod podtitulkem */}
-            <div className="flex flex-wrap items-center justify-start gap-3 sm:gap-4 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
-              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
+            {/* Klíčové výhody – 3 fajfky pod podtitulkem, každá na vlastním sólo řádku */}
+            <div className="flex flex-col items-start gap-2 sm:gap-2.5 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
+              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] max-w-full">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{siteSettings.heroBadge1}</span>
               </div>
-              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
+              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] max-w-full">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{siteSettings.heroBadge2}</span>
               </div>
-              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
+              <div className="inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] max-w-full">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>{siteSettings.heroBadge3}</span>
               </div>
@@ -590,22 +590,22 @@ export default function Home() {
       </section>
 
       {/* Hlavní obsah s nabídkami práce */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-7 flex-1 w-full relative z-10">
         {/* Záložky portálu: Nástěnka zakázek vs. Nabízím se + tlačítka „+ Přidat“ a „Právní rámec & VOP“ */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-300 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#F8FAFC]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
+          <div className="w-full sm:w-auto grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-300 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#F8FAFC]">
             <button
               onClick={() => setActiveTab('jobs')}
-              className={`flex items-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2.5 sm:px-4 text-xs sm:text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
                 activeTab === 'jobs'
                   ? 'bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]'
                   : 'border-transparent text-stone-700 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white hover:bg-stone-100 dark:hover:bg-[#262933]'
               }`}
             >
-              <Briefcase className="w-4 h-4" />
-              <span>Nástěnka zakázek</span>
+              <Briefcase className="w-4 h-4 shrink-0" />
+              <span className="truncate">Nástěnka zakázek</span>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-extrabold border ${
+                className={`text-[11px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-extrabold border shrink-0 ${
                   activeTab === 'jobs'
                     ? 'bg-white text-[#111111] border-[#111111]'
                     : 'bg-stone-200 dark:bg-stone-700 text-[#111111] dark:text-white border-[#111111] dark:border-stone-400'
@@ -617,16 +617,16 @@ export default function Home() {
 
             <button
               onClick={() => setActiveTab('available')}
-              className={`flex items-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-2.5 px-2.5 sm:px-4 text-xs sm:text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
                 activeTab === 'available'
                   ? 'bg-[#2563EB] text-white border-[#111111] shadow-[2px_2px_0px_#111111]'
                   : 'border-transparent text-stone-700 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white hover:bg-stone-100 dark:hover:bg-[#262933]'
               }`}
             >
-              <UserCheck className="w-4 h-4" />
-              <span>Nabízím se</span>
+              <UserCheck className="w-4 h-4 shrink-0" />
+              <span className="truncate">Nabízím se</span>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-extrabold border ${
+                className={`text-[11px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded-full font-extrabold border shrink-0 ${
                   activeTab === 'available'
                     ? 'bg-white text-[#1E3A8A] border-[#111111]'
                     : 'bg-stone-200 dark:bg-stone-700 text-[#111111] dark:text-white border-[#111111] dark:border-stone-400'

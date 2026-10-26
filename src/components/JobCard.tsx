@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Job, UserReview } from '@/types';
 import {
   MapPin,
@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   Handshake,
   Star,
+  MoreHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
@@ -35,6 +38,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   onManage,
   linkedReview,
 }) => {
+  const [isMobileDetailsOpen, setIsMobileDetailsOpen] = useState(false);
+
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
   const isLicensedAuthor = job.author.role === 'licensed_restorer';
@@ -151,9 +156,9 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
 
           {/* Výrazná barevná dlaždice s ikonkou + Titulek */}
-          <div className="flex items-start gap-3 mb-3">
+          <div className="flex items-start gap-3 mb-2.5 sm:mb-3">
             <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${badgeInfo.tileClass}`}
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${badgeInfo.tileClass}`}
               title={badgeInfo.label}
             >
               <BadgeIcon className="w-5 h-5" />
@@ -163,9 +168,13 @@ export const JobCard: React.FC<JobCardProps> = ({
             </h3>
           </div>
 
-          {/* Volitelná fotografie ze zakázky / detailu díla */}
+          {/* Volitelná fotografie ze zakázky / detailu díla – na mobilu schovaná pod „... Podrobnosti“, na desktopu vždy viditelná */}
           {job.imageUrl && (
-            <div className="mb-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 overflow-hidden bg-stone-100 dark:bg-stone-900 relative h-44 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#F8FAFC]">
+            <div
+              className={`${
+                isMobileDetailsOpen ? 'block' : 'hidden'
+              } md:block mb-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 overflow-hidden bg-stone-100 dark:bg-stone-900 relative h-44 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#F8FAFC]`}
+            >
               <img
                 src={job.imageUrl}
                 alt={job.title}
@@ -178,9 +187,13 @@ export const JobCard: React.FC<JobCardProps> = ({
             </div>
           )}
 
-          {/* Popis objektu pokud existuje (s ikonkou kostela) */}
+          {/* Popis objektu pokud existuje (s ikonkou kostela) – na mobilu v rozbaleném detailu, na desktopu vždy */}
           {job.monumentName && (
-            <div className="text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15 px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-[#FEF08A]/50 mb-3 flex flex-wrap items-center gap-1.5">
+            <div
+              className={`${
+                isMobileDetailsOpen ? 'flex' : 'hidden'
+              } md:flex text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15 px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-[#FEF08A]/50 mb-3 flex-wrap items-center gap-1.5`}
+            >
               <Church className="w-3.5 h-3.5 shrink-0 text-[#111111] dark:text-[#FEF08A]" />
               <span>{job.monumentName}</span>
               {job.monumentRegNumber && (
@@ -191,27 +204,58 @@ export const JobCard: React.FC<JobCardProps> = ({
             </div>
           )}
 
-          {/* Text popisu */}
-          <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-medium">
+          {/* Text popisu – na mobilu ve výchozím stavu stručný (2 řádky), po rozbalení celý */}
+          <p
+            className={`text-sm text-stone-800 dark:text-stone-300 mb-3 leading-relaxed font-medium ${
+              isMobileDetailsOpen ? '' : 'line-clamp-2 md:line-clamp-3'
+            }`}
+          >
             {job.description}
           </p>
 
-          {/* Vyžadovaná řemesla / tagy */}
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {job.requiredCrafts.map((craft, idx) => (
-              <span
-                key={idx}
-                className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-400"
-              >
-                {craft}
-              </span>
-            ))}
+          {/* Vyžadovaná řemesla / tagy + mobilní tlačítko „... Podrobnosti“ */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 sm:mb-4">
+            <div className="flex flex-wrap gap-1.5">
+              {job.requiredCrafts.map((craft, idx) => (
+                <span
+                  key={idx}
+                  className={`${
+                    !isMobileDetailsOpen && idx >= 2 ? 'hidden md:inline-block' : 'inline-block'
+                  } px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-400`}
+                >
+                  {craft}
+                </span>
+              ))}
+              {!isMobileDetailsOpen && job.requiredCrafts.length > 2 && (
+                <span className="md:hidden px-2 py-0.5 rounded-lg text-xs font-extrabold bg-stone-200 dark:bg-stone-800 text-[#111111] dark:text-stone-200 border border-[#111111] dark:border-stone-500">
+                  +{job.requiredCrafts.length - 2}
+                </span>
+              )}
+            </div>
+
+            {/* Mobilní přepínač „... Podrobnosti“ pro rychlé projíždění na telefonu */}
+            <button
+              type="button"
+              onClick={() => setIsMobileDetailsOpen((prev) => !prev)}
+              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold text-[#111111] dark:text-[#FEF08A] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] cursor-pointer"
+            >
+              <MoreHorizontal className="w-3.5 h-3.5 shrink-0" />
+              <span>{isMobileDetailsOpen ? 'Méně' : 'Podrobnosti'}</span>
+              {job.imageUrl && !isMobileDetailsOpen && (
+                <Camera className="w-3 h-3 text-emerald-700 dark:text-emerald-400 shrink-0 ml-0.5" />
+              )}
+              {isMobileDetailsOpen ? (
+                <ChevronUp className="w-3 h-3 shrink-0" />
+              ) : (
+                <ChevronDown className="w-3 h-3 shrink-0" />
+              )}
+            </button>
           </div>
         </div>
       </div>
 
       {/* Spodní metadata a akce */}
-      <div className="p-4 sm:p-5 pt-3.5 border-t-2 border-[#111111]/15 dark:border-stone-700 bg-[#FFFDF7]/60 dark:bg-[#15171E]">
+      <div className="p-3.5 sm:p-5 pt-3 sm:pt-3.5 border-t-2 border-[#111111]/15 dark:border-stone-700 bg-[#FFFDF7]/60 dark:bg-[#15171E]">
         {/* Lokalita a termín */}
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-stone-800 dark:text-stone-300 mb-2.5">
           <div className="flex items-center gap-1.5">
@@ -226,7 +270,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         </div>
 
         {/* Odměna / Rozpočet – vždy plně čitelná bez zkracování */}
-        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border-2 border-[#111111] dark:border-emerald-500/70 text-xs mb-3.5">
+        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 border-2 border-[#111111] dark:border-emerald-500/70 text-xs mb-3">
           <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1 leading-snug">
             <span className="text-[11px] font-bold text-stone-600 dark:text-emerald-300/80 mr-1.5">
@@ -241,7 +285,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         {/* U ukončené zakázky zobrazíme vazbu na realizátora a odkaz na jeho hodnocení */}
         {isCompleted && job.matchedPartner && (
           <div className="mb-3 p-2.5 rounded-xl bg-stone-200/80 dark:bg-stone-800/90 border-2 border-stone-600 dark:border-stone-500 text-xs">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 dark:text-stone-300">
                 <Handshake className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
                 <span>Realizoval:</span>
@@ -274,13 +318,13 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
 
-        {/* Autor zakázky + CTA tlačítko „Mám zájem“ (nebo štítek Ukončeno) */}
-        <div className="flex items-center justify-between gap-2.5 bg-white dark:bg-[#222530] p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
+        {/* Autor zakázky + CTA tlačítko „Mám zájem“ (nebo štítek Ukončeno) – bezpečné zalomení na malých displejích */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 bg-white dark:bg-[#222530] p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]">
           <button
             onClick={() => onViewAuthor(job.author.id)}
-            className="flex items-center gap-2.5 text-left group/author min-w-0 cursor-pointer"
+            className="flex items-center gap-2 sm:gap-2.5 text-left group/author min-w-0 flex-1 cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-full border-2 border-[#111111] dark:border-stone-200 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-serif font-bold text-sm shrink-0 overflow-hidden shadow-[1px_1px_0px_#111111] dark:shadow-[1px_1px_0px_#F8FAFC]">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-[#111111] dark:border-stone-200 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-serif font-bold text-sm shrink-0 overflow-hidden shadow-[1px_1px_0px_#111111] dark:shadow-[1px_1px_0px_#F8FAFC]">
               {job.author.avatarUrl ? (
                 <img
                   src={job.author.avatarUrl}
@@ -291,7 +335,7 @@ export const JobCard: React.FC<JobCardProps> = ({
                 job.author.name.charAt(0)
               )}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
                 <span className="text-xs font-extrabold text-[#111111] dark:text-white truncate group-hover/author:underline">
                   {job.author.name}
@@ -318,14 +362,14 @@ export const JobCard: React.FC<JobCardProps> = ({
           </button>
 
           {isCompleted ? (
-            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-stone-500 dark:border-stone-500 shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-xs font-extrabold text-stone-700 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-stone-500 dark:border-stone-500 shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Uzavřeno</span>
             </span>
           ) : (
             <button
               onClick={() => onRespond(job)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] active:scale-95 transition-all shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] active:scale-95 transition-all shrink-0 cursor-pointer"
             >
               <span>Mám zájem</span>
               <ArrowRight className="w-3.5 h-3.5" />

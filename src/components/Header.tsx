@@ -31,15 +31,15 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white dark:bg-[#181A20] border-b-2 border-[#111111] dark:border-stone-300 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-2 sm:gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-center justify-between min-h-14 sm:min-h-16 py-2 gap-1.5 sm:gap-3">
           {/* Logo & Brand vlevo */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FEF08A] border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] flex items-center justify-center text-[#111111] shrink-0">
-              <HammerLogo className="w-5 h-5" />
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#FEF08A] border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] flex items-center justify-center text-[#111111] shrink-0">
+              <HammerLogo className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-serif font-bold text-xl sm:text-2xl tracking-tight text-[#111111] dark:text-white">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <span className="font-serif font-bold text-lg sm:text-2xl tracking-tight text-[#111111] dark:text-white truncate">
                 Restaurion
               </span>
               <span className="hidden lg:inline-block text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-stone-100 dark:bg-[#262933] border border-[#111111] dark:border-stone-400 text-[#111111] dark:text-stone-200">
@@ -49,11 +49,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Pravá strana: Přepínač Dark Mode + Ověření licence MK ČR + Administrace + Můj profil s notifikacemi */}
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5">
             {onToggleDark && (
               <button
                 onClick={onToggleDark}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-[#FEF08A] border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all text-xs font-extrabold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-[#FEF08A] border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all text-xs font-extrabold cursor-pointer"
                 title={isDark ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
               >
                 {isDark ? (
@@ -83,13 +83,13 @@ export const Header: React.FC<HeaderProps> = ({
             {onOpenAdministration && (
               <button
                 onClick={onOpenAdministration}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all text-xs font-extrabold cursor-pointer"
+                className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all text-[11px] sm:text-xs font-extrabold cursor-pointer"
                 title="Správa vlastních zadaných poptávek, nabídek a reakcí"
               >
-                <Settings2 className="w-4 h-4 text-[#111111] dark:text-[#FEF08A] shrink-0" />
+                <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#111111] dark:text-[#FEF08A] shrink-0" />
                 <span>Administrace</span>
                 {isAdmin && (
-                  <span className="px-1.5 py-0.2 rounded bg-[#FF5733] text-white text-[9px] font-extrabold uppercase tracking-wider">
+                  <span className="hidden xs:inline-block sm:inline-block px-1.5 py-0.2 rounded bg-[#FF5733] text-white text-[9px] font-extrabold uppercase tracking-wider">
                     Admin
                   </span>
                 )}
@@ -99,10 +99,10 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser && onOpenCurrentUserProfile && (
               <button
                 onClick={onOpenCurrentUserProfile}
-                className="relative inline-flex items-center gap-2 pl-1.5 pr-2.5 sm:pr-3 py-1 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all cursor-pointer"
+                className="relative inline-flex items-center gap-2 pl-1 pr-1.5 sm:pl-1.5 sm:pr-3 py-1 rounded-xl bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] dark:hover:shadow-[1px_1px_0px_#F8FAFC] transition-all cursor-pointer"
                 title="Můj profil, upozornění na reakce a hodnocení"
               >
-                <div className="relative w-8 h-8 rounded-full border-2 border-[#111111] dark:border-stone-200 overflow-hidden bg-stone-200 shrink-0">
+                <div className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-[#111111] dark:border-stone-200 overflow-hidden bg-stone-200 shrink-0">
                   {currentUser.avatarUrl ? (
                     <img
                       src={currentUser.avatarUrl}
