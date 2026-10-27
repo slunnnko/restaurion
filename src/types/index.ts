@@ -130,6 +130,21 @@ export interface Job {
   review?: JobReview;
 }
 
+export interface FeatureFlags {
+  /** Bílé posunuté stíny karet a tlačítek v Dark Mode (místo černých) */
+  darkWhiteShadows: boolean;
+  /** Neaktivní zakázky jako zašedlé karty ve stejné mřížce (místo kompaktního archivu dole) */
+  greyedInactiveCards: boolean;
+  /** Hodnocení držené přímo u osob (zůstává i po smazání zakázky) + 1× odpověď */
+  personHeldReviews: boolean;
+  /** Tlačítko „Administrace“ v horní hlavičce + odznak nepřečtených reakcí u profilu */
+  headerAdministration: boolean;
+  /** Tři štítky výhod v Hero sekci každý na samostatném sólo řádku */
+  soloHeroBadges: boolean;
+  /** Stručná mobilní verze (filtry a podrobnosti karet schované pod „…“ + oprava přetékání) */
+  mobileCompactUi: boolean;
+}
+
 export interface SiteSettings {
   heroTitle: string;
   heroSubtitle: string;
@@ -138,6 +153,7 @@ export interface SiteSettings {
   heroBadge3: string;
   announcementBanner: string;
   footerText: string;
+  featureFlagsJson?: string;
 }
 
 export interface FilterState {

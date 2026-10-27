@@ -8,6 +8,7 @@ export interface SiteSettingsMap {
   heroBadge3: string;
   announcementBanner: string;
   footerText: string;
+  featureFlagsJson: string;
 }
 
 const DEFAULT_SETTINGS: SiteSettingsMap = {
@@ -19,6 +20,7 @@ const DEFAULT_SETTINGS: SiteSettingsMap = {
   heroBadge3: 'Přímý kontakt',
   announcementBanner: '',
   footerText: 'Restaurion – Najdi práci nebo parťáka v památkové péči',
+  featureFlagsJson: '',
 };
 
 export const onRequestGet = async (context: PagesContext) => {
@@ -76,6 +78,7 @@ export const onRequestPut = async (context: PagesContext) => {
       'heroBadge3',
       'announcementBanner',
       'footerText',
+      'featureFlagsJson',
     ];
 
     const statements = [];

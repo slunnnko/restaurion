@@ -108,10 +108,10 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#111111]/70 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white dark:bg-[#1C1E26] rounded-3xl max-w-2xl w-full p-6 sm:p-8 border-2 border-[#111111] dark:border-stone-300 shadow-[8px_8px_0px_#111111] dark:shadow-[8px_8px_0px_#F8FAFC] relative my-8 max-h-[92vh] overflow-y-auto text-[#111111] dark:text-white">
+      <div className="bg-white dark:bg-[#1C1E26] rounded-3xl max-w-2xl w-full p-6 sm:p-8 border-2 border-[#111111] dark:border-stone-500 shadow-[8px_8px_0px_#111111] dark:shadow-[8px_8px_0px_#000000] relative my-8 max-h-[92vh] overflow-y-auto text-[#111111] dark:text-white">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 w-9 h-9 rounded-xl border-2 border-[#111111] dark:border-stone-400 bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] text-[#111111] dark:text-white flex items-center justify-center shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC] transition-all cursor-pointer"
+          className="absolute top-5 right-5 w-9 h-9 rounded-xl border-2 border-[#111111] dark:border-stone-400 bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] text-[#111111] dark:text-white flex items-center justify-center shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
