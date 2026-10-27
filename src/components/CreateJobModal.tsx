@@ -2,9 +2,21 @@
 
 import React, { useState, useRef } from 'react';
 import { Job, JobType, MonumentStatus } from '@/types';
-import { X, Info, Check, Camera, Trash2, ShieldCheck, UserCheck, Upload, ChevronDown } from 'lucide-react';
+import {
+  X,
+  Info,
+  Check,
+  Camera,
+  Trash2,
+  ShieldCheck,
+  UserCheck,
+  Upload,
+  ChevronDown,
+  AlertCircle,
+} from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 import { uploadCompressedImage } from '@/lib/imageCompression';
+import { validateJobInput } from '@/lib/validation';
 
 interface CreateJobModalProps {
   isOpen: boolean;
@@ -40,15 +52,36 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
 
+  const clearError = (field: string) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const handleAddCraft = () => {
-    if (craftInput.trim() && !crafts.includes(craftInput.trim())) {
-      setCrafts([...crafts, craftInput.trim()]);
+    const trimmed = craftInput.trim();
+    if (!trimmed) return;
+    if (trimmed.length < 2) {
+      setErrors((prev) => ({ ...prev, crafts: 'Název oboru musí mít alespoň 2 znaky.' }));
+      return;
+    }
+    if (trimmed.length > 50) {
+      setErrors((prev) => ({ ...prev, crafts: 'Název oboru může mít maximálně 50 znaků.' }));
+      return;
+    }
+    if (!crafts.includes(trimmed)) {
+      setCrafts([...crafts, trimmed]);
       setCraftInput('');
+      clearError('crafts');
     }
   };
 
@@ -78,20 +111,45 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
 
   const handleSubmitForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !description || !city) return;
+
+    const effectiveCrafts = [...crafts];
+    if (craftInput.trim() && !effectiveCrafts.includes(craftInput.trim())) {
+      effectiveCrafts.push(craftInput.trim());
+    }
+
+    const validationErrors = validateJobInput({
+      title,
+      city,
+      region,
+      crafts: effectiveCrafts,
+      budgetNote,
+      startDate,
+      monumentName,
+      monumentRegNumber,
+      description,
+    });
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setErrors({});
+    setCrafts(effectiveCrafts);
+    setCraftInput('');
 
     onSubmit({
-      title,
+      title: title.trim(),
       jobType,
       monumentStatus,
-      monumentName: monumentName || undefined,
-      monumentRegNumber: monumentRegNumber || undefined,
+      monumentName: monumentName.trim() || undefined,
+      monumentRegNumber: monumentRegNumber.trim() || undefined,
       region,
-      city,
-      requiredCrafts: crafts.length > 0 ? crafts : ['Odborné restaurátorské práce'],
-      budgetNote: budgetNote || 'Dle dohody',
-      startDate: startDate || 'Dle dohody',
-      description,
+      city: city.trim(),
+      requiredCrafts: effectiveCrafts,
+      budgetNote: budgetNote.trim(),
+      startDate: startDate.trim() || 'Dle dohody',
+      description: description.trim(),
       imageUrl: imageUrl || undefined,
     });
 
@@ -101,7 +159,14 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
       setTitle('');
       setDescription('');
       setCity('');
+      setMonumentName('');
+      setMonumentRegNumber('');
+      setCrafts([]);
+      setCraftInput('');
+      setBudgetNote('');
+      setStartDate('');
       setImageUrl('');
+      setErrors({});
       onClose();
     }, 1200);
   };
@@ -129,7 +194,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmitForm} className="space-y-5">
+          <form onSubmit={handleSubmitForm} noValidate className="space-y-5">
             <div>
               <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#FEF08A] border border-[#111111] text-xs font-extrabold uppercase tracking-wider text-[#111111] mb-1.5">
                 + Přidat na nástěnku
@@ -221,16 +286,28 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             {/* Název */}
             <div>
               <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                Název inzerátu *
+                Název inzerátu * <span className="font-normal text-stone-500">(5–120 znaků)</span>
               </label>
               <input
                 type="text"
-                required
                 placeholder="např. Výpomoc s čištěním a spárováním kamenného portálu"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold focus:bg-[#FEF08A]/25 outline-hidden"
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  clearError('title');
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border-2 ${
+                  errors.title
+                    ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                    : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                } text-sm font-semibold focus:bg-[#FEF08A]/25 outline-hidden`}
               />
+              {errors.title && (
+                <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{errors.title}</span>
+                </p>
+              )}
             </div>
 
             {/* Volitelná fotografie ze zakázky (inspirováno variantou 13) */}
@@ -332,9 +409,22 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                   type="text"
                   placeholder="např. Zámek Mikulov, Kostel sv. Vavřince"
                   value={monumentName}
-                  onChange={(e) => setMonumentName(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                  onChange={(e) => {
+                    setMonumentName(e.target.value);
+                    clearError('monumentName');
+                  }}
+                  className={`w-full h-11 px-3.5 rounded-xl border-2 ${
+                    errors.monumentName
+                      ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                      : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                  } text-sm font-semibold`}
                 />
+                {errors.monumentName && (
+                  <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.monumentName}</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -347,20 +437,40 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 <div className="relative">
                   <select
                     value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                    className="w-full h-11 pl-3.5 pr-9 rounded-xl border-2 border-[#111111] dark:border-stone-500 text-sm font-bold bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white cursor-pointer appearance-none"
+                    onChange={(e) => {
+                      setRegion(e.target.value);
+                      clearError('region');
+                    }}
+                    className={`w-full h-11 pl-3.5 pr-9 rounded-xl border-2 ${
+                      errors.region
+                        ? 'border-rose-600 dark:border-rose-500'
+                        : 'border-[#111111] dark:border-stone-500'
+                    } text-sm font-bold bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white cursor-pointer appearance-none`}
                   >
                     <option value="Jihomoravský kraj">Jihomoravský kraj</option>
                     <option value="Praha">Praha</option>
                     <option value="Středočeský kraj">Středočeský kraj</option>
                     <option value="Jihočeský kraj">Jihočeský kraj</option>
+                    <option value="Plzeňský kraj">Plzeňský kraj</option>
+                    <option value="Karlovarský kraj">Karlovarský kraj</option>
+                    <option value="Ústecký kraj">Ústecký kraj</option>
+                    <option value="Liberecký kraj">Liberecký kraj</option>
+                    <option value="Královéhradecký kraj">Královéhradecký kraj</option>
                     <option value="Pardubický kraj">Pardubický kraj</option>
                     <option value="Kraj Vysočina">Kraj Vysočina</option>
                     <option value="Olomoucký kraj">Olomoucký kraj</option>
+                    <option value="Zlínský kraj">Zlínský kraj</option>
+                    <option value="Moravskoslezský kraj">Moravskoslezský kraj</option>
                     <option value="Celá ČR">Celá ČR</option>
                   </select>
                   <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#111111] dark:text-stone-300 pointer-events-none" />
                 </div>
+                {errors.region && (
+                  <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.region}</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -369,33 +479,52 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  required
                   placeholder="např. Mikulov, Litomyšl, Znojmo"
                   value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                  onChange={(e) => {
+                    setCity(e.target.value);
+                    clearError('city');
+                  }}
+                  className={`w-full h-11 px-3.5 rounded-xl border-2 ${
+                    errors.city
+                      ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                      : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                  } text-sm font-semibold`}
                 />
+                {errors.city && (
+                  <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.city}</span>
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Hledaná řemesla */}
             <div>
               <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                Hledaná řemesla / dovednosti
+                Hledaná / nabízená řemesla a dovednosti * <span className="font-normal text-stone-500">(alespoň 1 obor)</span>
               </label>
               <div className="flex gap-2 mb-2">
                 <input
                   type="text"
                   placeholder="např. Štukatér, Pozlacovač, Kameník"
                   value={craftInput}
-                  onChange={(e) => setCraftInput(e.target.value)}
+                  onChange={(e) => {
+                    setCraftInput(e.target.value);
+                    clearError('crafts');
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       handleAddCraft();
                     }
                   }}
-                  className="flex-1 px-3.5 py-2 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                  className={`flex-1 px-3.5 py-2 rounded-xl border-2 ${
+                    errors.crafts
+                      ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                      : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                  } text-sm font-semibold`}
                 />
                 <button
                   type="button"
@@ -405,68 +534,121 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                   + Přidat obor
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {crafts.map((craft, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-[#FEF08A] text-[#111111] border-2 border-[#111111]"
-                  >
-                    {craft}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCraft(craft)}
-                      className="hover:text-rose-700 font-extrabold cursor-pointer"
+              {crafts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {crafts.map((craft, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold bg-[#FEF08A] text-[#111111] border-2 border-[#111111]"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      {craft}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCraft(craft)}
+                        className="hover:text-rose-700 font-extrabold cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {errors.crafts && (
+                <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{errors.crafts}</span>
+                </p>
+              )}
             </div>
 
             {/* Odměna a termín */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                  Odměna / Rozpočet
+                  Odměna / Rozpočet *
                 </label>
                 <input
                   type="text"
-                  placeholder="např. 450 Kč/hod nebo 60 000 Kč za etapu"
+                  placeholder="např. 450 Kč/hod, 60 000 Kč nebo Dle dohody"
                   value={budgetNote}
-                  onChange={(e) => setBudgetNote(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                  onChange={(e) => {
+                    setBudgetNote(e.target.value);
+                    clearError('budgetNote');
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border-2 ${
+                    errors.budgetNote
+                      ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                      : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                  } text-sm font-semibold`}
                 />
+                {errors.budgetNote && (
+                  <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.budgetNote}</span>
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                  Termín realizace
+                  Termín realizace (volitelné)
                 </label>
                 <input
                   type="text"
                   placeholder="např. Ihned / listopad 2026"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    clearError('startDate');
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border-2 ${
+                    errors.startDate
+                      ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                      : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                  } text-sm font-semibold`}
                 />
+                {errors.startDate && (
+                  <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{errors.startDate}</span>
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Podrobný popis */}
             <div>
               <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                Podrobný popis prací a požadavků *
+                Podrobný popis prací a požadavků * <span className="font-normal text-stone-500">(alespoň 20 znaků)</span>
               </label>
               <textarea
-                required
                 rows={3}
                 placeholder="Popište stav díla, požadovanou technologii, potřebné nástroje nebo lešení..."
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold"
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  clearError('description');
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border-2 ${
+                  errors.description
+                    ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
+                    : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
+                } text-sm font-semibold`}
               />
+              {errors.description && (
+                <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{errors.description}</span>
+                </p>
+              )}
             </div>
+
+            {Object.keys(errors).length > 0 && (
+              <div className="p-3 rounded-xl border-2 border-rose-600 bg-rose-50 dark:bg-rose-950/40 text-xs font-extrabold text-rose-800 dark:text-rose-200 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                <span>Zkontrolujte prosím zvýrazněná pole ve formuláři před zveřejněním.</span>
+              </div>
+            )}
 
             {/* Tlačítka */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-[#111111]/15 dark:border-stone-700">

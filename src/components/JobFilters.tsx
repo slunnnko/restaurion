@@ -42,7 +42,6 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
 
   const ffWhiteShadows = Boolean(featureFlags?.darkWhiteShadows);
   const ffMobileCompact = Boolean(featureFlags?.mobileCompactUi);
-  const ffGreyedCards = Boolean(featureFlags?.greyedInactiveCards);
 
   const update = (key: keyof FilterState, value: string) => {
     onChange({ ...filters, [key]: value });
@@ -54,7 +53,8 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
     (filters.craft !== 'all' ? 1 : 0) +
     (filters.monumentStatus !== 'all' ? 1 : 0) +
     (filters.jobType !== 'all' ? 1 : 0) +
-    (filters.statusFilter !== 'active' ? 1 : 0);
+    (filters.statusFilter !== 'active' ? 1 : 0) +
+    (filters.ownerFilter && filters.ownerFilter !== 'all' ? 1 : 0);
 
   const cardShadow = ffWhiteShadows
     ? 'shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#F8FAFC]'
@@ -153,6 +153,35 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
           <div className="flex flex-wrap items-center gap-2 ml-auto shrink-0">
             <div className="relative">
               <select
+                value={filters.ownerFilter || 'all'}
+                onChange={(e) =>
+                  onChange({
+                    ...filters,
+                    ownerFilter: e.target.value as FilterState['ownerFilter'],
+                  })
+                }
+                className={`pl-3 pr-8 py-1.5 rounded-xl border-2 border-[#111111] ${inputBorder} text-xs font-extrabold focus:outline-hidden cursor-pointer appearance-none ${
+                  filters.ownerFilter && filters.ownerFilter !== 'all'
+                    ? `bg-[#FEF08A] text-[#111111] ${pillShadow}`
+                    : 'bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white'
+                }`}
+              >
+                <option value="all">Všechny inzeráty</option>
+                <option value="mine">Moje poptávky a nabídky</option>
+                <option value="my_demands">Jen moje poptávky</option>
+                <option value="my_offers">Jen moje nabídky</option>
+              </select>
+              <ChevronDown
+                className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                  filters.ownerFilter && filters.ownerFilter !== 'all'
+                    ? 'text-[#111111]'
+                    : 'text-[#111111] dark:text-stone-300'
+                }`}
+              />
+            </div>
+
+            <div className="relative">
+              <select
                 value={filters.statusFilter}
                 onChange={(e) =>
                   onChange({
@@ -166,20 +195,9 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
                     : 'bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white'
                 }`}
               >
-                <option value="active">Jen aktivní nabídky</option>
-                {ffGreyedCards ? (
-                  <>
-                    <option value="completed">Neaktivní & ukončené (zašedlé)</option>
-                    <option value="all">Vše (aktivní + neaktivní zašedlé)</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="completed">
-                      Ukončené & realizované ({completedJobsCount}) – archiv & recenze
-                    </option>
-                    <option value="all">Vše (aktivní + kompaktní archiv)</option>
-                  </>
-                )}
+                <option value="active">Nové</option>
+                <option value="completed">Archivované ({completedJobsCount})</option>
+                <option value="all">Vše (nové i archivované)</option>
               </select>
               <ChevronDown
                 className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
@@ -315,6 +333,15 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
       {!isMobileExpanded && nonSearchActiveCount > 0 && (
         <div className="md:hidden flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-2.5 border-t border-[#111111]/15 dark:border-stone-700 text-xs">
           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            {filters.ownerFilter && filters.ownerFilter !== 'all' && (
+              <span className="px-2 py-0.5 rounded-lg bg-[#FEF08A] text-[#111111] border border-[#111111] font-extrabold">
+                {filters.ownerFilter === 'my_demands'
+                  ? 'Moje poptávky'
+                  : filters.ownerFilter === 'my_offers'
+                  ? 'Moje nabídky'
+                  : 'Moje poptávky a nabídky'}
+              </span>
+            )}
             {filters.region !== 'Všechny regiony' && (
               <span className="px-2 py-0.5 rounded-lg bg-[#FEF08A] text-[#111111] border border-[#111111] font-extrabold">
                 {filters.region}
@@ -327,7 +354,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
             )}
             {filters.statusFilter !== 'active' && (
               <span className="px-2 py-0.5 rounded-lg bg-[#FEF08A] text-[#111111] border border-[#111111] font-extrabold">
-                {filters.statusFilter === 'completed' ? 'Ukončené' : 'Všechny stavy'}
+                {filters.statusFilter === 'completed' ? 'Archivované' : 'Nové i archivované'}
               </span>
             )}
           </div>
@@ -371,6 +398,35 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:ml-auto min-w-0">
           <div className="relative w-full sm:w-auto min-w-0">
             <select
+              value={filters.ownerFilter || 'all'}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  ownerFilter: e.target.value as FilterState['ownerFilter'],
+                })
+              }
+              className={`w-full sm:w-auto max-w-full h-11 pl-3 pr-9 rounded-xl border-2 border-[#111111] ${inputBorder} text-xs font-extrabold focus:outline-hidden cursor-pointer appearance-none truncate ${
+                filters.ownerFilter && filters.ownerFilter !== 'all'
+                  ? `bg-[#FEF08A] text-[#111111] ${pillShadow}`
+                  : 'bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white'
+              }`}
+            >
+              <option value="all">Všechny inzeráty</option>
+              <option value="mine">Moje poptávky a nabídky</option>
+              <option value="my_demands">Jen moje poptávky</option>
+              <option value="my_offers">Jen moje nabídky</option>
+            </select>
+            <ChevronDown
+              className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${
+                filters.ownerFilter && filters.ownerFilter !== 'all'
+                  ? 'text-[#111111]'
+                  : 'text-[#111111] dark:text-stone-300'
+              }`}
+            />
+          </div>
+
+          <div className="relative w-full sm:w-auto min-w-0">
+            <select
               value={filters.statusFilter}
               onChange={(e) =>
                 onChange({
@@ -384,20 +440,9 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
                   : 'bg-[#FFFDF7] dark:bg-[#121318] text-[#111111] dark:text-white'
               }`}
             >
-              <option value="active">Jen aktivní nabídky</option>
-              {ffGreyedCards ? (
-                <>
-                  <option value="completed">Neaktivní & ukončené (zašedlé)</option>
-                  <option value="all">Vše (aktivní + neaktivní zašedlé)</option>
-                </>
-              ) : (
-                <>
-                  <option value="completed">
-                    Ukončené & realizované ({completedJobsCount}) – archiv & recenze
-                  </option>
-                  <option value="all">Vše (aktivní + kompaktní archiv)</option>
-                </>
-              )}
+              <option value="active">Nové</option>
+              <option value="completed">Archivované ({completedJobsCount})</option>
+              <option value="all">Vše (nové i archivované)</option>
             </select>
             <ChevronDown
               className={`w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none ${

@@ -47,7 +47,7 @@ const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
 const ALL_ENABLED_FEATURE_FLAGS: FeatureFlags = {
   darkWhiteShadows: true,
   greyedInactiveCards: true,
-  personHeldReviews: true,
+  personHeldReviews: false,
   headerAdministration: true,
   soloHeroBadges: true,
   mobileCompactUi: true,
@@ -224,6 +224,7 @@ export default function Home() {
     monumentStatus: 'all',
     jobType: 'all',
     statusFilter: 'active',
+    ownerFilter: 'all',
   };
   const [filters, setFilters] = useState<FilterState>(initialFilters);
 
@@ -358,6 +359,34 @@ export default function Home() {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, avatarUrl: newAvatarUrl }),
+    }).catch(() => {
+      // Fallback: zůstává v lokálním state
+    });
+  };
+
+  // Úprava údajů profilu s validací (propíše se do profilu, zakázek i do Cloudflare D1)
+  const handleUpdateProfile = (userId: string, updatedFields: Partial<UserProfile>) => {
+    setUsers((prev) => {
+      const updated = { ...prev };
+      for (const key of Object.keys(updated)) {
+        if (updated[key].id === userId) {
+          updated[key] = { ...updated[key], ...updatedFields };
+        }
+      }
+      return updated;
+    });
+    setJobs((prevJobs) =>
+      prevJobs.map((j) =>
+        j.author.id === userId
+          ? { ...j, author: { ...j.author, ...updatedFields } }
+          : j
+      )
+    );
+
+    void fetch('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...updatedFields }),
     }).catch(() => {
       // Fallback: zůstává v lokálním state
     });
@@ -535,11 +564,23 @@ export default function Home() {
   // Základní filtrování zakázek
   const baseFilteredJobs = useMemo(() => {
     return jobs.filter((job) => {
-      if (activeTab === 'available' && job.jobType !== 'craftsman_available') {
-        return false;
-      }
-      if (activeTab === 'jobs' && job.jobType === 'craftsman_available') {
-        return false;
+      const ownerScope = filters.ownerFilter || 'all';
+      const isMine =
+        job.author.id === currentUser.id || job.matchedPartner?.id === currentUser.id;
+
+      if (ownerScope === 'mine') {
+        if (!isMine) return false;
+      } else if (ownerScope === 'my_demands') {
+        if (!isMine || job.jobType === 'craftsman_available') return false;
+      } else if (ownerScope === 'my_offers') {
+        if (!isMine || job.jobType !== 'craftsman_available') return false;
+      } else {
+        if (activeTab === 'available' && job.jobType !== 'craftsman_available') {
+          return false;
+        }
+        if (activeTab === 'jobs' && job.jobType === 'craftsman_available') {
+          return false;
+        }
       }
 
       if (filters.searchQuery.trim()) {
@@ -591,7 +632,7 @@ export default function Home() {
 
       return true;
     });
-  }, [jobs, filters, activeTab]);
+  }, [jobs, filters, activeTab, currentUser.id]);
 
   // Aktivní zakázky a realizované/ukončené zakázky
   const activeJobs = useMemo(
@@ -638,7 +679,8 @@ export default function Home() {
     (filters.craft !== 'all' ? 1 : 0) +
     (filters.monumentStatus !== 'all' ? 1 : 0) +
     (filters.jobType !== 'all' ? 1 : 0) +
-    (filters.statusFilter !== 'active' ? 1 : 0);
+    (filters.statusFilter !== 'active' ? 1 : 0) +
+    (filters.ownerFilter && filters.ownerFilter !== 'all' ? 1 : 0);
 
   const handleOpenAuthor = (authorId: string) => {
     setSelectedUserId(authorId);
@@ -682,6 +724,7 @@ export default function Home() {
           allUsers={users}
           onBackToBoard={() => setIsProfilePageOpen(false)}
           onUpdateAvatar={handleUpdateAvatar}
+          onUpdateProfile={handleUpdateProfile}
           allJobs={jobs}
           reviews={reviews}
           onReplyToReview={handleReplyToReview}
@@ -867,6 +910,7 @@ export default function Home() {
               onChange={setFilters}
               onReset={() => setFilters(initialFilters)}
               activeCount={activeFiltersCount}
+              completedJobsCount={completedJobsCount}
               featureFlags={featureFlags}
             />
 
@@ -923,7 +967,7 @@ export default function Home() {
                     Žádné zakázky neodpovídají zadaným filtrům
                   </h3>
                   <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                    Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Ukončené & realizované“ nebo vyberte jiný obor.
+                    Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Archivované“ nebo vyberte jiný obor.
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
@@ -937,14 +981,14 @@ export default function Home() {
                         onClick={() => setFilters((prev) => ({ ...prev, statusFilter: 'completed' }))}
                         className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-300 shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
                       >
-                        Zobrazit neaktivní / realizované ({completedJobsCount})
+                        Zobrazit archivované ({completedJobsCount})
                       </button>
                     )}
                   </div>
                 </div>
               )
             ) : (
-              /* Původní e08fd7f zobrazení: Mřížka aktivních zakázek + Kompaktní archiv realizovaných spoluprací dole */
+              /* Původní e08fd7f zobrazení: Mřížka nových zakázek + Kompaktní archiv dole */
               <>
                 {activeJobs.length > 0 && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -967,11 +1011,11 @@ export default function Home() {
                       <div className="flex items-center gap-2">
                         <Archive className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                         <h2 className="font-serif text-sm sm:text-base font-bold text-[#111111] dark:text-white">
-                          Archiv realizovaných spoluprací & recenzí ({completedJobs.length})
+                          Archivované zakázky a nabídky ({completedJobs.length})
                         </h2>
                       </div>
                       <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
-                        Kompaktní přehled ukončených zakázek (nezabírá místo aktivním nabídkám)
+                        Kompaktní přehled archivovaných položek (nezabírá místo novým nabídkám)
                       </span>
                     </div>
 
@@ -982,6 +1026,7 @@ export default function Home() {
                           job={job}
                           onViewUser={handleOpenAuthor}
                           onManageJob={canManageJob(job) ? handleOpenManageJob : undefined}
+                          featureFlags={featureFlags}
                         />
                       ))}
                     </div>
@@ -997,7 +1042,7 @@ export default function Home() {
                       Žádné zakázky neodpovídají zadaným filtrům
                     </h3>
                     <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                      Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Všechny zakázky“ nebo vyberte jiný obor.
+                      Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Archivované“ nebo vyberte jiný obor.
                     </p>
                     <button
                       onClick={() => setFilters(initialFilters)}
@@ -1146,6 +1191,7 @@ export default function Home() {
           });
         }}
         localResponses={responses}
+        featureFlags={featureFlags}
       />
 
       <LegalNoticeModal

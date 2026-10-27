@@ -135,7 +135,7 @@ export interface FeatureFlags {
   darkWhiteShadows: boolean;
   /** Neaktivní zakázky jako zašedlé karty ve stejné mřížce (místo kompaktního archivu dole) */
   greyedInactiveCards: boolean;
-  /** Hodnocení držené přímo u osob (zůstává i po smazání zakázky) + 1× odpověď */
+  /** Hodnocení a recenze (ve výchozím stavu vypnuto; při vypnutí jsou veškerá hodnocení a recenze skryté) */
   personHeldReviews: boolean;
   /** Tlačítko „Administrace“ v horní hlavičce + odznak nepřečtených reakcí u profilu */
   headerAdministration: boolean;
@@ -163,4 +163,5 @@ export interface FilterState {
   monumentStatus: string;
   jobType: string;
   statusFilter: 'active' | 'completed' | 'all';
+  ownerFilter?: 'all' | 'mine' | 'my_demands' | 'my_offers';
 }

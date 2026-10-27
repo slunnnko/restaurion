@@ -46,6 +46,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const ffGreyedInactive = Boolean(featureFlags?.greyedInactiveCards);
   const ffMobileCompact = Boolean(featureFlags?.mobileCompactUi);
   const ffHeaderAdmin = Boolean(featureFlags?.headerAdministration);
+  const ffPersonReviews = Boolean(featureFlags?.personHeldReviews);
 
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
@@ -359,7 +360,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             {isCompleted && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-stone-300 dark:bg-stone-800 text-stone-900 dark:text-stone-200 border-2 border-stone-700 dark:border-stone-400">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Neaktivní / Ukončeno {job.completedAt ? `(${job.completedAt})` : ''}</span>
+                <span>Archivováno {job.completedAt ? `(${job.completedAt})` : ''}</span>
               </span>
             )}
 
@@ -544,14 +545,14 @@ export const JobCard: React.FC<JobCardProps> = ({
                   </span>
                 )}
               </span>
-              {activeReview && (
+              {ffPersonReviews && activeReview && (
                 <span className="inline-flex items-center gap-0.5 text-amber-600 dark:text-[#FEF08A] font-extrabold shrink-0">
                   <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
                   {activeReview.rating}/5
                 </span>
               )}
             </div>
-            {activeReview && (
+            {ffPersonReviews && activeReview && (
               <p className="mt-1 text-[11px] text-stone-700 dark:text-stone-300 italic line-clamp-2">
                 „{activeReview.text}“
               </p>

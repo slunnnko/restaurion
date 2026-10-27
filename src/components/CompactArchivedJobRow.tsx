@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Job } from '@/types';
+import { FeatureFlags, Job } from '@/types';
 import {
   MapPin,
   ShieldCheck,
@@ -18,13 +18,16 @@ interface CompactArchivedJobRowProps {
   job: Job;
   onViewUser: (userId: string) => void;
   onManageJob?: (job: Job) => void;
+  featureFlags?: FeatureFlags;
 }
 
 export const CompactArchivedJobRow: React.FC<CompactArchivedJobRowProps> = ({
   job,
   onViewUser,
   onManageJob,
+  featureFlags,
 }) => {
+  const ffPersonReviews = Boolean(featureFlags?.personHeldReviews);
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
 
@@ -76,7 +79,7 @@ export const CompactArchivedJobRow: React.FC<CompactArchivedJobRowProps> = ({
             <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-stone-200 dark:bg-stone-700 text-[#111111] dark:text-stone-100 border border-[#111111] dark:border-stone-500">
                 <CheckCircle2 className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-                Realizováno {job.completedAt ? `(${job.completedAt})` : ''}
+                Archivováno {job.completedAt ? `(${job.completedAt})` : ''}
               </span>
 
               {isCulturalMonument && (
@@ -149,35 +152,36 @@ export const CompactArchivedJobRow: React.FC<CompactArchivedJobRowProps> = ({
           </div>
         </div>
 
-        {/* 3. Kolegiální recenze na základě uskutečněné vazby + tlačítko úpravy */}
+        {/* 3. Kolegiální recenze na základě uskutečněné vazby (pouze při zapnutém featureFlag personHeldReviews) + tlačítko úpravy */}
         <div className="flex items-center justify-between lg:justify-end gap-2.5 lg:max-w-[34%] min-w-0">
-          {job.review ? (
-            <div className="min-w-0 flex-1 bg-emerald-50/90 dark:bg-emerald-950/50 border-2 border-[#111111] dark:border-emerald-600/60 rounded-xl px-3 py-1.5 text-xs">
-              <div className="flex items-center gap-1 mb-0.5">
-                <div className="flex items-center text-amber-500">
-                  {Array.from({ length: job.review.rating }).map((_, idx) => (
-                    <Star key={idx} className="w-3 h-3 fill-amber-400 text-[#111111] dark:text-amber-300" />
-                  ))}
+          {ffPersonReviews &&
+            (job.review ? (
+              <div className="min-w-0 flex-1 bg-emerald-50/90 dark:bg-emerald-950/50 border-2 border-[#111111] dark:border-emerald-600/60 rounded-xl px-3 py-1.5 text-xs">
+                <div className="flex items-center gap-1 mb-0.5">
+                  <div className="flex items-center text-amber-500">
+                    {Array.from({ length: job.review.rating }).map((_, idx) => (
+                      <Star key={idx} className="w-3 h-3 fill-amber-400 text-[#111111] dark:text-amber-300" />
+                    ))}
+                  </div>
+                  <span className="text-[10px] font-extrabold text-emerald-950 dark:text-emerald-200 truncate">
+                    Recenze od {job.review.authorName}:
+                  </span>
                 </div>
-                <span className="text-[10px] font-extrabold text-emerald-950 dark:text-emerald-200 truncate">
-                  Recenze od {job.review.authorName}:
-                </span>
+                <p className="text-[11px] font-semibold text-stone-800 dark:text-stone-200 line-clamp-2 italic">
+                  „{job.review.text}“
+                </p>
               </div>
-              <p className="text-[11px] font-semibold text-stone-800 dark:text-stone-200 line-clamp-2 italic">
-                „{job.review.text}“
-              </p>
-            </div>
-          ) : (
-            onManageJob && (
-              <button
-                onClick={() => onManageJob(job)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] text-xs font-extrabold cursor-pointer shrink-0"
-              >
-                <Star className="w-3.5 h-3.5" />
-                <span>Napsat recenzi</span>
-              </button>
-            )
-          )}
+            ) : (
+              onManageJob && (
+                <button
+                  onClick={() => onManageJob(job)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] text-xs font-extrabold cursor-pointer shrink-0"
+                >
+                  <Star className="w-3.5 h-3.5" />
+                  <span>Napsat recenzi</span>
+                </button>
+              )
+            ))}
 
           {onManageJob && (
             <button

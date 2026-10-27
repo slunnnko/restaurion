@@ -195,6 +195,41 @@ export const onRequestPost = async (context: PagesContext) => {
       return jsonResponse({ error: 'Chybí povinné údaje inzerátu (název, popis, město).' }, 400);
     }
 
+    const fieldErrors: Record<string, string> = {};
+    const trimmedTitle = body.title.trim();
+    const trimmedCity = body.city.trim();
+    const trimmedDesc = body.description.trim();
+    const trimmedBudget = (body.budgetNote || 'Dle dohody').trim();
+    const validCrafts = Array.isArray(body.requiredCrafts)
+      ? body.requiredCrafts.map((c) => String(c).trim()).filter((c) => c.length >= 2)
+      : [];
+
+    if (trimmedTitle.length < 5 || trimmedTitle.length > 120) {
+      fieldErrors.title = 'Název musí mít 5 až 120 znaků.';
+    }
+    if (trimmedCity.length < 2 || trimmedCity.length > 60) {
+      fieldErrors.city = 'Název města musí mít 2 až 60 znaků.';
+    }
+    if (trimmedDesc.length < 20 || trimmedDesc.length > 2000) {
+      fieldErrors.description = 'Popis musí mít 20 až 2000 znaků.';
+    }
+    if (trimmedBudget.length < 2 || trimmedBudget.length > 120) {
+      fieldErrors.budgetNote = 'Odměna musí mít 2 až 120 znaků.';
+    }
+    if (validCrafts.length === 0) {
+      fieldErrors.crafts = 'Zadejte alespoň 1 požadované nebo nabízené řemeslo.';
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      return jsonResponse(
+        {
+          error: Object.values(fieldErrors)[0],
+          fieldErrors,
+        },
+        400
+      );
+    }
+
     const sessionUserId = await getAuthenticatedUserId(context.request, db);
     const authorId = sessionUserId || body.authorId || 'user-novak';
     const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
