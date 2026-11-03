@@ -69,7 +69,7 @@ export const CompactArchivedJobRow: React.FC<CompactArchivedJobRowProps> = ({
         {/* 1. Kompaktní hlavička zakázky (nezabírá místo jako velká karta) */}
         <div className="flex items-start sm:items-center gap-3 min-w-0 lg:max-w-[38%]">
           <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#111111] ${visual.tileClass}`}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] ${visual.tileClass}`}
             title={visual.label}
           >
             <TypeIcon className="w-4 h-4" />

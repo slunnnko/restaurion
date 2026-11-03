@@ -440,10 +440,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           )}
           <a
             href={`mailto:${user.email}`}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#262933] hover:bg-stone-100 dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-500 shadow-[3px_3px_0px_#111111] transition-colors"
+            className="flex flex-col items-center justify-center gap-0.5 w-full py-2.5 px-3 text-center rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#262933] hover:bg-stone-100 dark:hover:bg-[#323644] border-2 border-[#111111] dark:border-stone-500 shadow-[3px_3px_0px_#111111] transition-colors"
           >
-            <Mail className="w-4 h-4 text-[#111111] dark:text-stone-300" />
-            <span>Napsat e-mail ({user.email})</span>
+            <span className="inline-flex items-center justify-center gap-2">
+              <Mail className="w-4 h-4 text-[#111111] dark:text-stone-300" />
+              <span>Napsat e-mail</span>
+            </span>
+            <span className="text-[11px] font-semibold text-stone-600 dark:text-stone-300 break-all">{user.email}</span>
           </a>
         </div>
       </div>

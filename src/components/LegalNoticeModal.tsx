@@ -60,7 +60,7 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
               1. Kdo jsme a co děláme
             </h3>
             <p>
-              Jsme moderní profesní platforma usnadňující legální spolupráci mezi licencovanými restaurátory (s povolením MK ČR) a nelicencovanými odborníky či řemeslníky (štukatéry, kameníky, pozlacovači apod.). Nejsme personální agentura ani zprostředkovatel zaměstnání.
+              Jsme moderní profesní platforma usnadňující spolupráci mezi licencovanými restaurátory (s povolením MK ČR) a nelicencovanými odborníky či řemeslníky (štukatéry, kameníky, pozlacovači apod.). Nejsme personální agentura ani zprostředkovatel zaměstnání.
             </p>
           </div>
 

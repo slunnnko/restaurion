@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: SiteSettingsMap = {
   heroBadge2: 'Ověřování licencí MK ČR',
   heroBadge3: 'Přímý kontakt',
   announcementBanner: '',
-  footerText: 'Restaurion – Najdi práci nebo parťáka v památkové péči',
+  footerText: 'Restaurion – platforma pro památková řemesla',
   featureFlagsJson: '',
 };
 

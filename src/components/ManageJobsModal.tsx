@@ -34,7 +34,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroBadge2: 'Ověřování licencí MK ČR',
   heroBadge3: 'Přímý kontakt',
   announcementBanner: '',
-  footerText: 'Restaurion – Najdi práci nebo parťáka v památkové péči',
+  footerText: 'Restaurion – platforma pro památková řemesla',
 };
 
 interface ManageJobsModalProps {

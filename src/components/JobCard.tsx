@@ -58,9 +58,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   // - Hledám zaštítění: ikonka štítu (ShieldCheck), barva korál (#FF5733)
   // - Nabízím se: ikonka človíčka (UserCheck), barva elektrická modř (#2563EB), bez labelu „běžný objekt/bez licence“
   const getJobTypeBadge = () => {
-    const tileShadowBorder = ffDarkWhite
-      ? 'border-2 border-[#111111] dark:border-stone-200 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-      : 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111]';
+    const tileShadowBorder =
+      'border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
 
     switch (job.jobType) {
       case 'subcontract_needed':
@@ -204,9 +203,11 @@ export const JobCard: React.FC<JobCardProps> = ({
             )}
 
             {/* Text popisu */}
-            <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-medium">
-              {job.description}
-            </p>
+            {job.description?.trim() && (
+              <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-medium">
+                {job.description}
+              </p>
+            )}
 
             {/* Vyžadovaná řemesla / tagy */}
             <div className="flex flex-wrap gap-1.5 mb-4">
@@ -444,13 +445,15 @@ export const JobCard: React.FC<JobCardProps> = ({
           )}
 
           {/* Text popisu */}
-          <p
-            className={`text-sm text-stone-800 dark:text-stone-300 mb-3 leading-relaxed font-medium ${
-              !ffMobileCompact ? 'line-clamp-3' : isMobileDetailsOpen ? '' : 'line-clamp-2 md:line-clamp-3'
-            }`}
-          >
-            {job.description}
-          </p>
+          {job.description?.trim() && (
+            <p
+              className={`text-sm text-stone-800 dark:text-stone-300 mb-3 leading-relaxed font-medium ${
+                !ffMobileCompact ? 'line-clamp-3' : isMobileDetailsOpen ? '' : 'line-clamp-2 md:line-clamp-3'
+              }`}
+            >
+              {job.description}
+            </p>
+          )}
 
           {/* Vyžadovaná řemesla / tagy + mobilní tlačítko „... Podrobnosti“ */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 sm:mb-4">

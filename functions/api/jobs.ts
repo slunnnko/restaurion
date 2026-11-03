@@ -191,14 +191,14 @@ export const onRequestPost = async (context: PagesContext) => {
       authorId?: string;
     };
 
-    if (!body.title || !body.description || !body.city) {
-      return jsonResponse({ error: 'Chybí povinné údaje inzerátu (název, popis, město).' }, 400);
+    if (!body.title || !body.city) {
+      return jsonResponse({ error: 'Chybí povinné údaje inzerátu (název, město).' }, 400);
     }
 
     const fieldErrors: Record<string, string> = {};
     const trimmedTitle = body.title.trim();
     const trimmedCity = body.city.trim();
-    const trimmedDesc = body.description.trim();
+    const trimmedDesc = (body.description || '').trim();
     const trimmedBudget = (body.budgetNote || 'Dle dohody').trim();
     const validCrafts = Array.isArray(body.requiredCrafts)
       ? body.requiredCrafts.map((c) => String(c).trim()).filter((c) => c.length >= 2)
@@ -210,8 +210,8 @@ export const onRequestPost = async (context: PagesContext) => {
     if (trimmedCity.length < 2 || trimmedCity.length > 60) {
       fieldErrors.city = 'Název města musí mít 2 až 60 znaků.';
     }
-    if (trimmedDesc.length < 20 || trimmedDesc.length > 2000) {
-      fieldErrors.description = 'Popis musí mít 20 až 2000 znaků.';
+    if (trimmedDesc.length > 2000) {
+      fieldErrors.description = 'Popis může mít maximálně 2000 znaků.';
     }
     if (trimmedBudget.length < 2 || trimmedBudget.length > 120) {
       fieldErrors.budgetNote = 'Odměna musí mít 2 až 120 znaků.';
@@ -246,7 +246,7 @@ export const onRequestPost = async (context: PagesContext) => {
         jobId,
         authorId,
         body.title.trim(),
-        body.description.trim(),
+        (body.description || '').trim(),
         body.jobType || 'subcontract_needed',
         body.monumentStatus || 'cultural_monument',
         body.monumentName?.trim() || null,

@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ffMobileCompact ? 'w-9 h-9 sm:w-10 sm:h-10' : 'w-10 h-10'
               } rounded-xl bg-[#FEF08A] border-2 border-[#111111] ${
                 ffWhiteShadows ? 'dark:border-stone-200' : ''
-              } ${shadowSm} flex items-center justify-center text-[#111111] shrink-0`}
+              } shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] flex items-center justify-center text-[#111111] shrink-0`}
             >
               <HammerLogo className={ffMobileCompact ? 'w-4 h-4 sm:w-5 sm:h-5' : 'w-5 h-5'} />
             </div>

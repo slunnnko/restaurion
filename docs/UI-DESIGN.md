@@ -14,9 +14,13 @@ Design kombinuje moderní, odvážný **Neo-Brutalismus** s prvky **B2B katalogu
   - Modály: `shadow-[8px_8px_0px_#111111]`
   - Tlačítka a taby: `shadow-[3px_3px_0px_#111111]` nebo `shadow-[2px_2px_0px_#111111]`
 - **Typografie (`src/app/layout.tsx` & `src/app/globals.css`):**
-  - Nadpisy (`font-serif` / `font-display`): **`Space Grotesk`** (tučné, moderní)
+  - Nadpisy (`font-serif` / `font-display`): **`Fraunces`** (měkká old-style antikva, osa `SOFT` 50) – dodává tradiční, řemeslný charakter. (Do 2026-11 to byl `Space Grotesk`.)
   - Běžný text a UI (`font-sans`): **`Plus Jakarta Sans`**
   - Fonty se načítají přes `<link>` v `src/app/layout.tsx` (nepoužívat `next/font/google`, aby statický build fungoval i offline v sandboxu).
+- **Tradiční prvek – šablonová malba (`src/app/globals.css`):**
+  - Pozadí stránky není tečkovaná mřížka, ale jemný vzor **šablonové výmalby**: kosočtverečná mřížka linek + čtyřlístek + kosočtverečky v uzlech (`--stencil-wall`, oxidová červeň `#9A3412` s nízkou krycí silou; v Dark Mode písková `#E7D8B5`).
+  - Pod Hero sekcí je **vlys / bordura** `.stencil-frieze` (dvě malované linky + vlnovka s pupeny, `--stencil-frieze`). Je čistě dekorativní (`aria-hidden`).
+  - Vzory jsou inline SVG v CSS proměnných – žádné externí obrázky.
 
 ---
 
@@ -26,7 +30,7 @@ Aplikace plně podporuje **Světlý (výchozí)** i **Tmavý režim** přes tř�
 
 | Prvek | Světlý režim (Light) | Tmavý režim (Dark) |
 | :--- | :--- | :--- |
-| **Pozadí stránky (`body`)** | Teplá krémová `#FFFDF7` + jemná tečkovaná mřížka | Hluboký antracit `#111318` + světlá tečkovaná mřížka |
+| **Pozadí stránky (`body`)** | Vápenná krémová `#FAF6EB` + jemný šablonový vzor | Hluboký antracit `#111318` + světlý šablonový vzor |
 | **Hero sekce** | Jemná máslově žlutá `bg-[#FEF08A]` s černým textem `#111111` | Tmavý panel `dark:bg-[#191B22]` se žlutým nadpisem `dark:text-[#FEF08A]` |
 | **Karty a modály** | Čistě bílá `bg-white` | Tmavě břidlicová `dark:bg-[#1C1E26]` |
 | **Inputy a `<select>`** | Krémová `bg-[#FFFDF7]` | Tmavá `dark:bg-[#121318]` |
@@ -66,14 +70,17 @@ Tyto 3 typy inzerátů mají pevně dané barvy a ikony – **nikdy je neměň**
 ## 4. Závazné texty (Copywriting)
 
 - **Hlavní nadpis v Hero sekci:** `Najdi práci nebo parťáka`
-- **Podnadpis v Hero sekci:** `Licencovaní restaurátoři zde poptávají zručné subdodavatele, řemeslníci nacházejí odborné zaštítění dle památkového zákona. Propojujeme restaurátory napříč obory.`
-- **Tlačítko pro vytvoření inzerátu (v hlavičce i nad filtry):** `+ Přidat` (nikoliv „Přidat inzerát“)
+- **Podnadpis v Hero sekci:** `Licencovaní restaurátoři zde poptávají zručné subdodavatele, řemeslníci nacházejí odborné zaštítění dle památkového zákona. Propojujeme restaurátory napříč obory.` – ve výchozím stavu **skrytý**, rozbalí se odkazem `Co je Restaurion?`.
+- **Tlačítko pro vytvoření inzerátu:** `+ Přidat` (nikoliv „Přidat inzerát“). Na mobilu (`< md`) se tlačítka `+ Přidat` a `Právní rámec & VOP` nad filtry **nezobrazují** – tyto akce nabízí spodní lišta `MobileBottomNav`.
 - **Hlavní přepínače (Taby):**
   - `Nástěnka zakázek` (s počtem)
   - `Nabízím se` (s počtem)
+  - Taby řeší i typ inzerátu (poptávka vs. nabídka) – samostatný filtr typu ani stavu (Nové / Archivované) už na nástěnce není.
 - **Filtry (`JobFilters.tsx`):**
-  - Selecty: `Všechny regiony`, `Všechny typy poptávek`, `Všechny objekty`
-  - Pilulky oborů: `Všechny obory`, `Kámen & štuk`, `Dřevo & nábytek`, `Nástěnné malby & sgrafita`, `Kovářství & kovy`, `Zlacení & polychromie`
+  - Vyhledávání `Hledat zakázku, řemeslo nebo město…`, select `Všechny regiony` a přepínač `Moje inzeráty` (jen moje položky v aktuálním tabu, včetně archivovaných).
+  - Obory (`Kámen & štuk`, `Dřevo & nábytek`, `Nástěnné malby & sgrafita`, `Kovářství & kovy`, `Zlacení & polychromie`) se nezobrazují jako pilulky, ale **nabízejí se jako návrhy při psaní do vyhledávání**; vybraný obor je štítek s `×`.
+- **Patička:** vlevo `Restaurion – platforma pro památková řemesla` (CMS `footerText`), vpravo `Všeobecné obchodní podmínky (VOP)`.
+- **Formulář inzerátu (`CreateJobModal.tsx`):** bez ukázkových fotek a bez pole „Podrobný popis“; `Odměna / Rozpočet` je volitelná (prázdná = `Dle dohody`).
 - **Hlavní akční tlačítko na kartě (`JobCard.tsx`):**
   - U zakázek: **`Mám zájem`**
   - U záložky „Nabízím se“ (`craftsman_available`): **`Poptat spolupráci`**

@@ -21,7 +21,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 ### Hlavní pravidla, která žádný agent NESMÍ porušit:
 1. **Vizuální styl (17. Neo-Brutalism & Bold Pop Studio):**
    - Zachovej `2px solid #111111` rámečky (`border-2 border-[#111111] dark:border-stone-500`) a tvrdé posunuté stíny (`shadow-[5px_5px_0px_#111111]`, `shadow-[3px_3px_0px_#111111]`). Nepoužívej měkké stíny (`shadow-md`, `shadow-lg`).
-   - Světlý režim: krémové pozadí `#FFFDF7` s jemnou tečkovanou mřížkou a máslově žlutá Hero sekce `#FEF08A`.
+   - Světlý režim: vápenné krémové pozadí `#FAF6EB` s jemným vzorem šablonové malby (`--stencil-wall` v `globals.css`), máslově žlutá Hero sekce `#FEF08A` a pod ní šablonový vlys `.stencil-frieze`.
    - Tmavý režim (`dark:`): přepínaný třídou `.dark` na `<html>` (tlačítko **„Tmavý / Světlý“** v `src/components/Header.tsx` + synchronizace s `prefers-color-scheme: dark` v `src/app/page.tsx`). Při přidávání nových prvků vždy přidej odpovídající `dark:` třídy.
 2. **Závazné barvy a ikony 3 typů inzerátů (`src/components/JobCard.tsx`, `src/components/CreateJobModal.tsx`):**
    - `subcontract_needed` (**Hledám subdodavatele**): ikona kladívka (`HammerLogo`), **smaragdově zelená** (`bg-emerald-600`).
@@ -37,7 +37,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 4. **Safari `<select>` kompatibilita (`JobFilters.tsx`, `CreateJobModal.tsx`, `globals.css`):**
    - Každý `<select>` musí mít `appearance-none` (`-webkit-appearance: none`), explicitní výšku `h-11`, `pl-10 pr-9` (pokud má ikonu vlevo) a vlastní ikonu `<ChevronDown className="... pointer-events-none" />` vpravo. Bez toho Safari na macOS/iOS rozbije výšku a překryje text s ikonou.
 5. **Fonty v `src/app/layout.tsx`:**
-   - Fonty `Plus Jakarta Sans` a `Space Grotesk` načítáme přes standardní `<link>` tagy v `<head>`, nikoliv přes `next/font/google`, aby `npm run build` prošel i v prostředí bez přístupu k internetu.
+   - Fonty `Plus Jakarta Sans` (text) a `Fraunces` (nadpisy, `font-serif`) načítáme přes standardní `<link>` tagy v `<head>`, nikoliv přes `next/font/google`, aby `npm run build` prošel i v prostředí bez přístupu k internetu.
 
 ---
 

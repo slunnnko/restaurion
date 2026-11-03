@@ -9,7 +9,7 @@ export interface JobValidationInput {
   startDate?: string;
   monumentName?: string;
   monumentRegNumber?: string;
-  description: string;
+  description?: string;
 }
 
 export interface ProfileValidationInput {
@@ -60,9 +60,8 @@ export function validateJobInput(input: JobValidationInput): Record<string, stri
   }
 
   const budgetNote = (input.budgetNote || '').trim();
-  if (!budgetNote) {
-    errors.budgetNote = 'Vyplňte prosím orientační odměnu nebo sazbu (např. 450 Kč/hod nebo Dle dohody).';
-  } else if (budgetNote.length < 2) {
+  // Odměna je volitelná (prázdná = „Dle dohody“)
+  if (budgetNote && budgetNote.length < 2) {
     errors.budgetNote = 'Odměna musí mít alespoň 2 znaky.';
   } else if (budgetNote.length > 120) {
     errors.budgetNote = 'Odměna může mít maximálně 120 znaků.';
@@ -87,11 +86,7 @@ export function validateJobInput(input: JobValidationInput): Record<string, stri
   }
 
   const description = (input.description || '').trim();
-  if (!description) {
-    errors.description = 'Vyplňte prosím popis inzerátu.';
-  } else if (description.length < 20) {
-    errors.description = 'Popis je příliš stručný (uveďte alespoň 20 znaků).';
-  } else if (description.length > 2000) {
+  if (description.length > 2000) {
     errors.description = 'Popis může mít maximálně 2000 znaků.';
   }
 
@@ -182,3 +177,4 @@ export function validateProfileInput(input: ProfileValidationInput): Record<stri
 
   return errors;
 }
+

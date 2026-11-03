@@ -24,14 +24,6 @@ interface CreateJobModalProps {
   onSubmit: (newJob: Partial<Job>) => void;
 }
 
-const SAMPLE_JOB_PHOTOS = [
-  { label: 'Kámen & pískovec', url: '/images/job-stone.jpg' },
-  { label: 'Zlacení & polychromie', url: '/images/job-gold.jpg' },
-  { label: 'Štuk & klenby', url: '/images/job-stucco.jpg' },
-  { label: 'Dřevo & fládrování', url: '/images/job-wood.jpg' },
-  { label: 'Umělecké kovářství', url: '/images/job-iron.jpg' },
-];
-
 export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   isOpen,
   onClose,
@@ -48,7 +40,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [craftInput, setCraftInput] = useState('');
   const [budgetNote, setBudgetNote] = useState('');
   const [startDate, setStartDate] = useState('');
-  const [description, setDescription] = useState('');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -126,7 +117,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
       startDate,
       monumentName,
       monumentRegNumber,
-      description,
     });
 
     if (Object.keys(validationErrors).length > 0) {
@@ -147,9 +137,9 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
       region,
       city: city.trim(),
       requiredCrafts: effectiveCrafts,
-      budgetNote: budgetNote.trim(),
+      budgetNote: budgetNote.trim() || 'Dle dohody',
       startDate: startDate.trim() || 'Dle dohody',
-      description: description.trim(),
+      description: '',
       imageUrl: imageUrl || undefined,
     });
 
@@ -157,7 +147,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     setTimeout(() => {
       setSubmitted(false);
       setTitle('');
-      setDescription('');
       setCity('');
       setMonumentName('');
       setMonumentRegNumber('');
@@ -361,22 +350,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                   <Upload className="w-3.5 h-3.5" />
                   <span>{isUploadingImage ? 'Komprimuji WebP…' : 'Nahrát vlastní fotku'}</span>
                 </button>
-
-                <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400">nebo ukázka:</span>
-                {SAMPLE_JOB_PHOTOS.map((sample) => (
-                  <button
-                    key={sample.url}
-                    type="button"
-                    onClick={() => setImageUrl(sample.url)}
-                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
-                      imageUrl === sample.url
-                        ? 'bg-[#FEF08A] text-[#111111] border-[#111111]'
-                        : 'bg-white dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-[#111111] dark:border-stone-500 hover:bg-stone-100'
-                    }`}
-                  >
-                    {sample.label}
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -565,11 +538,11 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                  Odměna / Rozpočet *
+                  Odměna / Rozpočet (volitelné)
                 </label>
                 <input
                   type="text"
-                  placeholder="např. 450 Kč/hod, 60 000 Kč nebo Dle dohody"
+                  placeholder="např. 450 Kč/hod nebo 60 000 Kč (prázdné = Dle dohody)"
                   value={budgetNote}
                   onChange={(e) => {
                     setBudgetNote(e.target.value);
@@ -614,33 +587,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Podrobný popis */}
-            <div>
-              <label className="block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1">
-                Podrobný popis prací a požadavků * <span className="font-normal text-stone-500">(alespoň 20 znaků)</span>
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Popište stav díla, požadovanou technologii, potřebné nástroje nebo lešení..."
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  clearError('description');
-                }}
-                className={`w-full px-3.5 py-2.5 rounded-xl border-2 ${
-                  errors.description
-                    ? 'border-rose-600 dark:border-rose-500 bg-rose-50/40 dark:bg-rose-950/20'
-                    : 'border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]'
-                } text-sm font-semibold`}
-              />
-              {errors.description && (
-                <p className="mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  <span>{errors.description}</span>
-                </p>
-              )}
             </div>
 
             {Object.keys(errors).length > 0 && (

@@ -32,8 +32,10 @@ import {
   Archive,
   Settings2,
   Megaphone,
+  ChevronDown,
 } from 'lucide-react';
 import { HammerLogo } from '@/components/HammerLogo';
+import { jobMatchesCraft } from '@/lib/crafts';
 
 const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   darkWhiteShadows: false,
@@ -56,6 +58,7 @@ const ALL_ENABLED_FEATURE_FLAGS: FeatureFlags = {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'available' | 'vop'>('jobs');
   const [isProfilePageOpen, setIsProfilePageOpen] = useState<boolean>(false);
+  const [isHeroInfoOpen, setIsHeroInfoOpen] = useState(false);
   const [users, setUsers] = useState<Record<string, UserProfile>>(mockUsers);
   const [activeUserId, setActiveUserId] = useState<string>('user-novak');
   const [jobs, setJobs] = useState<Job[]>(mockJobs);
@@ -564,23 +567,17 @@ export default function Home() {
   // Základní filtrování zakázek
   const baseFilteredJobs = useMemo(() => {
     return jobs.filter((job) => {
-      const ownerScope = filters.ownerFilter || 'all';
       const isMine =
         job.author.id === currentUser.id || job.matchedPartner?.id === currentUser.id;
 
-      if (ownerScope === 'mine') {
-        if (!isMine) return false;
-      } else if (ownerScope === 'my_demands') {
-        if (!isMine || job.jobType === 'craftsman_available') return false;
-      } else if (ownerScope === 'my_offers') {
-        if (!isMine || job.jobType !== 'craftsman_available') return false;
-      } else {
-        if (activeTab === 'available' && job.jobType !== 'craftsman_available') {
-          return false;
-        }
-        if (activeTab === 'jobs' && job.jobType === 'craftsman_available') {
-          return false;
-        }
+      if (filters.ownerFilter && filters.ownerFilter !== 'all' && !isMine) {
+        return false;
+      }
+      if (activeTab === 'available' && job.jobType !== 'craftsman_available') {
+        return false;
+      }
+      if (activeTab === 'jobs' && job.jobType === 'craftsman_available') {
+        return false;
       }
 
       if (filters.searchQuery.trim()) {
@@ -609,11 +606,8 @@ export default function Home() {
         }
       }
 
-      if (filters.craft !== 'all') {
-        const matchesCraft = job.requiredCrafts.some((c) =>
-          c.toLowerCase().includes(filters.craft.toLowerCase())
-        );
-        if (!matchesCraft) return false;
+      if (filters.craft !== 'all' && !jobMatchesCraft(job.requiredCrafts, filters.craft)) {
+        return false;
       }
 
       if (filters.monumentStatus === 'cultural_monument') {
@@ -634,35 +628,38 @@ export default function Home() {
     });
   }, [jobs, filters, activeTab, currentUser.id]);
 
+  // „Moje inzeráty“ ukazují aktivní i archivované
+  const effectiveStatus = filters.ownerFilter && filters.ownerFilter !== 'all' ? 'all' : filters.statusFilter;
+
   // Aktivní zakázky a realizované/ukončené zakázky
   const activeJobs = useMemo(
     () =>
-      filters.statusFilter === 'completed'
+      effectiveStatus === 'completed'
         ? []
         : baseFilteredJobs.filter((j) => j.status !== 'completed'),
-    [baseFilteredJobs, filters.statusFilter]
+    [baseFilteredJobs, effectiveStatus]
   );
 
   const completedJobs = useMemo(
     () =>
-      filters.statusFilter === 'active'
+      effectiveStatus === 'active'
         ? []
         : baseFilteredJobs.filter((j) => j.status === 'completed'),
-    [baseFilteredJobs, filters.statusFilter]
+    [baseFilteredJobs, effectiveStatus]
   );
 
   // Když je zapnutý featureFlag `greyedInactiveCards`, zobrazují se vyfiltrované neaktivní zakázky jako zašedlé JobCard přímo v mřížce
   const greyedGridJobs = useMemo(() => {
-    if (filters.statusFilter === 'active') {
+    if (effectiveStatus === 'active') {
       return baseFilteredJobs.filter((j) => j.status !== 'completed');
     }
-    if (filters.statusFilter === 'completed') {
+    if (effectiveStatus === 'completed') {
       return baseFilteredJobs.filter((j) => j.status === 'completed');
     }
     const active = baseFilteredJobs.filter((j) => j.status !== 'completed');
     const completed = baseFilteredJobs.filter((j) => j.status === 'completed');
     return [...active, ...completed];
-  }, [baseFilteredJobs, filters.statusFilter]);
+  }, [baseFilteredJobs, effectiveStatus]);
 
   const completedJobsCount = useMemo(
     () => baseFilteredJobs.filter((j) => j.status === 'completed').length,
@@ -671,14 +668,12 @@ export default function Home() {
 
   const visibleCount = featureFlags.greyedInactiveCards
     ? greyedGridJobs.length
-    : activeJobs.length + (filters.statusFilter === 'completed' ? completedJobs.length : 0);
+    : activeJobs.length + (effectiveStatus === 'completed' ? completedJobs.length : 0);
 
   const activeFiltersCount =
     (filters.searchQuery ? 1 : 0) +
     (filters.region !== 'Všechny regiony' ? 1 : 0) +
     (filters.craft !== 'all' ? 1 : 0) +
-    (filters.monumentStatus !== 'all' ? 1 : 0) +
-    (filters.jobType !== 'all' ? 1 : 0) +
     (filters.statusFilter !== 'active' ? 1 : 0) +
     (filters.ownerFilter && filters.ownerFilter !== 'all' ? 1 : 0);
 
@@ -757,9 +752,7 @@ export default function Home() {
           <section
             className={`bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white ${
               ffMobileCompact ? 'py-5 sm:py-9' : 'py-7 sm:py-9'
-            } px-4 sm:px-6 lg:px-8 border-b-2 border-[#111111] ${
-              ffDarkWhite ? 'dark:border-stone-400' : 'dark:border-stone-600'
-            } transition-colors`}
+            } px-4 sm:px-6 lg:px-8 transition-colors`}
           >
             <div className="max-w-7xl mx-auto">
               <div className="max-w-4xl text-left">
@@ -771,13 +764,26 @@ export default function Home() {
                   {siteSettings.heroTitle}
                 </h1>
 
-                <p
-                  className={`${
-                    ffMobileCompact ? 'text-xs sm:text-base mb-4 sm:mb-5' : 'text-sm sm:text-base mb-5'
-                  } text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl`}
+                <button
+                  type="button"
+                  onClick={() => setIsHeroInfoOpen((prev) => !prev)}
+                  aria-expanded={isHeroInfoOpen}
+                  className="inline-flex items-center gap-1 text-xs sm:text-sm font-extrabold underline underline-offset-4 decoration-2 text-[#111111] dark:text-[#FEF08A] cursor-pointer mb-3"
                 >
-                  {siteSettings.heroSubtitle}
-                </p>
+                  <span>Co je Restaurion?</span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform ${isHeroInfoOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {isHeroInfoOpen && (
+                  <p
+                    className={`${
+                      ffMobileCompact ? 'text-xs sm:text-base mb-4 sm:mb-5' : 'text-sm sm:text-base mb-5'
+                    } text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl`}
+                  >
+                    {siteSettings.heroSubtitle}
+                  </p>
+                )}
 
                 {/* Klíčové výhody – 3 fajfky pod podtitulkem (ve výchozím stavu vedle sebe jako e08fd7f, při soloHeroBadges pod sebou) */}
                 <div
@@ -821,6 +827,7 @@ export default function Home() {
               </div>
             </div>
           </section>
+          <div aria-hidden="true" className="stencil-frieze" />
 
           {/* Hlavní obsah s nabídkami práce */}
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
@@ -878,7 +885,7 @@ export default function Home() {
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="hidden md:flex flex-wrap items-center gap-2.5">
                 <button
                   onClick={() => setIsCreateOpen(true)}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] text-sm font-extrabold border-2 border-[#111111] ${
@@ -910,7 +917,6 @@ export default function Home() {
               onChange={setFilters}
               onReset={() => setFilters(initialFilters)}
               activeCount={activeFiltersCount}
-              completedJobsCount={completedJobsCount}
               featureFlags={featureFlags}
             />
 
@@ -967,7 +973,7 @@ export default function Home() {
                     Žádné zakázky neodpovídají zadaným filtrům
                   </h3>
                   <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                    Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Archivované“ nebo vyberte jiný obor.
+                    Zkuste uvolnit vyhledávání, vybrat jiný region nebo obor.
                   </p>
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
@@ -976,7 +982,7 @@ export default function Home() {
                     >
                       Resetovat filtry
                     </button>
-                    {filters.statusFilter === 'active' && completedJobsCount > 0 && (
+                    {effectiveStatus === 'active' && completedJobsCount > 0 && (
                       <button
                         onClick={() => setFilters((prev) => ({ ...prev, statusFilter: 'completed' }))}
                         className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-300 shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
@@ -1042,7 +1048,7 @@ export default function Home() {
                       Žádné zakázky neodpovídají zadaným filtrům
                     </h3>
                     <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                      Zkuste uvolnit vyhledávání, přepnout filtr stavu na „Archivované“ nebo vyberte jiný obor.
+                      Zkuste uvolnit vyhledávání, vybrat jiný region nebo obor.
                     </p>
                     <button
                       onClick={() => setFilters(initialFilters)}
@@ -1064,9 +1070,9 @@ export default function Home() {
           ffDarkWhite ? 'dark:border-stone-400' : 'dark:border-stone-600'
         } bg-white dark:bg-[#181A20] py-8 px-4 sm:px-6 lg:px-8 text-xs text-stone-700 dark:text-stone-300 font-bold transition-colors`}
       >
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#FEF08A] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] text-[#111111] flex items-center justify-center">
+        <div className="max-w-7xl mx-auto flex flex-row items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-[#FEF08A] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] text-[#111111] flex items-center justify-center shrink-0">
               <HammerLogo className="w-4 h-4" />
             </div>
             <span className="font-serif font-bold text-[#111111] dark:text-white">
@@ -1074,7 +1080,7 @@ export default function Home() {
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-right">
             {isAdmin && (
               <button
                 onClick={() => handleOpenAdministration('all', null)}
@@ -1086,7 +1092,7 @@ export default function Home() {
             )}
             <button
               onClick={() => setIsVopOpen(true)}
-              className="text-[#111111] dark:text-[#FEF08A] hover:underline font-extrabold cursor-pointer"
+              className="text-right text-[#111111] dark:text-[#FEF08A] hover:underline font-extrabold cursor-pointer"
             >
               Všeobecné obchodní podmínky (VOP)
             </button>
