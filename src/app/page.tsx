@@ -1,93 +1,68 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Header } from '@/components/Header';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { JobCard } from '@/components/JobCard';
-import { CompactArchivedJobRow } from '@/components/CompactArchivedJobRow';
 import { JobFilters } from '@/components/JobFilters';
 import { CreateJobModal } from '@/components/CreateJobModal';
-import { LicenseVerificationModal } from '@/components/LicenseVerificationModal';
-import { UserProfileModal } from '@/components/UserProfileModal';
-import { ProfilePageView } from '@/components/ProfilePageView';
 import { RespondModal } from '@/components/RespondModal';
+import { LoginModal } from '@/components/LoginModal';
+import { NotificationsPanel } from '@/components/NotificationsPanel';
+import { InterestedWorkersModal } from '@/components/InterestedWorkersModal';
+import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
-import { ManageJobsModal, DEFAULT_SITE_SETTINGS } from '@/components/ManageJobsModal';
-import { mockJobs, mockUsers, mockReviews, mockJobResponses } from '@/data/mockData';
-import {
-  FeatureFlags,
-  FilterState,
-  Job,
-  JobResponseItem,
-  SiteSettings,
-  UserProfile,
-  UserReview,
-} from '@/types';
-import {
-  Briefcase,
-  UserCheck,
-  Scale,
-  CheckCircle2,
-  Plus,
-  Archive,
-  Settings2,
-  Megaphone,
-  ChevronDown,
-} from 'lucide-react';
+import { ErrorBox, primaryBtn } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
-import { jobMatchesCraft } from '@/lib/crafts';
+import { FilterState } from '@/types';
+import { OwnProfile, PublicJob, NotificationItem } from '@/types/api';
+import { api, ApiError } from '@/lib/api';
+import { CRAFT_CATEGORIES, jobMatchesCraft, normalizeText } from '@/lib/crafts';
+import { Briefcase, CheckCircle2, Plus, Scale, ChevronDown } from 'lucide-react';
 
-const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
-  darkWhiteShadows: false,
-  greyedInactiveCards: false,
-  personHeldReviews: false,
-  headerAdministration: false,
-  soloHeroBadges: false,
-  mobileCompactUi: false,
+const initialFilters: FilterState = {
+  searchQuery: '',
+  region: 'Všechny regiony',
+  craft: 'all',
+  mineOnly: false,
 };
 
-const ALL_ENABLED_FEATURE_FLAGS: FeatureFlags = {
-  darkWhiteShadows: true,
-  greyedInactiveCards: true,
-  personHeldReviews: false,
-  headerAdministration: true,
-  soloHeroBadges: true,
-  mobileCompactUi: true,
-};
+const badgeCls =
+  'inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111]';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'jobs' | 'available' | 'vop'>('jobs');
-  const [isProfilePageOpen, setIsProfilePageOpen] = useState<boolean>(false);
+  const [view, setView] = useState<'board' | 'profile'>('board');
   const [isHeroInfoOpen, setIsHeroInfoOpen] = useState(false);
-  const [users, setUsers] = useState<Record<string, UserProfile>>(mockUsers);
-  const [activeUserId, setActiveUserId] = useState<string>('user-novak');
-  const [jobs, setJobs] = useState<Job[]>(mockJobs);
-  const [reviews, setReviews] = useState<UserReview[]>(mockReviews);
-  const [responses, setResponses] = useState<JobResponseItem[]>(mockJobResponses);
-  const [selectedRegion, setSelectedRegion] = useState<string>('Všechny regiony');
   const [isDark, setIsDark] = useState<boolean>(false);
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(DEFAULT_FEATURE_FLAGS);
 
-  // Modals state
+  const [user, setUser] = useState<OwnProfile | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
+  const [jobs, setJobs] = useState<PublicJob[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [unread, setUnread] = useState(0);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isVerificationOpen, setIsVerificationOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [respondingJob, setRespondingJob] = useState<Job | null>(null);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isVopOpen, setIsVopOpen] = useState(false);
-  const [isManageOpen, setIsManageOpen] = useState(false);
-  const [managingJobId, setManagingJobId] = useState<string | null>(null);
-  const [manageScopeFilter, setManageScopeFilter] = useState<
-    'all' | 'demands' | 'offers' | 'completed'
-  >('all');
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
+  const [interestedJob, setInterestedJob] = useState<PublicJob | null>(null);
 
-  // Inicializace a synchronizace Dark Mode (přepínač v hlavičce + podpora Safari/OS systémového vzhledu)
+  // Akce, která čeká na přihlášení.
+  const pendingAction = useRef<(() => void) | null>(null);
+
+  // Inicializace a synchronizace Dark Mode (přepínač v hlavičce + systémový vzhled)
   useEffect(() => {
     const saved = localStorage.getItem('restaurion-theme');
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     if (saved === 'dark' || (!saved && mediaQuery.matches)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsDark(true);
       document.documentElement.classList.add('dark');
     } else {
@@ -106,67 +81,6 @@ export default function Home() {
     return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, []);
 
-  // Načtení Feature Flags:
-  // 1) Na hlavní doméně (restaurion.pages.dev) jsou ve výchozím stavu VŠECHNY VYPNUTÉ (100% verze před chatem).
-  // 2) Na testovací subdoméně (test.restaurion.pages.dev nebo ?ff=all) jsou ve výchozím stavu VŠECHNY ZAPNUTÉ.
-  // 3) Admin si je může kdykoliv přepínat po rozkliku „Můj profil“.
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const ffParam = params.get('ff');
-    const hostname = window.location.hostname;
-    const isTestSubdomain =
-      hostname.startsWith('test.') || hostname.startsWith('test-') || ffParam === 'all';
-
-    if (ffParam === 'reset' || ffParam === 'off') {
-      localStorage.removeItem('restaurion-feature-flags');
-      setFeatureFlags(DEFAULT_FEATURE_FLAGS);
-      return;
-    }
-
-    const savedFlagsRaw = localStorage.getItem('restaurion-feature-flags');
-    if (savedFlagsRaw) {
-      try {
-        const parsed = JSON.parse(savedFlagsRaw) as Partial<FeatureFlags>;
-        setFeatureFlags({
-          ...DEFAULT_FEATURE_FLAGS,
-          ...parsed,
-        });
-        return;
-      } catch {
-        // Ignore invalid JSON
-      }
-    }
-
-    if (isTestSubdomain) {
-      setFeatureFlags(ALL_ENABLED_FEATURE_FLAGS);
-    }
-  }, []);
-
-  const handleUpdateFeatureFlags = async (
-    nextFlags: FeatureFlags,
-    saveToServer = false
-  ): Promise<void> => {
-    setFeatureFlags(nextFlags);
-    localStorage.setItem('restaurion-feature-flags', JSON.stringify(nextFlags));
-
-    if (saveToServer) {
-      const updatedSettings: SiteSettings = {
-        ...siteSettings,
-        featureFlagsJson: JSON.stringify(nextFlags),
-      };
-      setSiteSettings(updatedSettings);
-      try {
-        await fetch('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedSettings),
-        });
-      } catch {
-        // Fallback: uloženo v localStorage
-      }
-    }
-  };
-
   const handleToggleDark = () => {
     setIsDark((prev) => {
       const next = !prev;
@@ -176,592 +90,221 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
-    const savedAdmin = localStorage.getItem('restaurion-admin-mode');
-    if (savedAdmin === 'true') {
-      setIsAdmin(true);
+  const loadJobs = useCallback(async () => {
+    setJobsError('');
+    try {
+      const data = await api<{ jobs: PublicJob[] }>('/api/jobs');
+      setJobs(Array.isArray(data.jobs) ? data.jobs : []);
+    } catch (err) {
+      setJobsError(err instanceof ApiError ? err.message : 'Zakázky se nepodařilo načíst.');
+    } finally {
+      setJobsLoading(false);
     }
-
-    let cancelled = false;
-    async function checkAdminSession() {
-      try {
-        const res = await fetch('/api/admin/verify', { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          isAdmin?: boolean;
-          passwordProtected?: boolean;
-        };
-        if (cancelled) return;
-        if (typeof data.isAdmin === 'boolean') {
-          setIsAdmin(data.isAdmin);
-          localStorage.setItem('restaurion-admin-mode', data.isAdmin ? 'true' : 'false');
-        }
-      } catch {
-        // Fallback na lokální stav
-      }
-    }
-    void checkAdminSession();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  const handleSetAdmin = (next: boolean) => {
-    setIsAdmin(next);
-    localStorage.setItem('restaurion-admin-mode', next ? 'true' : 'false');
-  };
-
-  const handleToggleAdmin = () => {
-    setIsAdmin((prev) => {
-      const next = !prev;
-      localStorage.setItem('restaurion-admin-mode', next ? 'true' : 'false');
-      return next;
-    });
-  };
-
-  // Filters state
-  const initialFilters: FilterState = {
-    searchQuery: '',
-    region: 'Všechny regiony',
-    craft: 'all',
-    monumentStatus: 'all',
-    jobType: 'all',
-    statusFilter: 'active',
-    ownerFilter: 'all',
-  };
-  const [filters, setFilters] = useState<FilterState>(initialFilters);
-
-  const currentUser = useMemo(() => {
-    return Object.values(users).find((u) => u.id === activeUserId) || users.novak;
-  }, [users, activeUserId]);
-
-  const selectedUser = useMemo(() => {
-    if (!selectedUserId) return null;
-    return Object.values(users).find((u) => u.id === selectedUserId) || currentUser;
-  }, [selectedUserId, users, currentUser]);
-
-  const currentUserJobIds = useMemo(() => {
-    return new Set(jobs.filter((j) => j.author.id === currentUser.id).map((j) => j.id));
-  }, [jobs, currentUser.id]);
-
-  const currentUserNotifications = useMemo(() => {
-    return responses.filter((r) => currentUserJobIds.has(r.jobId));
-  }, [responses, currentUserJobIds]);
-
-  const unreadNotificationsCount = useMemo(() => {
-    return currentUserNotifications.filter((r) => !r.isRead).length;
-  }, [currentUserNotifications]);
-
-  const handleMarkNotificationRead = (responseId: string) => {
-    setResponses((prev) =>
-      prev.map((r) => (r.id === responseId ? { ...r, isRead: true } : r))
-    );
-  };
-
-  // Synchronizace rychlého přepínače regionů v hlavičce s filtrem
-  const handleSelectHeaderRegion = (reg: string) => {
-    setSelectedRegion(reg);
-    setFilters((prev) => ({ ...prev, region: reg }));
-  };
-
-  // Načtení živých dat z Cloudflare D1 (/api/jobs a /api/settings) s plynulým fallbackem
-  useEffect(() => {
-    let cancelled = false;
-    async function loadJobsAndSettingsFromApi() {
-      try {
-        const [jobsRes, settingsRes] = await Promise.all([
-          fetch('/api/jobs', { cache: 'no-store' }),
-          fetch('/api/settings', { cache: 'no-store' }).catch(() => null),
-        ]);
-
-        if (jobsRes.ok) {
-          const data = (await jobsRes.json()) as {
-            jobs?: Job[];
-            reviews?: UserReview[];
-          };
-          if (!cancelled && Array.isArray(data.jobs) && data.jobs.length > 0) {
-            setJobs(data.jobs);
-            setUsers((prev) => {
-              const next = { ...prev };
-              for (const job of data.jobs!) {
-                if (job.author?.id) {
-                  const existingKey = Object.keys(next).find((k) => next[k].id === job.author.id);
-                  if (existingKey) {
-                    next[existingKey] = { ...next[existingKey], ...job.author };
-                  } else {
-                    next[job.author.id] = job.author;
-                  }
-                }
-              }
-              return next;
-            });
-          }
-          if (!cancelled && Array.isArray(data.reviews) && data.reviews.length > 0) {
-            setReviews(data.reviews);
-          }
-        }
-
-        if (settingsRes && settingsRes.ok) {
-          const settingsData = (await settingsRes.json()) as { settings?: Partial<SiteSettings> };
-          if (!cancelled && settingsData.settings) {
-            setSiteSettings((prev) => ({
-              ...prev,
-              ...settingsData.settings,
-            }));
-
-            // Pokud uživatel nemá lokální override v localStorage a v D1 jsou uložené featureFlagsJson, načteme je
-            if (
-              !localStorage.getItem('restaurion-feature-flags') &&
-              !window.location.hostname.startsWith('test.') &&
-              settingsData.settings.featureFlagsJson
-            ) {
-              try {
-                const parsedServerFlags = JSON.parse(
-                  settingsData.settings.featureFlagsJson
-                ) as Partial<FeatureFlags>;
-                setFeatureFlags((prev) => ({
-                  ...prev,
-                  ...parsedServerFlags,
-                }));
-              } catch {
-                // Ignore invalid JSON
-              }
-            }
-          }
-        }
-      } catch {
-        // Fallback na lokální mockJobs, mockReviews a DEFAULT_SITE_SETTINGS
-      }
+  const loadAll = useCallback(async () => {
+    setJobsLoading(true);
+    let me: OwnProfile | null = null;
+    try {
+      const data = await api<{ user: OwnProfile | null }>('/api/auth/me');
+      me = data.user;
+    } catch {
+      // nepřihlášený / API nedostupné – chyba se ukáže u zakázek
     }
-    void loadJobsAndSettingsFromApi();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setUser(me);
+    setAuthLoaded(true);
+    await loadJobs();
+  }, [loadJobs]);
 
-  // Změna profilové fotky uživatele (propíše se do profilu, všech jeho inzerátů i do D1)
-  const handleUpdateAvatar = (userId: string, newAvatarUrl: string) => {
-    setUsers((prev) => {
-      const updated = { ...prev };
-      for (const key of Object.keys(updated)) {
-        if (updated[key].id === userId) {
-          updated[key] = { ...updated[key], avatarUrl: newAvatarUrl };
-        }
-      }
-      return updated;
-    });
-    setJobs((prevJobs) =>
-      prevJobs.map((j) =>
-        j.author.id === userId
-          ? { ...j, author: { ...j.author, avatarUrl: newAvatarUrl } }
-          : j
-      )
-    );
+  // Při načtení: session z cookie + zakázky.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadAll();
+  }, [loadAll]);
 
-    void fetch('/api/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, avatarUrl: newAvatarUrl }),
-    }).catch(() => {
-      // Fallback: zůstává v lokálním state
-    });
-  };
-
-  // Úprava údajů profilu s validací (propíše se do profilu, zakázek i do Cloudflare D1)
-  const handleUpdateProfile = (userId: string, updatedFields: Partial<UserProfile>) => {
-    setUsers((prev) => {
-      const updated = { ...prev };
-      for (const key of Object.keys(updated)) {
-        if (updated[key].id === userId) {
-          updated[key] = { ...updated[key], ...updatedFields };
-        }
-      }
-      return updated;
-    });
-    setJobs((prevJobs) =>
-      prevJobs.map((j) =>
-        j.author.id === userId
-          ? { ...j, author: { ...j.author, ...updatedFields } }
-          : j
-      )
-    );
-
-    void fetch('/api/profile', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, ...updatedFields }),
-    }).catch(() => {
-      // Fallback: zůstává v lokálním state
-    });
-  };
-
-  // Vytvoření nové zakázky (okamžitě v UI + uložení do Cloudflare D1)
-  const handleCreateJob = (newJobData: Partial<Job>) => {
-    const tempId = `job-${Date.now()}`;
-    const newJob: Job = {
-      id: tempId,
-      title: newJobData.title || 'Nová poptávka',
-      description: newJobData.description || '',
-      jobType: newJobData.jobType || 'subcontract_needed',
-      monumentStatus: newJobData.monumentStatus || 'cultural_monument',
-      monumentName: newJobData.monumentName,
-      monumentRegNumber: newJobData.monumentRegNumber,
-      requiredCrafts: newJobData.requiredCrafts || ['Restaurátor'],
-      region: newJobData.region || 'Jihomoravský kraj',
-      city: newJobData.city || 'Brno',
-      budgetNote: newJobData.budgetNote || 'Dle dohody',
-      startDate: newJobData.startDate || 'Dle dohody',
-      imageUrl: newJobData.imageUrl,
-      author: currentUser,
-      createdAt: 'právě teď',
-      responsesCount: 0,
-      urgent: false,
-      status: 'active',
-    };
-    setJobs((prev) => [newJob, ...prev]);
-    setIsProfilePageOpen(false);
-    if (newJob.jobType === 'craftsman_available') {
-      setActiveTab('available');
+  // Deep link ?profil=1
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!authLoaded || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    if (new URLSearchParams(window.location.search).get('profil') !== '1') return;
+    if (user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView('profile');
     } else {
-      setActiveTab('jobs');
+      pendingAction.current = () => setView('profile');
+      setIsLoginOpen(true);
     }
+  }, [authLoaded, user]);
 
-    void fetch('/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: newJob.title,
-        description: newJob.description,
-        jobType: newJob.jobType,
-        monumentStatus: newJob.monumentStatus,
-        monumentName: newJob.monumentName,
-        monumentRegNumber: newJob.monumentRegNumber,
-        requiredCrafts: newJob.requiredCrafts,
-        region: newJob.region,
-        city: newJob.city,
-        budgetNote: newJob.budgetNote,
-        startDate: newJob.startDate,
-        imageUrl: newJob.imageUrl,
-        authorId: currentUser.id,
-      }),
-    })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const data = (await res.json()) as { job?: Job };
-        if (data.job) {
-          setJobs((prev) => prev.map((j) => (j.id === tempId ? data.job! : j)));
-        }
-      })
-      .catch(() => {
-        // Fallback: zůstává v lokálním state
+  // Počet nepřečtených upozornění každých 60 s (jen při viditelné záložce).
+  useEffect(() => {
+    if (!user) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUnread(0);
+      return;
+    }
+    let cancelled = false;
+    const poll = async () => {
+      if (document.hidden) return;
+      try {
+        const data = await api<{ items: NotificationItem[]; unread: number }>('/api/notifications');
+        if (!cancelled) setUnread(data.unread);
+      } catch (err) {
+        if (!cancelled && err instanceof ApiError && err.status === 401) setUser(null);
+      }
+    };
+    void poll();
+    const timer = setInterval(() => void poll(), 60_000);
+    const onVisible = () => {
+      if (!document.hidden) void poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [user]);
+
+  const requireLogin = (action: () => void) => {
+    if (user) {
+      action();
+    } else {
+      pendingAction.current = action;
+      setIsLoginOpen(true);
+    }
+  };
+
+  const handleApiError = (err: unknown, fallback: string) => {
+    if (err instanceof ApiError && err.status === 401) {
+      setUser(null);
+      setActionError('Přihlášení vypršelo. Přihlas se prosím znovu.');
+      return;
+    }
+    setActionError(err instanceof ApiError ? err.message : fallback);
+  };
+
+  const handleLoggedIn = (u: OwnProfile) => {
+    setUser(u);
+    setIsLoginOpen(false);
+    setActionError('');
+    void loadJobs();
+    const action = pendingAction.current;
+    pendingAction.current = null;
+    if (u.crafts.length === 0) setView('profile');
+    action?.();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api('/api/auth/logout', { method: 'POST', body: {} });
+    } catch {
+      // cookie se stejně smaže při dalším neúspěšném požadavku; UI se odhlásí
+    }
+    setUser(null);
+    setView('board');
+    setUnread(0);
+    setFilters((prev) => ({ ...prev, mineOnly: false }));
+    void loadJobs();
+  };
+
+  const handleWithdraw = async (job: PublicJob) => {
+    if (!job.myEngagement) return;
+    setActionError('');
+    try {
+      await api(`/api/engagements/${encodeURIComponent(job.myEngagement.id)}`, {
+        method: 'POST',
+        body: { action: 'withdraw' },
       });
-  };
-
-  const handleJobResponded = (jobId: string, newResponse?: JobResponseItem) => {
-    setJobs((prev) =>
-      prev.map((j) =>
-        j.id === jobId ? { ...j, responsesCount: (j.responsesCount || 0) + 1 } : j
-      )
-    );
-    if (newResponse) {
-      setResponses((prev) => [newResponse, ...prev]);
+      await loadJobs();
+    } catch (err) {
+      handleApiError(err, 'Odstoupení se nepodařilo.');
     }
   };
 
-  const handleUpdateJob = (updatedJob: Job) => {
-    setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
-  };
-
-  const handleDeleteJob = (jobId: string) => {
-    setJobs((prev) => prev.filter((j) => j.id !== jobId));
-  };
-
-  const handleSavePersonReview = (newReview: UserReview) => {
-    setReviews((prev) => {
-      const existingIndex = prev.findIndex(
-        (r) => r.jobId === newReview.jobId && r.revieweeId === newReview.revieweeId
-      );
-      let next: UserReview[];
-      if (existingIndex >= 0) {
-        next = [...prev];
-        next[existingIndex] = {
-          ...prev[existingIndex],
-          ...newReview,
-          reply: prev[existingIndex].reply,
-        };
-      } else {
-        next = [newReview, ...prev];
-      }
-      return next;
-    });
-  };
-
-  const handleReplyToReview = (reviewId: string, replyText: string) => {
-    const trimmed = replyText.trim();
-    if (!trimmed) return;
-
-    const replyAuthor = selectedUser || currentUser;
-
-    setReviews((prev) =>
-      prev.map((rev) => {
-        if (rev.id !== reviewId || rev.reply) return rev;
-        return {
-          ...rev,
-          reply: {
-            authorId: replyAuthor.id,
-            authorName: replyAuthor.name,
-            text: trimmed,
-            createdAt: 'právě teď',
-          },
-        };
-      })
-    );
-
-    void fetch('/api/jobs/manage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'reply_review',
-        reviewId,
-        replyText: trimmed,
-        replyAuthorId: replyAuthor.id,
-        replyAuthorName: replyAuthor.name,
-      }),
-    }).catch(() => {
-      // Fallback: uloženo v lokálním state
-    });
-  };
-
-  const handleOpenManageJob = (job: Job) => {
-    setManageScopeFilter('all');
-    setManagingJobId(job.id);
-    setIsManageOpen(true);
-  };
-
-  const handleOpenAdministration = (
-    scope: 'all' | 'demands' | 'offers' | 'completed' = 'all',
-    targetJobId: string | null = null
-  ) => {
-    setManageScopeFilter(scope);
-    setManagingJobId(targetJobId);
-    setIsManageOpen(true);
-  };
-
-  const handleFocusJobOnBoard = (targetJob: Job) => {
-    setIsProfilePageOpen(false);
-    if (targetJob.jobType === 'craftsman_available') {
-      setActiveTab('available');
-    } else {
-      setActiveTab('jobs');
+  const handleCloseJob = async (job: PublicJob) => {
+    setActionError('');
+    try {
+      await api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', body: { status: 'closed' } });
+      await loadJobs();
+    } catch (err) {
+      handleApiError(err, 'Inzerát se nepodařilo ukončit.');
     }
-    setFilters((prev) => ({
-      ...prev,
-      statusFilter: targetJob.status === 'completed' ? 'all' : prev.statusFilter,
-      searchQuery: targetJob.title,
-    }));
   };
 
-  const canManageJob = (job: Job) =>
-    isAdmin || job.author.id === currentUser.id || job.matchedPartner?.id === currentUser.id;
+  const openCreate = () => requireLogin(() => setIsCreateOpen(true));
+  const openNotifications = () => requireLogin(() => setIsNotifOpen(true));
+  const goBoard = () => {
+    setView('board');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-  // Základní filtrování zakázek
-  const baseFilteredJobs = useMemo(() => {
+  const handleOpenJobFromNotification = (jobId: string) => {
+    setIsNotifOpen(false);
+    setView('board');
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job) {
+      setNotice('Zakázka už není aktivní');
+      return;
+    }
+    setNotice('');
+    setFilters(initialFilters);
+    setHighlightId(jobId);
+    setTimeout(() => {
+      document.getElementById(`job-${jobId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    setTimeout(() => setHighlightId((cur) => (cur === jobId ? null : cur)), 3500);
+  };
+
+  const filteredJobs = useMemo(() => {
+    const query = normalizeText(filters.searchQuery.trim());
     return jobs.filter((job) => {
-      const isMine =
-        job.author.id === currentUser.id || job.matchedPartner?.id === currentUser.id;
-
-      if (filters.ownerFilter && filters.ownerFilter !== 'all' && !isMine) {
-        return false;
+      if (filters.mineOnly && !job.isMine) return false;
+      if (query) {
+        const craftLabels = job.crafts.map((c) => CRAFT_CATEGORIES.find((cat) => cat.id === c)?.label ?? c);
+        const haystack = normalizeText(
+          [job.title, job.description, job.city, job.monumentName ?? '', ...craftLabels].join(' ')
+        );
+        if (!haystack.includes(query)) return false;
       }
-      if (activeTab === 'available' && job.jobType !== 'craftsman_available') {
-        return false;
-      }
-      if (activeTab === 'jobs' && job.jobType === 'craftsman_available') {
-        return false;
-      }
-
-      if (filters.searchQuery.trim()) {
-        const query = filters.searchQuery.toLowerCase();
-        const matchesTitle = job.title.toLowerCase().includes(query);
-        const matchesDesc = job.description.toLowerCase().includes(query);
-        const matchesCity = job.city.toLowerCase().includes(query);
-        const matchesCraft = job.requiredCrafts.some((c) => c.toLowerCase().includes(query));
-        const matchesPartner = job.matchedPartner?.name.toLowerCase().includes(query) || false;
-        const matchesReview = job.review?.text.toLowerCase().includes(query) || false;
-        if (
-          !matchesTitle &&
-          !matchesDesc &&
-          !matchesCity &&
-          !matchesCraft &&
-          !matchesPartner &&
-          !matchesReview
-        ) {
-          return false;
-        }
-      }
-
       if (filters.region !== 'Všechny regiony' && filters.region !== 'Celá ČR') {
-        if (!job.region.includes(filters.region.split(' ')[0])) {
-          return false;
-        }
+        if (!job.region.includes(filters.region.split(' ')[0])) return false;
       }
-
-      if (filters.craft !== 'all' && !jobMatchesCraft(job.requiredCrafts, filters.craft)) {
-        return false;
-      }
-
-      if (filters.monumentStatus === 'cultural_monument') {
-        if (job.monumentStatus !== 'cultural_monument' && job.monumentStatus !== 'national_monument') {
-          return false;
-        }
-      } else if (filters.monumentStatus === 'non_monument') {
-        if (job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument') {
-          return false;
-        }
-      }
-
-      if (filters.jobType !== 'all') {
-        if (job.jobType !== filters.jobType) return false;
-      }
-
+      if (filters.craft !== 'all' && !jobMatchesCraft(job.crafts, filters.craft)) return false;
       return true;
     });
-  }, [jobs, filters, activeTab, currentUser.id]);
-
-  // „Moje inzeráty“ ukazují aktivní i archivované
-  const effectiveStatus = filters.ownerFilter && filters.ownerFilter !== 'all' ? 'all' : filters.statusFilter;
-
-  // Aktivní zakázky a realizované/ukončené zakázky
-  const activeJobs = useMemo(
-    () =>
-      effectiveStatus === 'completed'
-        ? []
-        : baseFilteredJobs.filter((j) => j.status !== 'completed'),
-    [baseFilteredJobs, effectiveStatus]
-  );
-
-  const completedJobs = useMemo(
-    () =>
-      effectiveStatus === 'active'
-        ? []
-        : baseFilteredJobs.filter((j) => j.status === 'completed'),
-    [baseFilteredJobs, effectiveStatus]
-  );
-
-  // Když je zapnutý featureFlag `greyedInactiveCards`, zobrazují se vyfiltrované neaktivní zakázky jako zašedlé JobCard přímo v mřížce
-  const greyedGridJobs = useMemo(() => {
-    if (effectiveStatus === 'active') {
-      return baseFilteredJobs.filter((j) => j.status !== 'completed');
-    }
-    if (effectiveStatus === 'completed') {
-      return baseFilteredJobs.filter((j) => j.status === 'completed');
-    }
-    const active = baseFilteredJobs.filter((j) => j.status !== 'completed');
-    const completed = baseFilteredJobs.filter((j) => j.status === 'completed');
-    return [...active, ...completed];
-  }, [baseFilteredJobs, effectiveStatus]);
-
-  const completedJobsCount = useMemo(
-    () => baseFilteredJobs.filter((j) => j.status === 'completed').length,
-    [baseFilteredJobs]
-  );
-
-  const visibleCount = featureFlags.greyedInactiveCards
-    ? greyedGridJobs.length
-    : activeJobs.length + (effectiveStatus === 'completed' ? completedJobs.length : 0);
+  }, [jobs, filters]);
 
   const activeFiltersCount =
     (filters.searchQuery ? 1 : 0) +
     (filters.region !== 'Všechny regiony' ? 1 : 0) +
     (filters.craft !== 'all' ? 1 : 0) +
-    (filters.statusFilter !== 'active' ? 1 : 0) +
-    (filters.ownerFilter && filters.ownerFilter !== 'all' ? 1 : 0);
-
-  const handleOpenAuthor = (authorId: string) => {
-    setSelectedUserId(authorId);
-  };
-
-  const ffDarkWhite = Boolean(featureFlags.darkWhiteShadows);
-  const ffGreyedInactive = Boolean(featureFlags.greyedInactiveCards);
-  const ffSoloBadges = Boolean(featureFlags.soloHeroBadges);
-  const ffMobileCompact = Boolean(featureFlags.mobileCompactUi);
+    (filters.mineOnly ? 1 : 0);
 
   return (
     <div className="min-h-screen flex flex-col pb-20 md:pb-12 bg-transparent text-[#111111] dark:text-[#F8FAFC] transition-colors">
-      {/* Volitelný informační banner z Admin CMS */}
-      {siteSettings.announcementBanner.trim() && (
-        <div className="bg-emerald-600 text-white px-4 py-2 text-xs sm:text-sm font-extrabold border-b-2 border-[#111111] flex items-center justify-center gap-2 text-center">
-          <Megaphone className="w-4 h-4 shrink-0" />
-          <span>{siteSettings.announcementBanner}</span>
-        </div>
-      )}
-
-      {/* Hlavička – kliknutí na „Můj profil“ přepne na stránku profilu (s ukrytým Adminem a Feature Flags) */}
       <Header
-        onOpenCreateJob={() => setIsCreateOpen(true)}
-        onOpenVerificationModal={() => setIsVerificationOpen(true)}
-        onOpenAdministration={() => handleOpenAdministration('all', null)}
-        currentUser={currentUser}
-        onOpenCurrentUserProfile={() => setIsProfilePageOpen((prev) => !prev)}
-        unreadNotificationsCount={unreadNotificationsCount}
-        isAdmin={isAdmin}
-        selectedRegion={selectedRegion}
-        onSelectRegion={handleSelectHeaderRegion}
+        user={user}
+        unreadCount={unread}
         isDark={isDark}
         onToggleDark={handleToggleDark}
-        featureFlags={featureFlags}
+        onOpenCreateJob={openCreate}
+        onOpenNotifications={openNotifications}
+        onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
+        onLogin={() => setIsLoginOpen(true)}
       />
 
-      {/* Pokud uživatel rozklikl „Můj profil“, přepne se zobrazení na novou stránku profilu (kde jsou pro admina i Feature Flags) */}
-      {isProfilePageOpen ? (
-        <ProfilePageView
-          user={currentUser}
-          allUsers={users}
-          onBackToBoard={() => setIsProfilePageOpen(false)}
-          onUpdateAvatar={handleUpdateAvatar}
-          onUpdateProfile={handleUpdateProfile}
-          allJobs={jobs}
-          reviews={reviews}
-          onReplyToReview={handleReplyToReview}
-          userResponses={currentUserNotifications}
-          onMarkResponseRead={handleMarkNotificationRead}
-          onOpenAdministration={(options) => {
-            handleOpenAdministration(
-              options?.filter || 'all',
-              options?.jobId || null
-            );
-          }}
-          onFocusJobOnBoard={handleFocusJobOnBoard}
-          isAdmin={isAdmin}
-          onSetAdmin={handleSetAdmin}
-          onSwitchCurrentUser={(userKeyOrId: string) => {
-            const found =
-              users[userKeyOrId] ||
-              Object.values(users).find((u) => u.id === userKeyOrId);
-            if (found) {
-              setActiveUserId(found.id);
-            }
-          }}
-          featureFlags={featureFlags}
-          onUpdateFeatureFlags={handleUpdateFeatureFlags}
-          siteSettings={siteSettings}
-        />
+      {view === 'profile' && user ? (
+        <ProfilePage user={user} onUserChange={setUser} onBack={goBoard} onLogout={handleLogout} />
       ) : (
         <>
           {/* Hero sekce */}
-          <section
-            className={`bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white ${
-              ffMobileCompact ? 'py-5 sm:py-9' : 'py-7 sm:py-9'
-            } px-4 sm:px-6 lg:px-8 transition-colors`}
-          >
+          <section className="bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white py-5 sm:py-9 px-4 sm:px-6 lg:px-8 transition-colors">
             <div className="max-w-7xl mx-auto">
               <div className="max-w-4xl text-left">
-                <h1
-                  className={`font-serif ${
-                    ffMobileCompact ? 'text-2xl sm:text-4xl lg:text-5xl mb-2.5 sm:mb-3' : 'text-3xl sm:text-4xl lg:text-5xl mb-3'
-                  } font-bold text-[#111111] dark:text-[#FEF08A] leading-tight tracking-tight`}
-                >
-                  {siteSettings.heroTitle}
+                <h1 className="font-serif text-2xl sm:text-4xl lg:text-5xl mb-2.5 sm:mb-3 font-bold text-[#111111] dark:text-[#FEF08A] leading-tight tracking-tight">
+                  Najdi práci nebo parťáka
                 </h1>
 
                 <button
@@ -771,139 +314,56 @@ export default function Home() {
                   className="inline-flex items-center gap-1 text-xs sm:text-sm font-extrabold underline underline-offset-4 decoration-2 text-[#111111] dark:text-[#FEF08A] cursor-pointer mb-3"
                 >
                   <span>Co je Restaurion?</span>
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform ${isHeroInfoOpen ? 'rotate-180' : ''}`}
-                  />
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isHeroInfoOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {isHeroInfoOpen && (
-                  <p
-                    className={`${
-                      ffMobileCompact ? 'text-xs sm:text-base mb-4 sm:mb-5' : 'text-sm sm:text-base mb-5'
-                    } text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl`}
-                  >
-                    {siteSettings.heroSubtitle}
+                  <p className="text-xs sm:text-base mb-4 sm:mb-5 text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl">
+                    Restaurion propojuje licencované restaurátory a umělecké řemeslníky v ČR. Zadavatel vloží zakázku s
+                    termínem, každý řemeslník v oboru dostane upozornění a může se přihlásit. Kontakty se ukážou až po
+                    přijetí.
                   </p>
                 )}
 
-                {/* Klíčové výhody – 3 fajfky pod podtitulkem (ve výchozím stavu vedle sebe jako e08fd7f, při soloHeroBadges pod sebou) */}
-                <div
-                  className={
-                    ffSoloBadges
-                      ? 'flex flex-col items-start gap-2 sm:gap-2.5 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white'
-                      : 'flex flex-wrap items-center justify-start gap-3 sm:gap-4 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white'
-                  }
-                >
-                  <div
-                    className={`inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] ${
-                      ffDarkWhite
-                        ? 'dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-                        : 'dark:border-stone-500 shadow-[2px_2px_0px_#111111]'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span>{siteSettings.heroBadge1}</span>
-                  </div>
-                  <div
-                    className={`inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] ${
-                      ffDarkWhite
-                        ? 'dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-                        : 'dark:border-stone-500 shadow-[2px_2px_0px_#111111]'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span>{siteSettings.heroBadge2}</span>
-                  </div>
-                  <div
-                    className={`inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] ${
-                      ffDarkWhite
-                        ? 'dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-                        : 'dark:border-stone-500 shadow-[2px_2px_0px_#111111]'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                    <span>{siteSettings.heroBadge3}</span>
-                  </div>
+                <div className="flex flex-wrap items-center justify-start gap-3 sm:gap-4 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
+                  {[
+                    'Poptávky subdodávek a zaštítění',
+                    'Upozornění na zakázky v tvém oboru',
+                    'Kontakt až po přijetí',
+                  ].map((text) => (
+                    <div key={text} className={badgeCls}>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>{text}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </section>
           <div aria-hidden="true" className="stencil-frieze" />
 
-          {/* Hlavní obsah s nabídkami práce */}
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
-            {/* Záložky portálu: Nástěnka zakázek vs. Nabízím se + tlačítka „+ Přidat“ a „Právní rámec & VOP“ */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-              <div
-                className={`${
-                  ffMobileCompact ? 'w-full sm:w-auto grid grid-cols-2 sm:flex' : 'flex'
-                } items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] ${
-                  ffDarkWhite
-                    ? 'dark:border-stone-300 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#F8FAFC]'
-                    : 'dark:border-stone-500 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000]'
-                }`}
-              >
-                <button
-                  onClick={() => setActiveTab('jobs')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
-                    activeTab === 'jobs'
-                      ? 'bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]'
-                      : 'border-transparent text-stone-700 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white hover:bg-stone-100 dark:hover:bg-[#262933]'
-                  }`}
-                >
+              <div className="inline-flex items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000]">
+                <div className="flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]">
                   <Briefcase className="w-4 h-4" />
                   <span>Nástěnka zakázek</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-extrabold border ${
-                      activeTab === 'jobs'
-                        ? 'bg-white text-[#111111] border-[#111111]'
-                        : 'bg-stone-200 dark:bg-stone-700 text-[#111111] dark:text-white border-[#111111] dark:border-stone-500'
-                    }`}
-                  >
-                    {jobs.filter((j) => j.jobType !== 'craftsman_available' && j.status !== 'completed').length}
+                  <span className="text-xs px-2 py-0.5 rounded-full font-extrabold border bg-white text-[#111111] border-[#111111]">
+                    {jobs.length}
                   </span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('available')}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
-                    activeTab === 'available'
-                      ? 'bg-[#2563EB] text-white border-[#111111] shadow-[2px_2px_0px_#111111]'
-                      : 'border-transparent text-stone-700 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white hover:bg-stone-100 dark:hover:bg-[#262933]'
-                  }`}
-                >
-                  <UserCheck className="w-4 h-4" />
-                  <span>Nabízím se</span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-extrabold border ${
-                      activeTab === 'available'
-                        ? 'bg-white text-[#1E3A8A] border-[#111111]'
-                        : 'bg-stone-200 dark:bg-stone-700 text-[#111111] dark:text-white border-[#111111] dark:border-stone-500'
-                    }`}
-                  >
-                    {jobs.filter((j) => j.jobType === 'craftsman_available' && j.status !== 'completed').length}
-                  </span>
-                </button>
+                </div>
               </div>
 
               <div className="hidden md:flex flex-wrap items-center gap-2.5">
                 <button
-                  onClick={() => setIsCreateOpen(true)}
-                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] text-sm font-extrabold border-2 border-[#111111] ${
-                    ffDarkWhite
-                      ? 'shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#F8FAFC]'
-                      : 'shadow-[4px_4px_0px_#111111]'
-                  } hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer`}
+                  onClick={openCreate}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] text-sm font-extrabold border-2 border-[#111111] shadow-[4px_4px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Přidat</span>
+                  <span>+ Přidat</span>
                 </button>
                 <button
                   onClick={() => setIsVopOpen(true)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#1C1E26] hover:bg-stone-100 dark:hover:bg-[#262933] border-2 border-[#111111] ${
-                    ffDarkWhite
-                      ? 'dark:border-stone-300 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-                      : 'dark:border-stone-500 shadow-[2px_2px_0px_#111111]'
-                  } text-xs text-[#111111] dark:text-stone-200 font-extrabold transition-all cursor-pointer`}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#1C1E26] hover:bg-stone-100 dark:hover:bg-[#262933] border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111] text-xs text-[#111111] dark:text-stone-200 font-extrabold transition-all cursor-pointer"
                 >
                   <Scale className="w-3.5 h-3.5 text-[#111111] dark:text-[#FEF08A]" />
                   <span>Právní rámec & VOP</span>
@@ -911,299 +371,153 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Filtry zakázek */}
             <JobFilters
               filters={filters}
               onChange={setFilters}
               onReset={() => setFilters(initialFilters)}
               activeCount={activeFiltersCount}
-              featureFlags={featureFlags}
             />
 
-            {/* Informační lišta s počtem výsledků */}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
-              <span>
-                Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{visibleCount}</strong>{' '}
-                {visibleCount === 1 ? 'nabídka' : visibleCount < 5 && visibleCount > 0 ? 'nabídky' : 'nabídek'}
-                {filters.region !== 'Všechny regiony' && (
-                  <span>
-                    {' '}
-                    v oblasti <strong className="text-[#111111] dark:text-white font-extrabold">{filters.region}</strong>
-                  </span>
-                )}
-              </span>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsVerificationOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-400 hover:underline font-extrabold cursor-pointer"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-[#111111]" />
-                  Reálné ověření licencí MK ČR aktivní
-                </button>
+            {actionError && (
+              <div className="mb-4">
+                <ErrorBox message={actionError} />
               </div>
-            </div>
+            )}
+            {notice && (
+              <div
+                role="status"
+                className="mb-4 p-3 rounded-xl bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15 border-2 border-[#111111] dark:border-[#FEF08A]/50 text-xs font-extrabold text-[#111111] dark:text-[#FEF08A]"
+              >
+                {notice}
+              </div>
+            )}
 
-            {/* Zobrazení zakázek: buď s featureFlagem greyedInactiveCards, nebo původní e08fd7f rozdělení */}
-            {ffGreyedInactive ? (
-              greyedGridJobs.length > 0 ? (
+            {jobsError ? (
+              <ErrorBox message={jobsError} onRetry={() => void loadAll()} />
+            ) : jobsLoading && jobs.length === 0 ? (
+              <p className="text-sm font-bold text-stone-600 dark:text-stone-400 py-8 text-center">Načítám zakázky…</p>
+            ) : filteredJobs.length > 0 ? (
+              <>
+                <div className="text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
+                  Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{filteredJobs.length}</strong>{' '}
+                  {filteredJobs.length === 1 ? 'zakázka' : filteredJobs.length < 5 ? 'zakázky' : 'zakázek'}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {greyedGridJobs.map((job) => (
+                  {filteredJobs.map((job) => (
                     <JobCard
                       key={job.id}
                       job={job}
-                      onRespond={(targetJob) => setRespondingJob(targetJob)}
-                      onViewAuthor={handleOpenAuthor}
-                      onManage={canManageJob(job) ? handleOpenManageJob : undefined}
-                      featureFlags={featureFlags}
+                      highlighted={highlightId === job.id}
+                      onRespond={(j) => requireLogin(() => setRespondingJob(j))}
+                      onWithdraw={handleWithdraw}
+                      onCloseJob={handleCloseJob}
+                      onOpenInterested={setInterestedJob}
                     />
                   ))}
                 </div>
-              ) : (
-                <div
-                  className={`bg-white dark:bg-[#1C1E26] rounded-3xl border-2 border-[#111111] ${
-                    ffDarkWhite
-                      ? 'dark:border-stone-300 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#F8FAFC]'
-                      : 'dark:border-stone-500 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]'
-                  } p-12 text-center my-6`}
-                >
-                  <div className="w-14 h-14 bg-[#FEF08A] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <Briefcase className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-serif text-lg font-bold text-[#111111] dark:text-white mb-1">
-                    Žádné zakázky neodpovídají zadaným filtrům
-                  </h3>
-                  <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                    Zkuste uvolnit vyhledávání, vybrat jiný region nebo obor.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      onClick={() => setFilters(initialFilters)}
-                      className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
-                    >
-                      Resetovat filtry
-                    </button>
-                    {effectiveStatus === 'active' && completedJobsCount > 0 && (
-                      <button
-                        onClick={() => setFilters((prev) => ({ ...prev, statusFilter: 'completed' }))}
-                        className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-300 shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
-                      >
-                        Zobrazit archivované ({completedJobsCount})
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            ) : (
-              /* Původní e08fd7f zobrazení: Mřížka nových zakázek + Kompaktní archiv dole */
-              <>
-                {activeJobs.length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {activeJobs.map((job) => (
-                      <JobCard
-                        key={job.id}
-                        job={job}
-                        onRespond={(targetJob) => setRespondingJob(targetJob)}
-                        onViewAuthor={handleOpenAuthor}
-                        onManage={canManageJob(job) ? handleOpenManageJob : undefined}
-                        featureFlags={featureFlags}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {completedJobs.length > 0 && (
-                  <section className={activeJobs.length > 0 ? 'mt-8 pt-6 border-t-2 border-[#111111]/15 dark:border-stone-700' : ''}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <Archive className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                        <h2 className="font-serif text-sm sm:text-base font-bold text-[#111111] dark:text-white">
-                          Archivované zakázky a nabídky ({completedJobs.length})
-                        </h2>
-                      </div>
-                      <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
-                        Kompaktní přehled archivovaných položek (nezabírá místo novým nabídkám)
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {completedJobs.map((job) => (
-                        <CompactArchivedJobRow
-                          key={job.id}
-                          job={job}
-                          onViewUser={handleOpenAuthor}
-                          onManageJob={canManageJob(job) ? handleOpenManageJob : undefined}
-                          featureFlags={featureFlags}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {activeJobs.length === 0 && completedJobs.length === 0 && (
-                  <div className="bg-white dark:bg-[#1C1E26] rounded-3xl border-2 border-[#111111] dark:border-stone-500 p-12 text-center my-6 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]">
-                    <div className="w-14 h-14 bg-[#FEF08A] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
-                      <Briefcase className="w-6 h-6" />
-                    </div>
-                    <h3 className="font-serif text-lg font-bold text-[#111111] dark:text-white mb-1">
-                      Žádné zakázky neodpovídají zadaným filtrům
-                    </h3>
-                    <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                      Zkuste uvolnit vyhledávání, vybrat jiný region nebo obor.
-                    </p>
-                    <button
-                      onClick={() => setFilters(initialFilters)}
-                      className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
-                    >
-                      Resetovat filtry
-                    </button>
-                  </div>
-                )}
               </>
+            ) : (
+              <div className="bg-white dark:bg-[#1C1E26] rounded-3xl border-2 border-[#111111] dark:border-stone-500 p-12 text-center my-6 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]">
+                <div className="w-14 h-14 bg-[#FEF08A] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <Briefcase className="w-6 h-6" />
+                </div>
+                <h3 className="font-serif text-lg font-bold text-[#111111] dark:text-white mb-1">
+                  {jobs.length === 0 ? 'Zatím tu nejsou žádné zakázky' : 'Žádné zakázky neodpovídají zadaným filtrům'}
+                </h3>
+                <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
+                  {jobs.length === 0
+                    ? 'Buď první a přidej zakázku. Řemeslníci v oboru dostanou upozornění.'
+                    : 'Zkus uvolnit vyhledávání, vybrat jiný region nebo obor, nebo přidej vlastní zakázku.'}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {jobs.length > 0 && activeFiltersCount > 0 && (
+                    <button
+                      onClick={() => setFilters(initialFilters)}
+                      className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-300 shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
+                    >
+                      Resetovat filtry
+                    </button>
+                  )}
+                  <button onClick={openCreate} className={primaryBtn}>
+                    + Přidat
+                  </button>
+                </div>
+              </div>
             )}
           </main>
         </>
       )}
 
-      {/* Footer – odkaz na Admin v patičce je skrytý pro běžné návštěvníky (admin je dostupný až po rozkliku Můj profil) */}
-      <footer
-        className={`border-t-2 border-[#111111] ${
-          ffDarkWhite ? 'dark:border-stone-400' : 'dark:border-stone-600'
-        } bg-white dark:bg-[#181A20] py-8 px-4 sm:px-6 lg:px-8 text-xs text-stone-700 dark:text-stone-300 font-bold transition-colors`}
-      >
+      <footer className="border-t-2 border-[#111111] dark:border-stone-600 bg-white dark:bg-[#181A20] py-8 px-4 sm:px-6 lg:px-8 text-xs text-stone-700 dark:text-stone-300 font-bold transition-colors">
         <div className="max-w-7xl mx-auto flex flex-row items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-[#FEF08A] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] text-[#111111] flex items-center justify-center shrink-0">
               <HammerLogo className="w-4 h-4" />
             </div>
             <span className="font-serif font-bold text-[#111111] dark:text-white">
-              {siteSettings.footerText}
+              Restaurion – platforma pro památková řemesla
             </span>
           </div>
-
-          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-right">
-            {isAdmin && (
-              <button
-                onClick={() => handleOpenAdministration('all', null)}
-                className="inline-flex items-center gap-1.5 text-[#111111] dark:text-stone-200 hover:underline font-extrabold cursor-pointer"
-              >
-                <Settings2 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#FEF08A]" />
-                <span>Administrace</span>
-              </button>
-            )}
-            <button
-              onClick={() => setIsVopOpen(true)}
-              className="text-right text-[#111111] dark:text-[#FEF08A] hover:underline font-extrabold cursor-pointer"
-            >
-              Všeobecné obchodní podmínky (VOP)
-            </button>
-          </div>
+          <button
+            onClick={() => setIsVopOpen(true)}
+            className="text-right text-[#111111] dark:text-[#FEF08A] hover:underline font-extrabold cursor-pointer"
+          >
+            Všeobecné obchodní podmínky (VOP)
+          </button>
         </div>
       </footer>
 
-      {/* Mobilní spodní lišta */}
       <MobileBottomNav
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          if (tab === 'vop') {
-            setIsVopOpen(true);
-          } else {
-            setIsProfilePageOpen(false);
-            setActiveTab(tab);
-          }
-        }}
-        onOpenCreateJob={() => setIsCreateOpen(true)}
-        onOpenVerificationModal={() => setIsVerificationOpen(true)}
+        active={view === 'profile' ? 'profile' : 'board'}
+        isLoggedIn={Boolean(user)}
+        unreadCount={unread}
+        onBoard={goBoard}
+        onCreate={openCreate}
+        onNotifications={openNotifications}
+        onProfile={() => (user ? setView((v) => (v === 'profile' ? 'board' : 'profile')) : setIsLoginOpen(true))}
       />
 
       {/* Modální okna */}
-      <CreateJobModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
-        onSubmit={handleCreateJob}
-      />
+      {isCreateOpen && (
+        <CreateJobModal onClose={() => setIsCreateOpen(false)} onCreated={() => void loadJobs()} />
+      )}
 
-      <LicenseVerificationModal
-        isOpen={isVerificationOpen}
-        onClose={() => setIsVerificationOpen(false)}
-      />
+      {respondingJob && (
+        <RespondModal
+          job={respondingJob}
+          onClose={() => setRespondingJob(null)}
+          onSubmitted={() => void loadJobs()}
+        />
+      )}
 
-      <UserProfileModal
-        user={selectedUser}
-        currentUser={currentUser}
-        isOpen={Boolean(selectedUser)}
-        onClose={() => setSelectedUserId(null)}
-        onUpdateAvatar={handleUpdateAvatar}
-        allJobs={jobs}
-        reviews={reviews}
-        onReplyToReview={handleReplyToReview}
-        userResponses={currentUserNotifications}
-        onMarkResponseRead={handleMarkNotificationRead}
-        onOpenAdministration={(options) => {
-          setSelectedUserId(null);
-          handleOpenAdministration(
-            options?.filter || 'all',
-            options?.jobId || null
-          );
-        }}
-        onFocusJobOnBoard={handleFocusJobOnBoard}
-        featureFlags={featureFlags}
-      />
+      {interestedJob && (
+        <InterestedWorkersModal
+          job={interestedJob}
+          onClose={() => setInterestedJob(null)}
+          onChanged={() => void loadJobs()}
+        />
+      )}
 
-      <RespondModal
-        job={respondingJob}
-        isOpen={Boolean(respondingJob)}
-        onClose={() => setRespondingJob(null)}
-        onSubmitted={handleJobResponded}
-      />
+      {isNotifOpen && user && (
+        <NotificationsPanel
+          onClose={() => setIsNotifOpen(false)}
+          onUnreadChange={setUnread}
+          onOpenJob={handleOpenJobFromNotification}
+        />
+      )}
 
-      <ManageJobsModal
-        isOpen={isManageOpen}
-        onClose={() => setIsManageOpen(false)}
-        jobs={jobs}
-        users={users}
-        onSavePersonReview={handleSavePersonReview}
-        initialJobId={managingJobId}
-        initialScopeFilter={manageScopeFilter}
-        onJobUpdated={handleUpdateJob}
-        onJobDeleted={handleDeleteJob}
-        siteSettings={siteSettings}
-        onSiteSettingsUpdated={setSiteSettings}
-        isAdmin={isAdmin}
-        onToggleAdmin={handleToggleAdmin}
-        onSetAdmin={handleSetAdmin}
-        currentUserId={currentUser.id}
-        onSwitchCurrentUser={(userKeyOrId: string) => {
-          const found =
-            users[userKeyOrId] ||
-            Object.values(users).find((u) => u.id === userKeyOrId);
-          if (found) {
-            setActiveUserId(found.id);
-          }
-        }}
-        onUnlockOrVerifyUser={(userKeyOrId: string) => {
-          setUsers((prev) => {
-            const next = { ...prev };
-            for (const key of Object.keys(next)) {
-              if (key === userKeyOrId || next[key].id === userKeyOrId) {
-                next[key] = {
-                  ...next[key],
-                  verificationStatus: 'verified_manual',
-                  verifiedAt: 'Ověřeno a odemknuto adminem',
-                  availability: 'available_now',
-                };
-              }
-            }
-            return next;
-          });
-        }}
-        localResponses={responses}
-        featureFlags={featureFlags}
-      />
+      {isLoginOpen && (
+        <LoginModal
+          onClose={() => {
+            pendingAction.current = null;
+            setIsLoginOpen(false);
+          }}
+          onLoggedIn={handleLoggedIn}
+          onOpenVop={() => setIsVopOpen(true)}
+        />
+      )}
 
-      <LegalNoticeModal
-        isOpen={isVopOpen}
-        onClose={() => setIsVopOpen(false)}
-      />
+      {isVopOpen && <LegalNoticeModal isOpen={isVopOpen} onClose={() => setIsVopOpen(false)} />}
     </div>
   );
 }

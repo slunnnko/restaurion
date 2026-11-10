@@ -86,7 +86,16 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
 
           <div>
             <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
-              3. Závěrečná ustanovení
+              3. Osobní údaje
+            </h3>
+            <p>
+              Tvůj e-mail a telefon vidí jen protistrana, a to až po přijetí spolupráce. Termíny nedostupnosti nevidí nikdo jiný. Smazání účtu zajistíme na vyžádání e-mailem.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
+              4. Závěrečná ustanovení
             </h3>
             <p className="text-stone-600 dark:text-stone-400 text-xs">
               Tyto VOP se řídí právem České republiky. Využíváním platformy potvrzujete, že těmto srozumitelným pravidlům rozumíte a bez výhrad s nimi souhlasíte.

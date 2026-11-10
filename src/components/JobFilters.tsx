@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FeatureFlags, FilterState } from '@/types';
+import { FilterState } from '@/types';
 import { Search, MapPin, RotateCcw, ChevronDown, UserRound } from 'lucide-react';
 import { CRAFT_CATEGORIES, suggestCrafts } from '@/lib/crafts';
+import { REGIONS } from '@/lib/regions';
 
 interface JobFiltersProps {
   filters: FilterState;
   onChange: (filters: FilterState) => void;
   onReset: () => void;
   activeCount: number;
-  featureFlags?: FeatureFlags;
 }
 
 export const JobFilters: React.FC<JobFiltersProps> = ({
@@ -18,29 +18,22 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
   onChange,
   onReset,
   activeCount,
-  featureFlags,
 }) => {
   const [isSuggestOpen, setIsSuggestOpen] = useState(false);
 
-  const ffWhiteShadows = Boolean(featureFlags?.darkWhiteShadows);
-
-  const update = (key: keyof FilterState, value: string) => {
+  const update = (key: 'searchQuery' | 'region' | 'craft', value: string) => {
     onChange({ ...filters, [key]: value });
   };
 
-  const cardShadow = ffWhiteShadows
-    ? 'shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#F8FAFC]'
-    : 'shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000]';
-  const pillShadow = ffWhiteShadows
-    ? 'shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#F8FAFC]'
-    : 'shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
-  const inputBorder = ffWhiteShadows ? 'dark:border-stone-400' : 'dark:border-stone-500';
+  const cardShadow = 'shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000]';
+  const pillShadow = 'shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
+  const inputBorder = 'dark:border-stone-500';
 
   const query = filters.searchQuery.trim();
   const suggestions = suggestCrafts(query);
 
   const selectedCraft = CRAFT_CATEGORIES.find((c) => c.id === filters.craft);
-  const isMineActive = Boolean(filters.ownerFilter && filters.ownerFilter !== 'all');
+  const isMineActive = filters.mineOnly;
 
   const selectCraft = (id: string) => {
     onChange({ ...filters, craft: id, searchQuery: '' });
@@ -49,9 +42,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
 
   return (
     <div
-      className={`bg-white dark:bg-[#1C1E26] border-2 border-[#111111] ${
-        ffWhiteShadows ? 'dark:border-stone-300' : 'dark:border-stone-500'
-      } rounded-2xl p-3.5 sm:p-5 ${cardShadow} mb-5 sm:mb-6 transition-colors`}
+      className={`bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 rounded-2xl p-3.5 sm:p-5 ${cardShadow} mb-5 sm:mb-6 transition-colors`}
     >
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 sm:gap-3">
         {/* Vyhledávání + nabídka oborů */}
@@ -100,20 +91,11 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
               className={`w-full h-11 pl-10 pr-9 rounded-xl border-2 border-[#111111] ${inputBorder} bg-[#FFFDF7] dark:bg-[#121318] text-sm focus:outline-hidden focus:bg-[#FEF08A]/30 dark:focus:border-[#FEF08A] transition-all text-[#111111] dark:text-white font-bold cursor-pointer appearance-none`}
             >
               <option value="Všechny regiony">Všechny regiony</option>
-              <option value="Praha">Praha</option>
-              <option value="Středočeský kraj">Středočeský kraj</option>
-              <option value="Jihočeský kraj">Jihočeský kraj</option>
-              <option value="Plzeňský kraj">Plzeňský kraj</option>
-              <option value="Karlovarský kraj">Karlovarský kraj</option>
-              <option value="Ústecký kraj">Ústecký kraj</option>
-              <option value="Liberecký kraj">Liberecký kraj</option>
-              <option value="Královéhradecký kraj">Královéhradecký kraj</option>
-              <option value="Pardubický kraj">Pardubický kraj</option>
-              <option value="Kraj Vysočina">Kraj Vysočina</option>
-              <option value="Jihomoravský kraj">Jihomoravský kraj</option>
-              <option value="Olomoucký kraj">Olomoucký kraj</option>
-              <option value="Zlínský kraj">Zlínský kraj</option>
-              <option value="Moravskoslezský kraj">Moravskoslezský kraj</option>
+              {REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
             </select>
             <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-[#111111] dark:text-stone-300 pointer-events-none" />
           </div>
@@ -121,7 +103,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({
           <button
             type="button"
             aria-pressed={isMineActive}
-            onClick={() => onChange({ ...filters, ownerFilter: isMineActive ? 'all' : 'mine' })}
+            onClick={() => onChange({ ...filters, mineOnly: !isMineActive })}
             className={`h-11 w-auto md:w-full md:col-span-2 shrink-0 inline-flex items-center justify-center gap-1.5 px-3 rounded-xl border-2 border-[#111111] ${inputBorder} text-xs font-extrabold transition-all cursor-pointer ${
               isMineActive
                 ? `bg-[#FEF08A] text-[#111111] ${pillShadow}`

@@ -1,282 +1,136 @@
 import {
-  PagesContext,
-  jsonResponse,
-  safeJsonParse,
-  formatRelativeDateCz,
+  JOB_SELECT,
+  addDays,
+  badJson,
   getAuthenticatedUserId,
-} from './_shared';
+  jsonResponse,
+  mapContact,
+  mapJobRow,
+  noDb,
+  readJson,
+  requireUser,
+  todayUtc,
+} from './_shared.ts';
+import type { JobRow, JobViewer, PagesContext } from './_shared.ts';
+import { loadBusySlots, loadMatchCandidates } from './_lib/data.ts';
+import { validateNewJob, validationResponse } from './_lib/validate.ts';
+import { countBusyDays, evaluateMatch } from '../../src/lib/matching.ts';
+import type { EngagementStatus } from '../../src/types/api.ts';
 
-interface JoinedJobRow {
-  id: string;
-  author_id: string;
-  title: string;
-  description: string;
-  job_type: string;
-  monument_status: string;
-  monument_name: string | null;
-  monument_reg_number: string | null;
-  image_url: string | null;
-  required_crafts_json: string;
-  region: string;
-  city: string;
-  start_date: string | null;
-  deadline: string | null;
-  budget_note: string;
-  responses_count: number;
-  urgent: number;
-  status: string;
-  created_at: string;
-  matched_partner_id: string | null;
-  matched_partner_name: string | null;
-  matched_partner_role: string | null;
-  completed_at: string | null;
-  review_rating: number | null;
-  review_text: string | null;
-  review_author_name: string | null;
-  review_created_at: string | null;
+const BOARD_WHERE = `j.date_from IS NOT NULL AND j.date_to IS NOT NULL AND j.status = 'active'
+  AND j.visibility = 'public' AND j.expires_at >= date('now')`;
 
-  // Sloupce profilu autora
-  u_id: string;
-  u_email: string;
-  u_name: string;
-  u_title: string | null;
-  u_role: string;
-  u_avatar_url: string | null;
-  u_region: string;
-  u_city: string;
-  u_phone: string | null;
-  u_bio: string;
-  u_specializations_json: string;
-  u_mk_license_number: string | null;
-  u_mk_license_fields_json: string;
-  u_verification_status: string;
-  u_verified_at: string | null;
-  u_availability: string;
-  u_available_from: string | null;
-  u_completed_jobs_count: number;
-  u_colleague_endorsements_count: number;
-  u_school_or_background: string | null;
-}
-
-export function mapRowToJob(row: JoinedJobRow) {
-  const normalizedStatus =
-    row.status === 'completed' || row.status === 'archived' ? 'completed' : 'active';
-
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    jobType: row.job_type,
-    monumentStatus: row.monument_status,
-    status: normalizedStatus,
-    ...(row.monument_name ? { monumentName: row.monument_name } : {}),
-    ...(row.monument_reg_number ? { monumentRegNumber: row.monument_reg_number } : {}),
-    ...(row.image_url ? { imageUrl: row.image_url } : {}),
-    requiredCrafts: safeJsonParse<string[]>(row.required_crafts_json, []),
-    region: row.region,
-    city: row.city,
-    ...(row.start_date ? { startDate: row.start_date } : {}),
-    ...(row.deadline ? { deadline: row.deadline } : {}),
-    budgetNote: row.budget_note,
-    createdAt: formatRelativeDateCz(row.created_at),
-    responsesCount: Number(row.responses_count ?? 0),
-    urgent: Boolean(row.urgent),
-    ...(row.completed_at ? { completedAt: row.completed_at } : {}),
-    ...(row.matched_partner_name
-      ? {
-          matchedPartner: {
-            ...(row.matched_partner_id ? { id: row.matched_partner_id } : {}),
-            name: row.matched_partner_name,
-            ...(row.matched_partner_role ? { roleLabel: row.matched_partner_role } : {}),
-          },
-        }
-      : {}),
-    ...(row.review_text
-      ? {
-          review: {
-            rating: Number(row.review_rating ?? 5),
-            text: row.review_text,
-            authorName: row.review_author_name || row.u_name,
-            createdAt: row.review_created_at ? formatRelativeDateCz(row.review_created_at) : 'nedávno',
-          },
-        }
-      : {}),
-    author: {
-      id: row.u_id,
-      name: row.u_name,
-      ...(row.u_title ? { title: row.u_title } : {}),
-      role: row.u_role,
-      ...(row.u_avatar_url ? { avatarUrl: row.u_avatar_url } : {}),
-      region: row.u_region,
-      city: row.u_city,
-      ...(row.u_phone ? { phone: row.u_phone } : {}),
-      email: row.u_email,
-      bio: row.u_bio,
-      specializations: safeJsonParse<string[]>(row.u_specializations_json, []),
-      ...(row.u_mk_license_number ? { mkLicenseNumber: row.u_mk_license_number } : {}),
-      mkLicenseFields: safeJsonParse<string[]>(row.u_mk_license_fields_json, []),
-      verificationStatus: row.u_verification_status,
-      ...(row.u_verified_at ? { verifiedAt: row.u_verified_at } : {}),
-      availability: row.u_availability,
-      ...(row.u_available_from ? { availableFrom: row.u_available_from } : {}),
-      completedJobsCount: Number(row.u_completed_jobs_count ?? 0),
-      colleagueEndorsementsCount: Number(row.u_colleague_endorsements_count ?? 0),
-      ...(row.u_school_or_background ? { schoolOrBackground: row.u_school_or_background } : {}),
-    },
-  };
-}
-
-export const SELECT_JOBS_SQL = `
-  SELECT
-    j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status,
-    j.monument_name, j.monument_reg_number, j.image_url, j.required_crafts_json,
-    j.region, j.city, j.start_date, j.deadline, j.budget_note, j.responses_count,
-    j.urgent, j.status, j.created_at,
-    j.matched_partner_id, j.matched_partner_name, j.matched_partner_role,
-    j.completed_at, j.review_rating, j.review_text, j.review_author_name, j.review_created_at,
-    p.id AS u_id, p.email AS u_email, p.name AS u_name, p.title AS u_title,
-    p.role AS u_role, p.avatar_url AS u_avatar_url, p.region AS u_region,
-    p.city AS u_city, p.phone AS u_phone, p.bio AS u_bio,
-    p.specializations_json AS u_specializations_json,
-    p.mk_license_number AS u_mk_license_number,
-    p.mk_license_fields_json AS u_mk_license_fields_json,
-    p.verification_status AS u_verification_status,
-    p.verified_at AS u_verified_at,
-    p.availability AS u_availability,
-    p.available_from AS u_available_from,
-    p.completed_jobs_count AS u_completed_jobs_count,
-    p.colleague_endorsements_count AS u_colleague_endorsements_count,
-    p.school_or_background AS u_school_or_background
-  FROM jobs j
-  JOIN profiles p ON j.author_id = p.id
-  WHERE j.status IN ('active', 'completed', 'in_progress')
-  ORDER BY CASE WHEN j.status = 'active' THEN 0 ELSE 1 END, j.created_at DESC
-`;
-
-export const onRequestGet = async (context: PagesContext) => {
-  const db = context.env.DB;
-  if (!db) {
-    return jsonResponse({ error: 'Databáze D1 není připojena (binding DB).' }, 503);
-  }
+/** GET /api/jobs → veřejná nástěnka; s relací přidá pole pro přihlášeného (isMine, myEngagement, ...). */
+export async function onRequestGet(context: PagesContext): Promise<Response> {
+  const { request, env } = context;
+  if (!env.DB) return noDb();
+  const db = env.DB;
 
   try {
-    const { results } = await db.prepare(SELECT_JOBS_SQL).all<JoinedJobRow>();
-    const jobs = results.map(mapRowToJob);
+    const rows = await db
+      .prepare(`${JOB_SELECT} WHERE ${BOARD_WHERE} ORDER BY j.created_at DESC LIMIT 300`)
+      .all<JobRow>();
+
+    const userId = await getAuthenticatedUserId(request, db);
+    if (!userId) return jsonResponse({ jobs: rows.results.map((r) => mapJobRow(r)) });
+
+    const today = todayUtc();
+    const busy = await loadBusySlots(db, userId, today);
+    const mine = await db
+      .prepare(
+        `SELECT e.id, e.job_id, e.status, p.name AS p_name, p.email AS p_email, p.phone AS p_phone
+         FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles p ON p.id = j.author_id
+         WHERE e.worker_id = ?`
+      )
+      .bind(userId)
+      .all<{ id: string; job_id: string; status: EngagementStatus; p_name: string; p_email: string; p_phone: string | null }>();
+    const engByJob = new Map(mine.results.map((e) => [e.job_id, e]));
+
+    const jobs = rows.results.map((r) => {
+      const e = engByJob.get(r.id);
+      const viewer: JobViewer = {
+        userId,
+        busyDays: countBusyDays({ dateFrom: r.date_from, dateTo: r.date_to }, busy.blocks, busy.engagements, r.id),
+        ...(e ? { engagement: { id: e.id, status: e.status } } : {}),
+        ...(e && e.status === 'accepted'
+          ? { posterContact: mapContact({ name: e.p_name, email: e.p_email, phone: e.p_phone }) }
+          : {}),
+      };
+      return mapJobRow(r, viewer);
+    });
     return jsonResponse({ jobs });
   } catch (err) {
-    console.error('Chyba při načítání zakázek z D1:', err);
-    return jsonResponse({ error: 'Nepodařilo se načíst zakázky z databáze.' }, 500);
+    console.error('Chyba při GET /api/jobs:', err);
+    return jsonResponse({ error: 'Nepodařilo se načíst zakázky.' }, 500);
   }
-};
+}
 
-export const onRequestPost = async (context: PagesContext) => {
-  const db = context.env.DB;
-  if (!db) {
-    return jsonResponse({ error: 'Databáze D1 není připojena (binding DB).' }, 503);
-  }
+/** POST /api/jobs → vytvoří zakázku a pošle notifikaci každému odpovídajícímu řemeslníkovi. */
+export async function onRequestPost(context: PagesContext): Promise<Response> {
+  const { request, env } = context;
+  if (!env.DB) return noDb();
+  const db = env.DB;
+
+  const auth = await requireUser(request, db);
+  if ('response' in auth) return auth.response;
+
+  const body = await readJson<Record<string, unknown>>(request);
+  if (!body) return badJson();
+  const { errors, values } = validateNewJob(body);
+  if (Object.keys(errors).length > 0) return validationResponse(errors);
 
   try {
-    const body = (await context.request.json()) as {
-      title?: string;
-      description?: string;
-      jobType?: string;
-      monumentStatus?: string;
-      monumentName?: string;
-      imageUrl?: string;
-      requiredCrafts?: string[];
-      region?: string;
-      city?: string;
-      startDate?: string;
-      budgetNote?: string;
-      authorId?: string;
-    };
-
-    if (!body.title || !body.city) {
-      return jsonResponse({ error: 'Chybí povinné údaje inzerátu (název, město).' }, 400);
-    }
-
-    const fieldErrors: Record<string, string> = {};
-    const trimmedTitle = body.title.trim();
-    const trimmedCity = body.city.trim();
-    const trimmedDesc = (body.description || '').trim();
-    const trimmedBudget = (body.budgetNote || 'Dle dohody').trim();
-    const validCrafts = Array.isArray(body.requiredCrafts)
-      ? body.requiredCrafts.map((c) => String(c).trim()).filter((c) => c.length >= 2)
-      : [];
-
-    if (trimmedTitle.length < 5 || trimmedTitle.length > 120) {
-      fieldErrors.title = 'Název musí mít 5 až 120 znaků.';
-    }
-    if (trimmedCity.length < 2 || trimmedCity.length > 60) {
-      fieldErrors.city = 'Název města musí mít 2 až 60 znaků.';
-    }
-    if (trimmedDesc.length > 2000) {
-      fieldErrors.description = 'Popis může mít maximálně 2000 znaků.';
-    }
-    if (trimmedBudget.length < 2 || trimmedBudget.length > 120) {
-      fieldErrors.budgetNote = 'Odměna musí mít 2 až 120 znaků.';
-    }
-    if (validCrafts.length === 0) {
-      fieldErrors.crafts = 'Zadejte alespoň 1 požadované nebo nabízené řemeslo.';
-    }
-
-    if (Object.keys(fieldErrors).length > 0) {
-      return jsonResponse(
-        {
-          error: Object.values(fieldErrors)[0],
-          fieldErrors,
-        },
-        400
-      );
-    }
-
-    const sessionUserId = await getAuthenticatedUserId(context.request, db);
-    const authorId = sessionUserId || body.authorId || 'user-novak';
-    const jobId = `job-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
+    const jobId = `j-${crypto.randomUUID().slice(0, 8)}`;
+    const expiresAt = addDays(values.dateTo, 14);
     await db
       .prepare(
-        `INSERT INTO jobs (
-          id, author_id, title, description, job_type, monument_status,
-          monument_name, image_url, required_crafts_json, region, city,
-          start_date, budget_note, responses_count, urgent, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 'active')`
+        `INSERT INTO jobs (id, author_id, title, description, job_type, monument_status, monument_name,
+           required_crafts_json, region, city, start_date, budget_note, status, date_from, date_to,
+           visibility, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'public', ?)`
       )
       .bind(
         jobId,
-        authorId,
-        body.title.trim(),
-        (body.description || '').trim(),
-        body.jobType || 'subcontract_needed',
-        body.monumentStatus || 'cultural_monument',
-        body.monumentName?.trim() || null,
-        body.imageUrl || null,
-        JSON.stringify(Array.isArray(body.requiredCrafts) && body.requiredCrafts.length > 0 ? body.requiredCrafts : ['Restaurování']),
-        body.region || 'Jihomoravský kraj',
-        body.city.trim(),
-        body.startDate?.trim() || 'Dle dohody',
-        body.budgetNote?.trim() || 'Dle dohody'
+        auth.userId,
+        values.title,
+        values.description,
+        values.jobType,
+        values.monumentStatus,
+        values.monumentName || null,
+        JSON.stringify(values.crafts),
+        values.region,
+        values.city,
+        values.dateFrom,
+        values.budgetNote,
+        values.dateFrom,
+        values.dateTo,
+        expiresAt
       )
       .run();
 
-    const row = await db
-      .prepare(
-        `${SELECT_JOBS_SQL.replace(
-          "ORDER BY CASE WHEN j.status = 'active' THEN 0 ELSE 1 END, j.created_at DESC",
-          'AND j.id = ? LIMIT 1'
-        )}`
-      )
-      .bind(jobId)
-      .first<JoinedJobRow>();
+    const candidates = await loadMatchCandidates(db, auth.userId, values);
+    const job = {
+      id: jobId,
+      posterId: auth.userId,
+      status: 'active',
+      expiresAt,
+      dateFrom: values.dateFrom,
+      dateTo: values.dateTo,
+      crafts: values.crafts,
+    };
+    const today = todayUtc();
+    const matched = candidates.filter((w) => evaluateMatch(job, w, today).matches);
+    const inserts = matched.map((w) =>
+      db
+        .prepare(`INSERT INTO notifications (id, profile_id, type, job_id) VALUES (?, ?, 'job_match', ?)`)
+        .bind(`n-${crypto.randomUUID()}`, w.id, jobId)
+    );
+    for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
 
-    if (!row) {
-      return jsonResponse({ id: jobId, ok: true }, 201);
-    }
-
-    return jsonResponse({ job: mapRowToJob(row) }, 201);
+    const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
+    return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }), notified: matched.length }, 201);
   } catch (err) {
-    console.error('Chyba při ukládání zakázky do D1:', err);
-    return jsonResponse({ error: 'Nepodařilo se uložit inzerát do databáze.' }, 500);
+    console.error('Chyba při POST /api/jobs:', err);
+    return jsonResponse({ error: 'Nepodařilo se vytvořit zakázku.' }, 500);
   }
-};
-
+}

@@ -1,255 +1,104 @@
-import {
-  PagesContext,
-  jsonResponse,
-  safeJsonParse,
-  getAuthenticatedUserId,
-} from './_shared';
+import { badJson, jsonResponse, loadOwnProfile, noDb, readJson, requireUser } from './_shared.ts';
+import type { PagesContext } from './_shared.ts';
+import { PHONE_RE, str, validCraftIds, validationResponse } from './_lib/validate.ts';
+import type { FieldErrors } from './_lib/validate.ts';
 
-interface ProfileRow {
-  id: string;
-  name: string;
-  title: string | null;
-  role: string;
-  avatar_url: string | null;
-  mk_license_number: string | null;
-  mk_license_fields: string | null;
-  mk_license_fields_json?: string | null;
-  verification_status: string;
-  school_or_background: string | null;
-  specializations: string | null;
-  specializations_json?: string | null;
-  regions: string | null;
-  region: string;
-  city: string;
-  bio: string | null;
-  phone: string | null;
-  email: string;
-  availability: string;
-  completed_jobs_count: number;
-  colleague_endorsements_count: number;
-}
-
-function mapProfileRow(row: ProfileRow) {
-  return {
-    id: row.id,
-    name: row.name,
-    title: row.title || undefined,
-    role: row.role,
-    avatarUrl: row.avatar_url || undefined,
-    mkLicenseNumber: row.mk_license_number || undefined,
-    mkLicenseFields: safeJsonParse<string[] | undefined>(
-      row.mk_license_fields_json ?? row.mk_license_fields,
-      undefined
-    ),
-    verificationStatus: row.verification_status,
-    schoolOrBackground: row.school_or_background || undefined,
-    specializations: safeJsonParse<string[]>(row.specializations_json ?? row.specializations, []),
-    regions: safeJsonParse<string[]>(row.regions, [row.region]),
-    region: row.region,
-    city: row.city,
-    bio: row.bio || '',
-    phone: row.phone || undefined,
-    email: row.email,
-    availability: row.availability,
-    completedJobsCount: Number(row.completed_jobs_count ?? 0),
-    colleagueEndorsementsCount: Number(row.colleague_endorsements_count ?? 0),
-  };
-}
-
-/**
- * GET /api/profile?id=u1
- * Vrátí detail profilu uživatele (nebo aktuálně přihlášeného uživatele, případně výchozího u1).
- */
+/** GET /api/profile → vlastní profil (jen relace) */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
   const { request, env } = context;
-
-  if (!env.DB) {
-    return jsonResponse(
-      { error: 'Databáze D1 zatím není připojená (binding DB).' },
-      503
-    );
-  }
-
-  const url = new URL(request.url);
-  const requestedId = url.searchParams.get('id');
-  const authUserId = await getAuthenticatedUserId(request, env.DB);
-  const targetId = requestedId || authUserId || 'u1';
-
-  try {
-    const row = await env.DB.prepare(`SELECT * FROM profiles WHERE id = ? LIMIT 1`)
-      .bind(targetId)
-      .first<ProfileRow>();
-
-    if (!row) {
-      return jsonResponse({ error: 'Profil nebyl nalezen.' }, 404);
-    }
-
-    return jsonResponse({ profile: mapProfileRow(row) });
-  } catch (err) {
-    console.error('Chyba při GET /api/profile:', err);
-    return jsonResponse({ error: 'Nepodařilo se načíst profil.' }, 500);
-  }
+  if (!env.DB) return noDb();
+  const auth = await requireUser(request, env.DB);
+  if ('response' in auth) return auth.response;
+  const profile = await loadOwnProfile(env.DB, auth.userId);
+  if (!profile) return jsonResponse({ error: 'Profil nenalezen.' }, 404);
+  return jsonResponse({ profile });
 }
 
-interface UpdateProfileBody {
-  id?: string;
-  userId?: string;
-  avatarUrl?: string;
-  name?: string;
-  title?: string;
-  role?: string;
-  email?: string;
-  bio?: string;
-  region?: string;
-  city?: string;
-  phone?: string;
-  availability?: string;
-  mkLicenseNumber?: string;
-  schoolOrBackground?: string;
-  specializations?: string[];
-}
-
-/**
- * PUT /api/profile
- * Aktualizuje profil uživatele v Cloudflare D1 (např. při změně profilové fotky avatarUrl).
- */
+/** PUT /api/profile → úprava VLASTNÍHO profilu (žádné id v požadavku se nepřijímá). E-mail se nemění. */
 export async function onRequestPut(context: PagesContext): Promise<Response> {
   const { request, env } = context;
+  if (!env.DB) return noDb();
+  const db = env.DB;
+  const auth = await requireUser(request, db);
+  if ('response' in auth) return auth.response;
 
-  if (!env.DB) {
-    return jsonResponse(
-      { error: 'Databáze D1 zatím není připojená (binding DB).' },
-      503
-    );
+  const body = await readJson<Record<string, unknown>>(request);
+  if (!body) return badJson();
+
+  const errors: FieldErrors = {};
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  const set = (col: string, value: unknown) => {
+    sets.push(`${col} = ?`);
+    binds.push(value);
+  };
+
+  if ('name' in body) {
+    const name = str(body.name);
+    if (name.length < 3 || name.length > 80) errors.name = 'Jméno musí mít 3 až 80 znaků.';
+    set('name', name);
   }
-
-  let body: UpdateProfileBody;
-  try {
-    body = (await request.json()) as UpdateProfileBody;
-  } catch {
-    return jsonResponse({ error: 'Neplatný formát JSON požadavku.' }, 400);
+  if ('phone' in body) {
+    const phone = str(body.phone);
+    if (phone && !PHONE_RE.test(phone)) errors.phone = 'Zadejte platné telefonní číslo.';
+    set('phone', phone || null);
   }
-
-  const authUserId = await getAuthenticatedUserId(request, env.DB);
-  const targetUserId = authUserId || body.userId || body.id || 'u1';
-
-  try {
-    const existing = await env.DB.prepare(`SELECT * FROM profiles WHERE id = ? LIMIT 1`)
-      .bind(targetUserId)
-      .first<ProfileRow>();
-
-    if (!existing) {
-      return jsonResponse({ error: 'Profil uživatele nebyl nalezen.' }, 404);
-    }
-
-    const nextAvatarUrl = body.avatarUrl !== undefined ? body.avatarUrl : existing.avatar_url;
-    const nextName = body.name !== undefined ? body.name.trim() : existing.name;
-    const nextTitle = body.title !== undefined ? body.title.trim() : existing.title;
-    const nextRole = body.role !== undefined ? body.role.trim() : existing.role;
-    const nextEmail = body.email !== undefined ? body.email.trim() : existing.email;
-    const nextBio = body.bio !== undefined ? body.bio.trim() : existing.bio;
-    const nextRegion = body.region !== undefined ? body.region.trim() : existing.region;
-    const nextCity = body.city !== undefined ? body.city.trim() : existing.city;
-    const nextPhone = body.phone !== undefined ? body.phone.trim() : existing.phone;
-    const nextAvailability = body.availability || existing.availability;
-    const nextMkLicenseNumber =
-      body.mkLicenseNumber !== undefined
-        ? body.mkLicenseNumber.trim() || null
-        : existing.mk_license_number;
-    const nextSchool =
-      body.schoolOrBackground !== undefined
-        ? body.schoolOrBackground.trim() || null
-        : existing.school_or_background;
-    const nextSpecsJson =
-      Array.isArray(body.specializations)
-        ? JSON.stringify(body.specializations.map((s) => String(s).trim()).filter(Boolean))
-        : existing.specializations_json ?? existing.specializations ?? '[]';
-
-    // Pokud požadavek mění textové údaje profilu (nikoliv jen avatarUrl), zvalidujeme je
-    const isFullProfileUpdate =
-      body.name !== undefined ||
-      body.email !== undefined ||
-      body.phone !== undefined ||
-      body.city !== undefined ||
-      body.bio !== undefined;
-
-    if (isFullProfileUpdate) {
-      const fieldErrors: Record<string, string> = {};
-      if (!nextName || nextName.length < 3 || nextName.length > 80) {
-        fieldErrors.name = 'Jméno musí mít 3 až 80 znaků.';
-      }
-      if (!nextEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(nextEmail)) {
-        fieldErrors.email = 'Zadejte platnou e-mailovou adresu.';
-      }
-      if (nextPhone) {
-        const digits = nextPhone.replace(/\D/g, '');
-        if (!/^\+?[0-9\s\-()]{9,18}$/.test(nextPhone) || digits.length < 9 || digits.length > 15) {
-          fieldErrors.phone = 'Zadejte platné telefonní číslo.';
-        }
-      }
-      if (!nextCity || nextCity.length < 2 || nextCity.length > 60) {
-        fieldErrors.city = 'Město musí mít 2 až 60 znaků.';
-      }
-      if (nextBio && (nextBio.length < 15 || nextBio.length > 1000)) {
-        fieldErrors.bio = 'Představení musí mít 15 až 1000 znaků.';
-      }
-      if (Object.keys(fieldErrors).length > 0) {
-        return jsonResponse(
-          {
-            error: Object.values(fieldErrors)[0],
-            fieldErrors,
-          },
-          400
-        );
+  if ('region' in body) {
+    const region = str(body.region);
+    if (region.length > 60) errors.region = 'Kraj může mít nejvýše 60 znaků.';
+    set('region', region);
+  }
+  if ('crafts' in body) {
+    const crafts = validCraftIds(body.crafts);
+    if (!crafts) errors.crafts = 'Vyberte obory ze seznamu.';
+    set('crafts', JSON.stringify(crafts ?? []));
+  }
+  if ('experienceText' in body) {
+    const text = str(body.experienceText);
+    if (text.length > 1000) errors.experienceText = 'Nejvýše 1000 znaků.';
+    set('experience_text', text);
+  }
+  if ('portfolioUrl' in body) {
+    const url = str(body.portfolioUrl);
+    let ok = url === '';
+    if (!ok && url.length <= 300) {
+      try {
+        const u = new URL(url);
+        ok = u.protocol === 'http:' || u.protocol === 'https:';
+      } catch {
+        ok = false;
       }
     }
+    if (!ok) errors.portfolioUrl = 'Zadejte odkaz začínající http:// nebo https://.';
+    set('portfolio_url', url || null);
+  }
+  if ('licenceNumber' in body) {
+    const lic = str(body.licenceNumber);
+    if (lic.length > 40) errors.licenceNumber = 'Nejvýše 40 znaků.';
+    set('licence_number', lic || null);
+  }
+  for (const [key, col] of [
+    ['emailDigest', 'email_digest'],
+    ['acceptingJobs', 'accepting_jobs'],
+  ] as const) {
+    if (key in body) {
+      if (typeof body[key] !== 'boolean') errors[key] = 'Očekává se ano/ne.';
+      set(col, body[key] ? 1 : 0);
+    }
+  }
+  if (Object.keys(errors).length > 0) return validationResponse(errors);
 
-    await env.DB.prepare(
-      `UPDATE profiles
-       SET avatar_url = ?,
-           name = ?,
-           title = ?,
-           role = ?,
-           email = ?,
-           bio = ?,
-           region = ?,
-           city = ?,
-           phone = ?,
-           availability = ?,
-           mk_license_number = ?,
-           school_or_background = ?,
-           specializations_json = ?
-       WHERE id = ?`
-    )
-      .bind(
-        nextAvatarUrl,
-        nextName,
-        nextTitle,
-        nextRole,
-        nextEmail,
-        nextBio,
-        nextRegion,
-        nextCity,
-        nextPhone,
-        nextAvailability,
-        nextMkLicenseNumber,
-        nextSchool,
-        nextSpecsJson,
-        targetUserId
-      )
-      .run();
-
-    const updated = await env.DB.prepare(`SELECT * FROM profiles WHERE id = ? LIMIT 1`)
-      .bind(targetUserId)
-      .first<ProfileRow>();
-
-    return jsonResponse({
-      success: true,
-      profile: updated ? mapProfileRow(updated) : null,
-    });
+  try {
+    if (sets.length > 0) {
+      await db
+        .prepare(`UPDATE profiles SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
+        .bind(...binds, auth.userId)
+        .run();
+    }
+    const profile = await loadOwnProfile(db, auth.userId);
+    return jsonResponse({ profile });
   } catch (err) {
     console.error('Chyba při PUT /api/profile:', err);
-    return jsonResponse({ error: 'Nepodařilo se uložit změny profilu.' }, 500);
+    return jsonResponse({ error: 'Nepodařilo se uložit profil.' }, 500);
   }
 }
-
