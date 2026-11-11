@@ -13,7 +13,7 @@ import {
 } from './_shared.ts';
 import type { JobRow, JobViewer, PagesContext } from './_shared.ts';
 import { loadBusySlots, loadMatchCandidates } from './_lib/data.ts';
-import { validateNewJob, validationResponse } from './_lib/validate.ts';
+import { profileNameMissing, profileNameResponse, validateNewJob, validationResponse } from './_lib/validate.ts';
 import { countBusyDays, evaluateMatch } from '../../src/lib/matching.ts';
 import type { EngagementStatus } from '../../src/types/api.ts';
 
@@ -76,6 +76,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
   const body = await readJson<Record<string, unknown>>(request);
   if (!body) return badJson();
+  const poster = await db.prepare(`SELECT name FROM profiles WHERE id = ?`).bind(auth.userId).first<{ name: string }>();
+  if (profileNameMissing(poster?.name)) return profileNameResponse();
   const { errors, values } = validateNewJob(body);
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 

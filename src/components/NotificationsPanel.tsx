@@ -28,6 +28,8 @@ export function notificationText(n: NotificationItem): string {
       return `Zadavatel u zakázky ${title} vybral jinak`;
     case 'withdrawn':
       return `Řemeslník odstoupil od zakázky ${title}`;
+    case 'job_closed':
+      return `Zakázka ${title} byla ukončena`;
     default:
       return title;
   }

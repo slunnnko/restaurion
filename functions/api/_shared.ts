@@ -28,8 +28,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   APP_URL?: string;
-  ADMIN_EMAIL?: string;
-  ADMIN_PASSWORD?: string;
+  /** Test only: with this set to '1' and Resend NOT configured, request-code returns the code in the response. */
+  TEST_LOGIN_ECHO?: string;
 }
 
 export interface PagesContext<P extends Record<string, string | string[]> = Record<string, string | string[]>> {
@@ -77,39 +77,6 @@ export function getCookie(request: Request, name: string): string | null {
     }
   }
   return null;
-}
-
-export async function computeAdminCookieToken(secret: string): Promise<string> {
-  return sha256Hex(`restaurion-admin-v1:${secret}`);
-}
-
-/** Fails closed: without a configured ADMIN_PASSWORD nobody is authorized. */
-export async function isRequestAdminAuthorized(
-  request: Request,
-  env: Env,
-  candidatePassword?: string
-): Promise<boolean> {
-  const configuredSecret = env.ADMIN_PASSWORD?.trim();
-  if (!configuredSecret) return false;
-  const expectedToken = await computeAdminCookieToken(configuredSecret);
-
-  if (typeof candidatePassword === 'string' && candidatePassword.length > 0) {
-    const candidateToken = await computeAdminCookieToken(candidatePassword.trim());
-    if (candidateToken === expectedToken) return true;
-  }
-
-  const headerPassword = request.headers.get('X-Admin-Password');
-  if (headerPassword) {
-    const headerToken = await computeAdminCookieToken(headerPassword.trim());
-    if (headerToken === expectedToken) return true;
-  }
-
-  const cookieToken = getCookie(request, 'restaurion_admin');
-  if (cookieToken && cookieToken === expectedToken) {
-    return true;
-  }
-
-  return false;
 }
 
 export async function getAuthenticatedUserId(request: Request, db?: D1Database): Promise<string | null> {
@@ -175,7 +142,11 @@ export function addDays(date: string, days: number): string {
 
 // ---- Rate limit ----
 
-/** Returns true when the event is allowed (and records it), false when the limit is reached. */
+/**
+ * Returns true when the event is allowed, false when the limit is reached. The event is inserted
+ * first and counted afterwards, so parallel requests cannot all slip under the limit.
+ * Old rows are purged by runDigest, not here.
+ */
 export async function rateLimit(
   db: D1Database,
   bucket: string,
@@ -185,22 +156,41 @@ export async function rateLimit(
 ): Promise<boolean> {
   const keyHash = await sha256Hex(`rl:${key}`);
   const since = new Date(Date.now() - windowMin * 60_000).toISOString().replace('T', ' ').slice(0, 19);
+  await db.prepare(`INSERT INTO rate_limit_events (bucket, key_hash) VALUES (?, ?)`).bind(bucket, keyHash).run();
   const row = await db
     .prepare(`SELECT COUNT(*) AS n FROM rate_limit_events WHERE bucket = ? AND key_hash = ? AND created_at >= ?`)
     .bind(bucket, keyHash, since)
     .first<{ n: number }>();
-  if ((row?.n ?? 0) >= max) return false;
-  await db.prepare(`INSERT INTO rate_limit_events (bucket, key_hash) VALUES (?, ?)`).bind(bucket, keyHash).run();
-  // housekeeping: forget events older than a day
-  await db.prepare(`DELETE FROM rate_limit_events WHERE created_at < datetime('now', '-1 day')`).run();
-  return true;
+  return (row?.n ?? 0) <= max;
 }
 
 // ---- Email ----
 
+export const DAILY_EMAIL_BUDGET = 100;
+/** Login codes for e-mails without a profile share this part of the daily budget (anti-abuse). */
+export const NEW_EMAIL_LOGIN_BUDGET = 50;
+
+export function resendConfigured(env: Env): boolean {
+  return Boolean(env.RESEND_API_KEY && env.RESEND_FROM);
+}
+
+/** Pure budget rule: total cap for everyone, a smaller cap for e-mails without a profile. */
+export function loginCodeAllowed(sentToday: number, sentToNewToday: number, hasProfile: boolean): boolean {
+  if (sentToday >= DAILY_EMAIL_BUDGET) return false;
+  return hasProfile || sentToNewToday < NEW_EMAIL_LOGIN_BUDGET;
+}
+
 export async function emailsSentToday(db: D1Database): Promise<number> {
   const row = await db
     .prepare(`SELECT COUNT(*) AS n FROM email_log WHERE sent_at >= date('now')`)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** Login-code e-mails sent today to addresses without a profile (profile_id NULL). */
+export async function newEmailLoginCodesToday(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(`SELECT COUNT(*) AS n FROM email_log WHERE kind = 'login_code' AND profile_id IS NULL AND sent_at >= date('now')`)
     .first<{ n: number }>();
   return row?.n ?? 0;
 }
@@ -210,7 +200,7 @@ export async function sendEmailViaResend(
   env: Env,
   options: { to: string; subject: string; html: string; kind: 'login_code' | 'digest'; profileId?: string | null }
 ): Promise<boolean> {
-  if (!env.RESEND_API_KEY || !env.RESEND_FROM) {
+  if (!resendConfigured(env)) {
     console.log('[Resend not configured - email skipped]', { to: options.to, subject: options.subject });
     return false;
   }
@@ -333,7 +323,7 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
          FROM engagements e
          JOIN jobs j ON j.id = e.job_id
          JOIN profiles p ON p.id = j.author_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.date_to >= ?
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ?
          ORDER BY j.date_from`
       )
       .bind(userId, today)

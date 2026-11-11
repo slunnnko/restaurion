@@ -16,6 +16,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  const [testCode, setTestCode] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -28,7 +29,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
     setFieldErrors({});
     setBusy(true);
     try {
-      await api('/api/auth/request-code', { method: 'POST', body: { email: email.trim() } });
+      const res = await api<{ ok: true; testCode?: string }>('/api/auth/request-code', {
+        method: 'POST',
+        body: { email: email.trim() },
+      });
+      setTestCode(res.testCode ?? '');
+      if (res.testCode) setCode(res.testCode);
       setStep('code');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -120,6 +126,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
         </form>
       ) : (
         <form onSubmit={verify} className="space-y-3.5">
+          {testCode && (
+            <div role="status" className="p-3 rounded-xl bg-[#FEF08A] border-2 border-[#111111] text-xs font-extrabold text-[#111111]">
+              Testovací režim: tvůj kód je {testCode}
+            </div>
+          )}
           <div>
             <label htmlFor="login-code" className={labelCls}>
               6místný kód
@@ -172,6 +183,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
               onClick={() => {
                 setStep('email');
                 setCode('');
+                setTestCode('');
                 setError('');
                 setFieldErrors({});
               }}

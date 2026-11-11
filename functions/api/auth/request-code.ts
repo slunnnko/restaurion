@@ -3,20 +3,22 @@ import {
   emailsSentToday,
   escapeHtml,
   jsonResponse,
+  loginCodeAllowed,
+  newEmailLoginCodesToday,
   noDb,
   rateLimit,
   readJson,
+  resendConfigured,
   sendEmailViaResend,
   sha256Hex,
 } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
 
-const DAILY_EMAIL_BUDGET = 100;
-
 /**
  * POST /api/auth/request-code {email}
  * 6místný kód (platnost 10 minut), uložený jako SHA-256 hash v login_codes. Limit 5/h na e-mail
- * a 20/h na IP. Bez RESEND_API_KEY/RESEND_FROM se kód jen vypíše do konzole (lokální vývoj).
+ * a 20/h na IP. Bez RESEND_API_KEY/RESEND_FROM se kód jen vypíše do konzole (lokální vývoj);
+ * s TEST_LOGIN_ECHO=1 (a bez Resendu) ho vrátí v odpovědi jako testCode. Jen pro testování.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env } = context;
@@ -37,7 +39,12 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     return jsonResponse({ error: 'Příliš mnoho pokusů. Zkuste to znovu za hodinu.' }, 429);
   }
 
-  if ((await emailsSentToday(env.DB)) >= DAILY_EMAIL_BUDGET) {
+  const profile = await env.DB
+    .prepare(`SELECT id FROM profiles WHERE LOWER(email) = ? LIMIT 1`)
+    .bind(email)
+    .first<{ id: string }>();
+  const [sentToday, sentToNew] = await Promise.all([emailsSentToday(env.DB), newEmailLoginCodesToday(env.DB)]);
+  if (!loginCodeAllowed(sentToday, sentToNew, Boolean(profile))) {
     return jsonResponse({ error: 'Dnešní limit e-mailů je vyčerpán. Zkuste to prosím zítra.' }, 503);
   }
 
@@ -48,13 +55,21 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
 
   try {
-    await env.DB.prepare(`INSERT INTO login_codes (email, code_hash, expires_at) VALUES (?, ?, ?)`)
+    const inserted = await env.DB
+      .prepare(`INSERT INTO login_codes (email, code_hash, expires_at) VALUES (?, ?, ?) RETURNING id`)
       .bind(email, codeHash, expiresAt)
-      .run();
+      .first<{ id: number }>();
+
+    if (!resendConfigured(env)) {
+      // Local dev / test only: no mail provider configured.
+      console.log(`[dev] login code for ${email}: ${code}`);
+      return jsonResponse(env.TEST_LOGIN_ECHO === '1' ? { ok: true, testCode: code } : { ok: true });
+    }
 
     const sent = await sendEmailViaResend(env, {
       to: email,
       kind: 'login_code',
+      profileId: profile?.id ?? null,
       subject: `${code} je váš přihlašovací kód do Restaurion`,
       html: `
         <div style="font-family: sans-serif; color: #111111; max-width: 520px; margin: 0 auto; border: 2px solid #111111; border-radius: 16px; padding: 24px; background: #FFFDF7;">
@@ -69,9 +84,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         </div>
       `,
     });
-    // Local dev only: no mail provider configured, print the code so the developer can log in.
-    if (!sent && (!env.RESEND_API_KEY || !env.RESEND_FROM)) {
-      console.log(`[dev] login code for ${email}: ${code}`);
+    if (!sent) {
+      if (inserted) await env.DB.prepare(`DELETE FROM login_codes WHERE id = ?`).bind(inserted.id).run();
+      return jsonResponse({ error: 'E-mail se nepodařilo odeslat, zkus to prosím znovu.' }, 502);
     }
 
     return jsonResponse({ ok: true });

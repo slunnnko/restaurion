@@ -52,7 +52,7 @@ D0=$(fdate 20)  # base day; main job = D+2 .. D+6 (5 days)
 dd() { date -u -j -v+"$1"d -f %F "$D0" +%F 2>/dev/null || date -u -d "$D0 +$1 days" +%F; }
 R_FROM=$(dd 2); R_TO=$(dd 6)
 
-USERS="poster poster2 w1 w2 w3 w4 w5 w6"
+USERS="poster poster2 w1 w2 w3 w4 w5 w6 noname"
 echo "== log in $USERS via known login codes"
 SQL=""
 for u in $USERS; do
@@ -84,6 +84,12 @@ api w1 PUT /api/profile '{"crafts":["neexistuje"]}'
 eq "invalid craft -> 400 with fieldErrors" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.crafts != null')" "400/true"
 api w1 PUT /api/profile '{"portfolioUrl":"javascript:alert(1)"}'
 eq "portfolioUrl javascript: rejected" "$CODE" 400
+
+echo "== a profile without a name cannot post or respond"
+api noname GET /api/profile
+eq "new profile has an empty name" "$(echo "$BODY" | jq -r '.profile.name')" ""
+api noname POST /api/jobs "{\"title\":\"Bez jmena zakazka\",\"jobType\":\"subcontract_needed\",\"monumentStatus\":\"cultural_monument\",\"crafts\":[\"kámen\"],\"region\":\"x\",\"city\":\"Brno\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+eq "nameless POST /api/jobs -> 400 profile=name" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.profile')" "400/name"
 
 echo "== availability"
 api w2 POST /api/availability "{\"dateFrom\":\"$(dd 3)\",\"dateTo\":\"$(dd 4)\"}"
@@ -171,6 +177,66 @@ eq "w1 notified of third job (freed)" "$(has_match w1 $J3)" 1
 api w1 POST /api/engagements/$E1 '{"action":"withdraw"}'
 eq "second withdraw -> 409" "$CODE" 409
 
+echo "== closing a job: accept blocked, dates freed, job_closed notification"
+mk_job "Ctvrta zakazka"; J4=$JOBID
+eq "fourth job notifies w1 and w2" "$NOTIFIED" 2
+api w2 POST /api/jobs/$J4/respond '{}'
+E4=$(echo "$BODY" | jq -r '.engagement.id')
+api poster PATCH /api/jobs/$J4 '{"status":"closed"}'
+eq "poster closes fourth job" "$CODE" 200
+api w2 GET /api/notifications
+eq "w2 got job_closed" "$(echo "$BODY" | jq -r --arg j "$J4" '[.items[] | select(.type=="job_closed" and .jobId==$j)] | length')" 1
+api poster POST /api/engagements/$E4 '{"action":"accept"}'
+eq "accept on a closed job -> 409" "$CODE" 409
+mk_job "Pata zakazka"; J5=$JOBID
+api w1 POST /api/jobs/$J5/respond '{}'
+E5=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/engagements/$E5 '{"action":"accept"}'
+eq "poster accepts w1 on fifth job" "$CODE" 200
+mk_job "Sesta zakazka"; J6=$JOBID
+eq "w1 busy (accepted J5): sixth job notifies only w2" "$NOTIFIED" 1
+api poster PATCH /api/jobs/$J5 '{"status":"closed"}'
+eq "poster closes fifth job" "$CODE" 200
+api w1 GET /api/notifications
+eq "w1 (accepted) got job_closed" "$(echo "$BODY" | jq -r --arg j "$J5" '[.items[] | select(.type=="job_closed" and .jobId==$j)] | length')" 1
+api w1 GET /api/profile
+eq "closed job leaves w1 booked list" "$(echo "$BODY" | jq -r '.profile.booked | length')" 0
+mk_job "Sedma zakazka"; J7=$JOBID
+eq "closing freed w1: seventh job notifies w1 and w2" "$NOTIFIED" 2
+eq "w1 notified of seventh job" "$(has_match w1 $J7)" 1
+
+echo "== accept when the worker is fully busy -> 409"
+mk_job "Osma zakazka"; J8=$JOBID
+api w3 POST /api/jobs/$J8/respond '{}'
+eq "w3 (fully blocked) can express interest" "$CODE" 201
+E8=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/engagements/$E8 '{"action":"accept"}'
+eq "accept of a fully busy worker -> 409" "$CODE" 409
+
+echo "== licence change resets licence_verified"
+api w1 PUT /api/profile '{"licenceNumber":"MK-100"}'
+d1 --command "UPDATE profiles SET licence_verified = 1 WHERE email = 'w1@e2e.test'" > /dev/null
+api w1 GET /api/profile
+eq "manually verified in D1" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" true
+api w1 PUT /api/profile '{"licenceNumber":"MK-100"}'
+eq "same number keeps verification" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" true
+api w1 PUT /api/profile '{"licenceNumber":"MK-200"}'
+eq "different number resets verification" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" false
+
+echo "== login code brute force and second code request"
+SQL="INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('bf@e2e.test', '$(sha "bf@e2e.test:654321")', datetime('now','+1 hour'));"
+SQL="$SQL INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('cc@e2e.test', '$(sha "cc@e2e.test:111111")', datetime('now','+1 hour'));"
+d1 --command "$SQL" > /dev/null
+for i in 1 2 3 4 5; do api - POST /api/auth/verify-code '{"email":"bf@e2e.test","code":"000000","consent":true}'; done
+eq "5th wrong code -> 401" "$CODE" 401
+api - POST /api/auth/verify-code '{"email":"bf@e2e.test","code":"654321","consent":true}'
+eq "6th attempt (even the right code) -> 429" "$CODE" 429
+api - POST /api/auth/request-code '{"email":"cc@e2e.test"}'
+eq "second code request ok" "$CODE" 200
+eq "no testCode without TEST_LOGIN_ECHO" "$(echo "$BODY" | jq -r '.testCode // "none"')" "none"
+api cc POST /api/auth/verify-code '{"email":"cc@e2e.test","code":"111111","consent":true}'
+eq "first code still valid after a second request" "$CODE" 200
+
 echo "== authorization"
 api poster2 PATCH /api/jobs/$J1 '{"title":"Hacknuto zakazka"}'
 eq "non-owner PATCH job -> 403" "$CODE" 403
@@ -218,6 +284,17 @@ for i in 1 2 3 4 5; do api - POST /api/auth/request-code '{"email":"rl@e2e.test"
 eq "5th request ok" "$CODE" 200
 api - POST /api/auth/request-code '{"email":"rl@e2e.test"}'
 eq "6th request -> 429" "$CODE" 429
+
+echo "== TEST_LOGIN_ECHO=1 returns testCode (Resend unset)"
+kill $SERVER 2>/dev/null; pkill -P $SERVER 2>/dev/null; sleep 2
+npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --binding TEST_LOGIN_ECHO=1 > "$LOG.echo" 2>&1 &
+SERVER=$!
+for _ in $(seq 1 60); do curl -s -o /dev/null "$BASE/api/jobs" && break; sleep 1; done
+api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
+TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
+echo "$TESTCODE" | grep -qE '^[0-9]{6}$'; eq "request-code returns a 6-digit testCode (got '$TESTCODE')" "$?" 0
+api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true}"
+eq "login with the echoed code" "$CODE" 200
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

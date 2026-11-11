@@ -10,9 +10,11 @@ interface RespondModalProps {
   job: PublicJob;
   onClose: () => void;
   onSubmitted: () => void;
+  /** API vrátilo 400 profile=name: otevřít profil. */
+  onNeedProfile: () => void;
 }
 
-export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubmitted }) => {
+export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubmitted, onNeedProfile }) => {
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +36,10 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
       onSubmitted();
       setTimeout(onClose, 1500);
     } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors?.profile === 'name') {
+        onNeedProfile();
+        return;
+      }
       if (err instanceof ApiError) {
         setError(err.message);
         setFieldErrors(err.fieldErrors ?? {});
@@ -90,7 +96,7 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
               <textarea
                 id="respond-message"
                 rows={4}
-                maxLength={1000}
+                maxLength={500}
                 placeholder="Zkušenosti, časové možnosti, sazba…"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}

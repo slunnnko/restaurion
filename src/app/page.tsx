@@ -30,6 +30,8 @@ const initialFilters: FilterState = {
 const badgeCls =
   'inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111]';
 
+const PROFILE_HINT = 'Doplň jméno a obory, ať ti chodí zakázky.';
+
 export default function Home() {
   const [view, setView] = useState<'board' | 'profile'>('board');
   const [isHeroInfoOpen, setIsHeroInfoOpen] = useState(false);
@@ -44,6 +46,7 @@ export default function Home() {
   const [notice, setNotice] = useState('');
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [unread, setUnread] = useState(0);
+  const [profileHint, setProfileHint] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -182,6 +185,10 @@ export default function Home() {
       setActionError('Přihlášení vypršelo. Přihlas se prosím znovu.');
       return;
     }
+    if (err instanceof ApiError && err.fieldErrors?.profile === 'name') {
+      openProfileWithHint();
+      return;
+    }
     setActionError(err instanceof ApiError ? err.message : fallback);
   };
 
@@ -192,7 +199,10 @@ export default function Home() {
     void loadJobs();
     const action = pendingAction.current;
     pendingAction.current = null;
-    if (u.crafts.length === 0) setView('profile');
+    if (u.name.trim().length < 3 || u.crafts.length === 0) {
+      setProfileHint(PROFILE_HINT);
+      setView('profile');
+    }
     action?.();
   };
 
@@ -235,7 +245,16 @@ export default function Home() {
 
   const openCreate = () => requireLogin(() => setIsCreateOpen(true));
   const openNotifications = () => requireLogin(() => setIsNotifOpen(true));
+  const openProfileWithHint = () => {
+    setIsCreateOpen(false);
+    setRespondingJob(null);
+    setProfileHint(PROFILE_HINT);
+    setView('profile');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const goBoard = () => {
+    setProfileHint('');
     setView('board');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -296,11 +315,11 @@ export default function Home() {
       />
 
       {view === 'profile' && user ? (
-        <ProfilePage user={user} onUserChange={setUser} onBack={goBoard} onLogout={handleLogout} />
+        <ProfilePage user={user} onUserChange={setUser} onBack={goBoard} onLogout={handleLogout} hint={profileHint} />
       ) : (
         <>
           {/* Hero sekce */}
-          <section className="bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white py-5 sm:py-9 px-4 sm:px-6 lg:px-8 transition-colors">
+          <section className="bg-[#FEF08A] dark:bg-[#191B22] text-[#111111] dark:text-white border-b-2 border-[#111111] dark:border-stone-500 py-5 sm:py-9 px-4 sm:px-6 lg:px-8 transition-colors">
             <div className="max-w-7xl mx-auto">
               <div className="max-w-4xl text-left">
                 <h1 className="font-serif text-2xl sm:text-4xl lg:text-5xl mb-2.5 sm:mb-3 font-bold text-[#111111] dark:text-[#FEF08A] leading-tight tracking-tight">
@@ -339,7 +358,6 @@ export default function Home() {
               </div>
             </div>
           </section>
-          <div aria-hidden="true" className="stencil-frieze" />
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -479,7 +497,11 @@ export default function Home() {
 
       {/* Modální okna */}
       {isCreateOpen && (
-        <CreateJobModal onClose={() => setIsCreateOpen(false)} onCreated={() => void loadJobs()} />
+        <CreateJobModal
+          onClose={() => setIsCreateOpen(false)}
+          onCreated={() => void loadJobs()}
+          onNeedProfile={openProfileWithHint}
+        />
       )}
 
       {respondingJob && (
@@ -487,6 +509,7 @@ export default function Home() {
           job={respondingJob}
           onClose={() => setRespondingJob(null)}
           onSubmitted={() => void loadJobs()}
+          onNeedProfile={openProfileWithHint}
         />
       )}
 

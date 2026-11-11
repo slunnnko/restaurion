@@ -1,5 +1,7 @@
-import { badJson, insertNotification, jsonResponse, mapContact, noDb, readJson, requireUser } from '../_shared.ts';
+import { badJson, insertNotification, jsonResponse, mapContact, noDb, readJson, requireUser, todayUtc } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
+import { loadBusySlots } from '../_lib/data.ts';
+import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
 
 /**
  * POST /api/engagements/:id {action}
@@ -24,7 +26,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   try {
     const eng = await db
       .prepare(
-        `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id,
+        `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
+                j.date_from AS j_from, j.date_to AS j_to,
                 w.name AS w_name, w.email AS w_email, w.phone AS w_phone
          FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles w ON w.id = e.worker_id
          WHERE e.id = ?`
@@ -36,6 +39,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         worker_id: string;
         job_id: string;
         author_id: string;
+        j_status: string;
+        j_expires: string | null;
+        j_from: string | null;
+        j_to: string | null;
         w_name: string;
         w_email: string;
         w_phone: string | null;
@@ -52,6 +59,18 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
     if (eng.author_id !== auth.userId) return jsonResponse({ error: 'Rozhodnout může jen zadavatel zakázky.' }, 403);
     if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
+
+    if (action === 'accept') {
+      const today = todayUtc();
+      if (eng.j_status !== 'active' || !eng.j_from || !eng.j_to || (eng.j_expires ?? '') < today) {
+        return jsonResponse({ error: 'Zakázka už není aktivní.' }, 409);
+      }
+      const busy = await loadBusySlots(db, eng.worker_id, today);
+      const range = { dateFrom: eng.j_from, dateTo: eng.j_to };
+      if (countBusyDays(range, busy.blocks, busy.engagements, eng.job_id) >= daysInRange(eng.j_from, eng.j_to)) {
+        return jsonResponse({ error: 'Řemeslník má v tomto termínu už vše obsazeno.' }, 409);
+      }
+    }
 
     const status = action === 'accept' ? 'accepted' : 'declined';
     await db.prepare(`UPDATE engagements SET status = ?, responded_at = datetime('now') WHERE id = ?`).bind(status, id).run();

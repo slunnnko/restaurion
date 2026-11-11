@@ -25,6 +25,8 @@ interface CreateJobModalProps {
   onClose: () => void;
   /** Po úspěšném vytvoření (nástěnka se znovu načte). */
   onCreated: () => void;
+  /** API vrátilo 400 profile=name: otevřít profil. */
+  onNeedProfile: () => void;
 }
 
 const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
@@ -32,7 +34,7 @@ const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
   { id: 'guarantor_needed', label: 'Hledám zaštítění licencí MK ČR', hint: 'Potřebuji restaurátora s licencí' },
 ];
 
-export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreated }) => {
+export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreated, onNeedProfile }) => {
   const today = todayIso();
   const [jobType, setJobType] = useState<MvpJobType>('subcontract_needed');
   const [title, setTitle] = useState('');
@@ -78,6 +80,10 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
       setNotified(data.notified);
       onCreated();
     } catch (err) {
+      if (err instanceof ApiError && err.fieldErrors?.profile === 'name') {
+        onNeedProfile();
+        return;
+      }
       if (err instanceof ApiError) {
         setError(err.fieldErrors && Object.keys(err.fieldErrors).length > 0 ? 'Zkontroluj zvýrazněná pole.' : err.message);
         setFieldErrors(err.fieldErrors ?? {});

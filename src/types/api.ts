@@ -12,7 +12,8 @@ export type NotificationType =
   | 'interest' // a worker clicked "Mám zájem" (to poster)
   | 'accepted' // poster accepted the worker (to worker)
   | 'declined' // poster declined the worker (to worker)
-  | 'withdrawn'; // worker withdrew (to poster)
+  | 'withdrawn' // worker withdrew (to poster)
+  | 'job_closed'; // poster closed the job (to workers with a pending or accepted engagement)
 
 /** Public summary of a person. Never contains email, phone or availability. */
 export interface PublicPerson {
@@ -109,7 +110,8 @@ export interface NotificationItem {
 
 // ---- Endpoints ----
 // GET  /api/auth/me                         → { user: OwnProfile | null }
-// POST /api/auth/request-code  {email}      → { ok: true } | 429 { error }
+// POST /api/auth/request-code  {email}      → { ok: true, testCode?: string } | 429 | 502 { error }
+//   testCode only when Resend is NOT configured AND the TEST_LOGIN_ECHO=1 env var is set (testing only).
 // POST /api/auth/verify-code   {email, code, consent: true} → { user: OwnProfile } + Set-Cookie
 // POST /api/auth/logout                     → { ok: true } (clears cookie, deletes session)
 // GET  /api/jobs                            → { jobs: PublicJob[] } active, not expired, with dates

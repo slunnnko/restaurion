@@ -1,10 +1,9 @@
 // Denní souhrn notifikací e-mailem. Spouští ho plánovaný Worker (workers/digest); Pages Functions
 // neumí Cron Triggers. Přihlašovací kódy se posílají hned jinde, tady je jen souhrn.
 
-import { escapeHtml, sendEmailViaResend } from '../_shared.ts';
+import { DAILY_EMAIL_BUDGET, emailsSentToday, escapeHtml, resendConfigured, sendEmailViaResend } from '../_shared.ts';
 import type { Env } from '../_shared.ts';
 
-export const DAILY_EMAIL_BUDGET = 100;
 export const LOGIN_CODE_RESERVE = 10;
 
 export interface DigestCandidate {
@@ -25,6 +24,7 @@ const LABELS: Record<string, string> = {
   accepted: 'Zadavatel vás přijal',
   declined: 'Zadavatel vybral jiného řemeslníka',
   withdrawn: 'Řemeslník odstoupil od zakázky',
+  job_closed: 'Zakázka byla ukončena',
 };
 
 interface NotificationRow {
@@ -53,16 +53,21 @@ export function buildDigestHtml(items: NotificationRow[], appUrl: string): strin
     </div>`;
 }
 
-/** Vrací počet odeslaných souhrnů. Bez RESEND_API_KEY a RESEND_FROM nedělá nic. */
+/** Maže staré rate-limit události a prošlé přihlašovací kódy. Běží i bez nastaveného Resendu. */
+export async function cleanupOldRows(db: NonNullable<Env['DB']>): Promise<void> {
+  await db.prepare(`DELETE FROM rate_limit_events WHERE created_at < datetime('now', '-2 days')`).run();
+  await db.prepare(`DELETE FROM login_codes WHERE expires_at < datetime('now', '-1 day')`).run();
+}
+
+/** Vrací počet odeslaných souhrnů. Nejdřív úklid; bez RESEND_API_KEY a RESEND_FROM pak nic neposílá. */
 export async function runDigest(env: Env): Promise<number> {
-  if (!env.DB || !env.RESEND_API_KEY || !env.RESEND_FROM) return 0;
+  if (!env.DB) return 0;
   const db = env.DB;
+  await cleanupOldRows(db);
+  if (!resendConfigured(env)) return 0;
   const appUrl = (env.APP_URL || 'https://restaurion.pages.dev').replace(/\/$/, '');
 
-  const sent = await db
-    .prepare(`SELECT COUNT(*) AS n FROM email_log WHERE sent_at >= date('now')`)
-    .first<{ n: number }>();
-  const budget = DAILY_EMAIL_BUDGET - (sent?.n ?? 0) - LOGIN_CODE_RESERVE;
+  const budget = DAILY_EMAIL_BUDGET - (await emailsSentToday(db)) - LOGIN_CODE_RESERVE;
   if (budget <= 0) return 0;
 
   const rows = await db

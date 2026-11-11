@@ -19,7 +19,7 @@ export async function loadBusySlots(
     db
       .prepare(
         `SELECT e.job_id, e.status, j.date_from, j.date_to FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.date_to >= ?`
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ?`
       )
       .bind(userId, today)
       .all<{ job_id: string; status: string; date_from: string; date_to: string }>(),
@@ -56,7 +56,7 @@ export async function loadMatchCandidates(
       .prepare(
         `SELECT e.worker_id, e.job_id, e.status, j.date_from, j.date_to
          FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.status = 'accepted' AND j.date_to >= ? AND j.date_from <= ?`
+         WHERE e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ? AND j.date_from <= ?`
       )
       .bind(range.dateFrom, range.dateTo)
       .all<{ worker_id: string; job_id: string; status: string; date_from: string; date_to: string }>(),

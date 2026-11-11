@@ -76,6 +76,14 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     const lic = str(body.licenceNumber);
     if (lic.length > 40) errors.licenceNumber = 'Nejvýše 40 znaků.';
     set('licence_number', lic || null);
+    // A changed number is unverified again until an admin re-checks it in D1.
+    if (!errors.licenceNumber) {
+      const current = await db
+        .prepare(`SELECT licence_number FROM profiles WHERE id = ?`)
+        .bind(auth.userId)
+        .first<{ licence_number: string | null }>();
+      if ((current?.licence_number ?? '') !== lic) set('licence_verified', 0);
+    }
   }
   for (const [key, col] of [
     ['emailDigest', 'email_digest'],

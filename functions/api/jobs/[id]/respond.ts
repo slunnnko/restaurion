@@ -1,5 +1,6 @@
 import { insertNotification, jsonResponse, noDb, readJson, requireUser } from '../../_shared.ts';
 import type { PagesContext } from '../../_shared.ts';
+import { profileNameMissing, profileNameResponse } from '../../_lib/validate.ts';
 
 /** POST /api/jobs/:id/respond {message?} → „Mám zájem“: vznikne engagement `pending`. */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
@@ -18,6 +19,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   }
 
   try {
+    const me = await db.prepare(`SELECT name FROM profiles WHERE id = ?`).bind(auth.userId).first<{ name: string }>();
+    if (profileNameMissing(me?.name)) return profileNameResponse();
+
     const job = await db
       .prepare(
         `SELECT id, author_id FROM jobs WHERE id = ? AND status = 'active' AND visibility = 'public'

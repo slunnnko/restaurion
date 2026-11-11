@@ -18,7 +18,7 @@ ALTER TABLE profiles ADD COLUMN consent_at TEXT;
 -- Non-destructive backfill (copies only)
 UPDATE profiles SET crafts = specializations_json WHERE crafts = '[]';
 UPDATE profiles SET licence_number = mk_license_number WHERE licence_number IS NULL;
-UPDATE profiles SET licence_verified = 1 WHERE verification_status IN ('verified_auto', 'verified_manual');
+-- licence_verified is NOT backfilled from verification_status: the old unauthenticated endpoint allowed self-set values.
 
 -- jobs: date range, visibility, expiry
 ALTER TABLE jobs ADD COLUMN date_from TEXT;
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_engagements_job ON engagements(job_id);
 CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    type TEXT NOT NULL CHECK (type IN ('job_match', 'interest', 'accepted', 'declined', 'withdrawn')),
+    type TEXT NOT NULL CHECK (type IN ('job_match', 'interest', 'accepted', 'declined', 'withdrawn', 'job_closed')),
     job_id TEXT,
     engagement_id TEXT,
     read_at TEXT,

@@ -28,6 +28,8 @@ interface ProfilePageProps {
   onUserChange: (user: OwnProfile) => void;
   onBack: () => void;
   onLogout: () => Promise<void>;
+  /** Krátká výzva nad formulářem (např. po přihlášení bez jména a oborů). */
+  hint?: string;
 }
 
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string }> = ({
@@ -46,7 +48,7 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label
   </label>
 );
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, onBack, onLogout }) => {
+export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, onBack, onLogout, hint }) => {
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone ?? '');
   const [region, setRegion] = useState(user.region || 'Celá ČR');
@@ -182,6 +184,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
           Odhlásit
         </button>
       </div>
+
+      {hint && (
+        <div role="status" className="p-4 rounded-2xl bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-500 shadow-[3px_3px_0px_#111111] text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
+          {hint}
+        </div>
+      )}
 
       <div className="p-4 rounded-2xl bg-[#FEF08A]/70 dark:bg-[#FEF08A]/15 border-2 border-[#111111] dark:border-[#FEF08A]/50 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-[#FEF08A]">
         Zakázky ti chodí vždy, kromě termínů, které máš obsazené nebo označené jako nedostupné.

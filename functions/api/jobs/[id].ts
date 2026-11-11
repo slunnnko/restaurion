@@ -60,11 +60,24 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 
   try {
+    const closing = body.status === 'closed' && existing.status === 'active';
     if (sets.length > 0) {
       await db
         .prepare(`UPDATE jobs SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
         .bind(...binds, jobId)
         .run();
+    }
+    if (closing) {
+      const engagements = await db
+        .prepare(`SELECT id, worker_id FROM engagements WHERE job_id = ? AND status IN ('pending', 'accepted')`)
+        .bind(jobId)
+        .all<{ id: string; worker_id: string }>();
+      const inserts = engagements.results.map((e) =>
+        db
+          .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id) VALUES (?, ?, 'job_closed', ?, ?)`)
+          .bind(`n-${crypto.randomUUID()}`, e.worker_id, jobId, e.id)
+      );
+      for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
     }
     const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
     return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }) });

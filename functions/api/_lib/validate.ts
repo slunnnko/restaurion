@@ -91,3 +91,12 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
     },
   };
 }
+
+/** A profile needs a name (3+ chars) before it can post a job or respond. */
+export function profileNameMissing(name: string | null | undefined): boolean {
+  return (name ?? '').trim().length < 3;
+}
+
+export function profileNameResponse(): Response {
+  return jsonResponse({ error: 'Nejdřív si v profilu vyplň jméno.', fieldErrors: { profile: 'name' } }, 400);
+}
