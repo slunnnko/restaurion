@@ -69,4 +69,4 @@ Mimo rozsah: administrační UI, CMS textů, recenze, nahrávání fotek, automa
 
 Fáze 2: pozvání zadavatelem z Adresáře, ověřování licencí proti rejstříku MK ČR, recenze po spolupráci, push notifikace.
 
-Další dokumenty: [`docs/UI-DESIGN.md`](docs/UI-DESIGN.md) (závazný design), [`docs/BACKEND-PLAN.md`](docs/BACKEND-PLAN.md) (architektura backendu), [`AGENTS.md`](AGENTS.md) (pravidla pro agenty).
+Další dokumenty: [`docs/STATUS.md`](docs/STATUS.md) (stav a další kroky), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (architektura), [`docs/DECISIONS.md`](docs/DECISIONS.md) (rozhodnutí), [`docs/UI-DESIGN.md`](docs/UI-DESIGN.md) (závazný design), [`docs/BACKEND-PLAN.md`](docs/BACKEND-PLAN.md) (architektura backendu), [`AGENTS.md`](AGENTS.md) (pravidla pro agenty).

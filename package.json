@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "deploy": "next build --webpack && wrangler pages deploy out --project-name restaurion --force",
+    "deploy": "next build --webpack && wrangler pages deploy out --project-name restaurion --branch=main --force",
     "start": "next start",
     "lint": "eslint",
     "test": "node --test tests/*.test.ts"

@@ -54,7 +54,8 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
 - `migrations/` – D1 migrace `0001`–`0007` (0006 a 0007 se pouští jednou).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
-- `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (architektura).
+- `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (endpointy a migrace).
+- **Nová session začíná v [`docs/STATUS.md`](docs/STATUS.md)** (co je nasazené, rizika, další kroky), pak [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a [`docs/DECISIONS.md`](docs/DECISIONS.md). Při změně stavu aktualizuj `STATUS.md`, při novém rozhodnutí přidej řádek do `DECISIONS.md`.
 
 ## 4. Build, test a nasazení
 
