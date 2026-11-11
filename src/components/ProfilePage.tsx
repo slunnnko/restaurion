@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { OwnProfile, UnavailabilityBlock } from '@/types/api';
+import { DirectoryGroup, OwnProfile, UnavailabilityBlock } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { PROFILE_REGIONS } from '@/lib/regions';
@@ -58,6 +58,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
   const [licenceNumber, setLicenceNumber] = useState(user.licenceNumber ?? '');
   const [acceptingJobs, setAcceptingJobs] = useState(user.acceptingJobs);
   const [emailDigest, setEmailDigest] = useState(user.emailDigest);
+  const [group, setGroup] = useState<DirectoryGroup>(user.group);
+  const [instagram, setInstagram] = useState(user.instagram ?? '');
+  const [whatsapp, setWhatsapp] = useState(user.whatsapp ?? '');
+  const [facebook, setFacebook] = useState(user.facebook ?? '');
+  const [directoryVisible, setDirectoryVisible] = useState(user.directoryVisible);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -118,6 +123,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
           licenceNumber: licenceNumber.trim(),
           acceptingJobs,
           emailDigest,
+          group,
+          instagram: instagram.trim(),
+          whatsapp: whatsapp.trim(),
+          facebook: facebook.trim(),
+          directoryVisible,
         },
       });
       onUserChange(data.profile);
@@ -250,6 +260,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
         </div>
 
         <div>
+          <label htmlFor="pf-group" className={labelCls}>
+            Kdo jsem
+          </label>
+          <SelectBox id="pf-group" value={group} onChange={(e) => setGroup(e.target.value as DirectoryGroup)}>
+            <option value="unlicensed">Bez licence</option>
+            <option value="licensed">Licencovaný restaurátor (povolení MK ČR)</option>
+            <option value="firm">Firma</option>
+          </SelectBox>
+          <FieldError message={fieldErrors.group} />
+        </div>
+
+        <div>
           <span className={labelCls}>Obory</span>
           <div className="flex flex-wrap gap-2">
             {CRAFT_CATEGORIES.map((c) => (
@@ -278,7 +300,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label htmlFor="pf-portfolio" className={labelCls}>
-              Odkaz na portfolio
+              Web / portfolio
             </label>
             <input
               id="pf-portfolio"
@@ -312,7 +334,57 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
           </div>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <div>
+            <label htmlFor="pf-instagram" className={labelCls}>
+              Instagram
+            </label>
+            <input
+              id="pf-instagram"
+              type="text"
+              placeholder="uzivatel nebo odkaz"
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={fieldErrors.instagram} />
+          </div>
+          <div>
+            <label htmlFor="pf-whatsapp" className={labelCls}>
+              WhatsApp
+            </label>
+            <input
+              id="pf-whatsapp"
+              type="tel"
+              placeholder="+420 …"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={fieldErrors.whatsapp} />
+          </div>
+          <div>
+            <label htmlFor="pf-facebook" className={labelCls}>
+              Facebook
+            </label>
+            <input
+              id="pf-facebook"
+              type="url"
+              inputMode="url"
+              placeholder="https://"
+              value={facebook}
+              onChange={(e) => setFacebook(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={fieldErrors.facebook} />
+          </div>
+        </div>
+        <p className="text-[11px] font-bold text-stone-600 dark:text-stone-400">
+          E-mail, telefon a odkazy vidí každý přihlášený uživatel. Anonymní návštěvník je nevidí.
+        </p>
+
         <div className="space-y-2.5 pt-1">
+          <Toggle checked={directoryVisible} onChange={setDirectoryVisible} label="Zobrazit mě v Adresáři" />
           <Toggle checked={!acceptingJobs} onChange={(v) => setAcceptingJobs(!v)} label="Teď nepřijímám zakázky" />
           <Toggle checked={emailDigest} onChange={setEmailDigest} label="Posílat denní souhrn e-mailem" />
         </div>
@@ -425,12 +497,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
                 <div className="text-xs font-bold text-stone-700 dark:text-stone-300">
                   {b.city} · {formatRange(b.dateFrom, b.dateTo)}
                 </div>
-                <ContactBox
-                  title="Zadavatel"
-                  name={b.posterContact.name}
-                  email={b.posterContact.email}
-                  phone={b.posterContact.phone}
-                />
+                <ContactBox title="Zadavatel" contact={b.posterContact} />
               </li>
             ))}
           </ul>

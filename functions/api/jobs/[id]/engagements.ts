@@ -9,7 +9,7 @@ interface Row extends ProfileRow {
   eng_created_at: string;
 }
 
-/** GET /api/jobs/:id/engagements (jen zadavatel) → zájemci; kontakt až po přijetí. */
+/** GET /api/jobs/:id/engagements (jen zadavatel) → zájemci s kontakty (zadavatel je přihlášený). */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
   if (!env.DB) return noDb();
@@ -41,7 +41,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     ...(r.eng_message ? { message: r.eng_message } : {}),
     createdAt: r.eng_created_at,
     worker: mapPublicPerson(r),
-    ...(r.eng_status === 'accepted' ? { workerContact: mapContact(r) } : {}),
+    workerContact: mapContact(r),
   }));
   return jsonResponse({ engagements });
 }

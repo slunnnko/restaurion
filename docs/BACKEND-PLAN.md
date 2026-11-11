@@ -26,6 +26,7 @@ Aplikují se příkazem `wrangler d1 execute ... --file`, ne `migrations apply`.
   - `jobs`: `date_from`, `date_to`, `visibility`, `expires_at`
   - `unavailability_blocks`, `engagements` (`pending` / `accepted` / `declined` / `withdrawn`), `notifications` (typy `job_match`, `interest`, `accepted`, `declined`, `withdrawn`, `job_closed`)
   - `login_codes` (hash kódu, pokusy), `rate_limit_events`, `email_log`
+- `0007_directory.sql`: **pustit jednou**, jen přidává. `profiles`: `directory_group` (`firm` / `licensed` / `unlicensed`), `directory_visible` (výchozí 1), `instagram`, `whatsapp`, `facebook`. Backfill skupiny: `licensed` při vyplněném čísle povolení, `firm` pro `role = 'atelier_firm'`. `portfolio_url` je „Web / portfolio“.
 
 API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen zakázky s `date_from`, `status = 'active'`, `visibility = 'public'` a `expires_at >= dnes`.
 
@@ -37,21 +38,22 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `POST /api/auth/request-code` | kdokoli | pošle 6místný kód (platí 10 min); limity 5/h na e-mail, 20/h na IP |
 | `POST /api/auth/verify-code` | kdokoli | ověří kód (max. 5 pokusů, 30/h na IP), vyžaduje `consent: true`, nastaví cookie |
 | `POST /api/auth/logout` | relace | smaže relaci |
-| `GET /api/jobs` | kdokoli | veřejná nástěnka; s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` |
-| `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky |
+| `GET /api/jobs` | kdokoli | veřejná nástěnka (zakázky i nabídky `craftsman_available`); s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` (kontakty zadavatele pro každého přihlášeného) |
+| `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, ověřená licence první, potom jméno); `contact` jen s relací |
+| `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky; nabídka `craftsman_available` nikoho neupozorní |
 | `PATCH /api/jobs/:id` | zadavatel | úprava, `status: 'closed'` uvolní termíny a pošle `job_closed` |
-| `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ (engagement `pending`) |
-| `GET /api/jobs/:id/engagements` | zadavatel | zájemci bez kontaktů (kontakt jen po přijetí) |
-| `POST /api/engagements/:id` | zadavatel / řemeslník | `accept`, `decline` (zadavatel), `withdraw` (řemeslník) |
-| `GET`, `PUT /api/profile` | relace | vlastní profil; změna čísla licence nuluje `licence_verified` |
+| `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
+| `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
+| `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |
+| `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`); změna čísla licence nuluje `licence_verified`, změna skupiny ne; skupina `licensed` vyžaduje číslo povolení |
 | `POST /api/availability`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (mazat smí jen vlastník) |
 | `GET /api/notifications`, `POST /api/notifications/read` | relace | upozornění a označení za přečtená |
 
-Žádný endpoint nevypisuje řemeslníky. E-mail a telefon se vrací jen ve vlastním profilu a v kontaktu přijatého engagementu. Bloky nedostupnosti nikdy neopouštějí vlastníka.
+Kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) se vrací jen přihlášeným, vždy přes jednu funkci `mapContact` v `functions/api/_shared.ts`; odpověď bez relace je nikdy neobsahuje. Bloky nedostupnosti a obsazené dny nikdy neopouštějí vlastníka a v Adresáři nejsou.
 
 ## 4. Párování a obsazené dny
 
-Pravidlo je jen v [`src/lib/matching.ts`](../src/lib/matching.ts): řemeslník odpovídá, pokud přijímá zakázky, má alespoň jeden z oborů zakázky a termín nemá celý obsazený (bloky + přijaté zakázky s `status = 'active'`). Částečný překryv se povoluje a ukáže se jako poznámka. Přijetí zájemce, který má celý termín obsazený, vrací 409.
+Pravidlo je jen v [`src/lib/matching.ts`](../src/lib/matching.ts): řemeslník odpovídá, pokud přijímá zakázky, má alespoň jeden z oborů zakázky a termín nemá celý obsazený (bloky + přijaté zakázky s `status = 'active'`). Částečný překryv se povoluje a ukáže se jako poznámka. Přijetí zájemce, který má celý termín obsazený, vrací 409. Obsazené dny počítají jen zakázky `subcontract_needed` a `guarantor_needed`; nabídky nic neobsazují.
 
 ## 5. E-maily
 

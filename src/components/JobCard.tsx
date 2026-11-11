@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, pluralDays } from '@/lib/format';
-import { ContactBox, dangerBtn } from './ui';
-import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users } from 'lucide-react';
+import { ContactsOrLogin, dangerBtn } from './ui';
+import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
 interface JobCardProps {
@@ -15,11 +15,12 @@ interface JobCardProps {
   onWithdraw: (job: PublicJob) => Promise<void>;
   onCloseJob: (job: PublicJob) => Promise<void>;
   onOpenInterested: (job: PublicJob) => void;
+  onLogin: () => void;
 }
 
 const tileShadowBorder = 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
 
-// subcontract_needed: smaragdová + kladívko; guarantor_needed: korálová + štít (závazný design contract)
+// subcontract_needed: smaragdová + kladívko; guarantor_needed: korálová + štít; craftsman_available: modrá + človíček (závazný design contract)
 const TYPE_INFO = {
   subcontract_needed: {
     label: 'Hledám subdodavatele',
@@ -39,6 +40,15 @@ const TYPE_INFO = {
     topStripClass: 'bg-[#FF5733]',
     icon: ShieldCheck,
   },
+  craftsman_available: {
+    label: 'Nabízím se',
+    badgeClass:
+      'bg-[#DBEAFE] dark:bg-[#172554] text-[#1E3A8A] dark:text-[#93C5FD] border-2 border-[#111111] dark:border-[#2563EB]/70 font-extrabold',
+    iconColorClass: 'text-[#2563EB] dark:text-[#93C5FD]',
+    tileClass: `bg-[#2563EB] text-white ${tileShadowBorder}`,
+    topStripClass: 'bg-[#2563EB]',
+    icon: UserCheck,
+  },
 } as const;
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -48,6 +58,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onWithdraw,
   onCloseJob,
   onOpenInterested,
+  onLogin,
 }) => {
   const [busy, setBusy] = useState(false);
 
@@ -57,6 +68,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const BadgeIcon = info.icon;
   const eng = job.myEngagement;
   const engStatus = eng?.status;
+  const isOffer = job.jobType === 'craftsman_available';
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -68,7 +80,10 @@ export const JobCard: React.FC<JobCardProps> = ({
   };
 
   const handleWithdraw = () => {
-    if (!window.confirm('Opravdu chceš odstoupit od zakázky? Termín se uvolní a zadavatel dostane upozornění.')) return;
+    const text = isOffer
+      ? 'Opravdu chceš zrušit zájem o nabídku? Nabízející dostane upozornění.'
+      : 'Opravdu chceš odstoupit od zakázky? Termín se uvolní a zadavatel dostane upozornění.';
+    if (!window.confirm(text)) return;
     void run(() => onWithdraw(job));
   };
 
@@ -156,11 +171,13 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
-            <span className="font-semibold">Termín: {formatRange(job.dateFrom, job.dateTo)}</span>
+            <span className="font-semibold">
+              {isOffer ? 'Volno' : 'Termín'}: {formatRange(job.dateFrom, job.dateTo)}
+            </span>
           </div>
         </div>
 
-        {!job.isMine && job.myBusyDays !== undefined && job.myBusyDays > 0 && (
+        {!isOffer && !job.isMine && job.myBusyDays !== undefined && job.myBusyDays > 0 && (
           <div className="mb-2.5 px-3 py-1.5 rounded-lg bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15 border-2 border-[#111111] dark:border-[#FEF08A]/50 text-[11px] font-extrabold text-[#111111] dark:text-[#FEF08A]">
             V tomto termínu máš {pluralDays(job.myBusyDays)} obsazeno
           </div>
@@ -186,6 +203,13 @@ export const JobCard: React.FC<JobCardProps> = ({
             </span>
           )}
         </div>
+
+        {/* Kontakty zadavatele: přihlášený je vidí hned, anonym dostane tlačítko přihlášení */}
+        {!job.isMine && (
+          <div className="mb-3">
+            <ContactsOrLogin contact={job.posterContact} onLogin={onLogin} />
+          </div>
+        )}
 
         {/* Akce */}
         {job.isMine ? (
@@ -217,14 +241,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         ) : engStatus === 'accepted' ? (
           <div className="space-y-2">
-            {job.posterContact && (
-              <ContactBox
-                title="Zadavatel tě přijal"
-                name={job.posterContact.name}
-                email={job.posterContact.email}
-                phone={job.posterContact.phone}
-              />
-            )}
+            <div className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">Zadavatel tě přijal</div>
             <button type="button" disabled={busy} onClick={handleWithdraw} className={dangerBtn}>
               Odstoupit
             </button>
@@ -237,7 +254,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             onClick={() => onRespond(job)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
           >
-            <span>Mám zájem</span>
+            <span>{isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}

@@ -21,9 +21,9 @@ export function notificationText(n: NotificationItem): string {
     case 'job_match':
       return `Nová zakázka ve tvém oboru: ${title}`;
     case 'interest':
-      return `Nový zájemce o zakázku ${title}`;
+      return `Nový zájemce o inzerát ${title}`;
     case 'accepted':
-      return `Zadavatel tě přijal na zakázku ${title} – kontakty najdeš u zakázky`;
+      return `Zadavatel tě přijal na zakázku ${title}`;
     case 'declined':
       return `Zadavatel u zakázky ${title} vybral jinak`;
     case 'withdrawn':

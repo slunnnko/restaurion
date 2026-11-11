@@ -18,6 +18,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
   const [code, setCode] = useState('');
   const [testCode, setTestCode] = useState('');
   const [consent, setConsent] = useState(false);
+  const [directoryVisible, setDirectoryVisible] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -61,7 +62,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
     try {
       const data = await api<{ user: OwnProfile }>('/api/auth/verify-code', {
         method: 'POST',
-        body: { email: email.trim(), code: code.trim(), consent: true },
+        body: { email: email.trim(), code: code.trim(), consent: true, directoryVisible },
       });
       onLoggedIn(data.user);
     } catch (err) {
@@ -173,6 +174,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
               </button>{' '}
               a se zpracováním osobních údajů
             </span>
+          </label>
+
+          <label className="flex items-start gap-2.5 text-xs font-bold text-[#111111] dark:text-stone-200 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={directoryVisible}
+              onChange={(e) => setDirectoryVisible(e.target.checked)}
+              className="mt-0.5 w-4 h-4 shrink-0 accent-[#111111] dark:accent-[#FEF08A] cursor-pointer"
+            />
+            <span>Můj profil bude vidět v Adresáři (můžeš změnit v profilu)</span>
           </label>
 
           {error && <ErrorBox message={error} />}

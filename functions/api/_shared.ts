@@ -1,9 +1,11 @@
 // Sdílené typy a pomocné funkce pro Cloudflare Pages Functions (/api/*)
-// Mapování řádků na veřejné typy je jen zde, aby žádný endpoint neprozradil e-mail ani telefon.
+// Mapování řádků na veřejné typy je jen zde. Kontakty (mapContact) dostává jen přihlášený;
+// anonymní odpověď nikdy neobsahuje e-mail ani telefon.
 
 import type {
   BookedJob,
   ContactInfo,
+  DirectoryGroup,
   EngagementStatus,
   OwnProfile,
   PublicJob,
@@ -262,25 +264,69 @@ export interface ProfileRow {
   licence_verified: number;
   email_digest: number;
   accepting_jobs: number;
+  directory_group: string;
+  directory_visible: number;
+  instagram: string | null;
+  whatsapp: string | null;
+  facebook: string | null;
 }
 
 export const PROFILE_COLUMNS =
-  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, licence_verified, email_digest, accepting_jobs';
+  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, licence_verified, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook';
+
+export function mapGroup(value: string | null | undefined): DirectoryGroup {
+  return value === 'firm' || value === 'licensed' ? value : 'unlicensed';
+}
 
 export function mapPublicPerson(row: ProfileRow): PublicPerson {
   return {
     id: row.id,
     name: row.name,
+    group: mapGroup(row.directory_group),
+    region: row.region ?? '',
     crafts: safeJsonParse<string[]>(row.crafts, []),
     experienceText: row.experience_text ?? '',
-    ...(row.portfolio_url ? { portfolioUrl: row.portfolio_url } : {}),
     ...(row.licence_number ? { licenceNumber: row.licence_number } : {}),
     licenceVerified: Boolean(row.licence_verified),
   };
 }
 
-export function mapContact(row: Pick<ProfileRow, 'name' | 'email' | 'phone'>): ContactInfo {
-  return { name: row.name, email: row.email, ...(row.phone ? { phone: row.phone } : {}) };
+export type ContactRow = Pick<
+  ProfileRow,
+  'name' | 'email' | 'phone' | 'portfolio_url' | 'instagram' | 'whatsapp' | 'facebook'
+>;
+
+/** The ONE place that turns a profile row into contacts. Call it only for a logged-in viewer. */
+export function mapContact(row: ContactRow): ContactInfo {
+  return {
+    name: row.name,
+    email: row.email,
+    ...(row.phone ? { phone: row.phone } : {}),
+    ...(row.portfolio_url ? { website: row.portfolio_url } : {}),
+    ...(row.instagram ? { instagram: row.instagram } : {}),
+    ...(row.whatsapp ? { whatsapp: row.whatsapp } : {}),
+    ...(row.facebook ? { facebook: row.facebook } : {}),
+  };
+}
+
+/** SQL columns for mapContactPrefixed: `t.name AS <prefix>_name, ...`. */
+export function contactSelect(table: string, prefix: string): string {
+  return ['name', 'email', 'phone', 'portfolio_url', 'instagram', 'whatsapp', 'facebook']
+    .map((c) => `${table}.${c} AS ${prefix}_${c}`)
+    .join(', ');
+}
+
+export function mapContactPrefixed(row: object, prefix: string): ContactInfo {
+  const r = row as Record<string, string | null>;
+  return mapContact({
+    name: r[`${prefix}_name`] ?? '',
+    email: r[`${prefix}_email`] ?? '',
+    phone: r[`${prefix}_phone`] ?? null,
+    portfolio_url: r[`${prefix}_portfolio_url`] ?? null,
+    instagram: r[`${prefix}_instagram`] ?? null,
+    whatsapp: r[`${prefix}_whatsapp`] ?? null,
+    facebook: r[`${prefix}_facebook`] ?? null,
+  });
 }
 
 export interface BlockRow {
@@ -304,6 +350,10 @@ export interface BookedRow {
   p_name: string;
   p_email: string;
   p_phone: string | null;
+  p_portfolio_url: string | null;
+  p_instagram: string | null;
+  p_whatsapp: string | null;
+  p_facebook: string | null;
 }
 
 /** Full own profile including blocks and accepted jobs. Only for the profile's owner. */
@@ -325,11 +375,12 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
     db
       .prepare(
         `SELECT e.id AS engagement_id, j.id AS job_id, j.title, j.city, j.date_from, j.date_to,
-                p.name AS p_name, p.email AS p_email, p.phone AS p_phone
+                ${contactSelect('p', 'p')}
          FROM engagements e
          JOIN jobs j ON j.id = e.job_id
          JOIN profiles p ON p.id = j.author_id
          WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ?
+           AND j.job_type IN ('subcontract_needed', 'guarantor_needed')
          ORDER BY j.date_from`
       )
       .bind(userId, today)
@@ -342,7 +393,7 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
     city: b.city,
     dateFrom: b.date_from,
     dateTo: b.date_to,
-    posterContact: mapContact({ name: b.p_name, email: b.p_email, phone: b.p_phone }),
+    posterContact: mapContactPrefixed(b, 'p'),
   }));
   return {
     ...mapPublicPerson(row),
@@ -351,6 +402,11 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
     region: row.region,
     emailDigest: Boolean(row.email_digest),
     acceptingJobs: Boolean(row.accepting_jobs),
+    directoryVisible: Boolean(row.directory_visible),
+    ...(row.portfolio_url ? { portfolioUrl: row.portfolio_url } : {}),
+    ...(row.instagram ? { instagram: row.instagram } : {}),
+    ...(row.whatsapp ? { whatsapp: row.whatsapp } : {}),
+    ...(row.facebook ? { facebook: row.facebook } : {}),
     blocks: blocks.results.map(mapBlock),
     booked: bookedJobs,
   };
@@ -376,6 +432,13 @@ export interface JobRow {
   expires_at: string | null;
   a_name: string;
   a_licence_verified: number;
+  a_group: string;
+  a_email: string;
+  a_phone: string | null;
+  a_portfolio_url: string | null;
+  a_instagram: string | null;
+  a_whatsapp: string | null;
+  a_facebook: string | null;
   interested_count: number;
 }
 
@@ -383,7 +446,9 @@ export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url, j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
          j.status, j.created_at, j.expires_at,
-         a.name AS a_name, a.licence_verified AS a_licence_verified,
+         a.name AS a_name, a.licence_verified AS a_licence_verified, a.directory_group AS a_group,
+         a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
+         a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count
   FROM jobs j JOIN profiles a ON a.id = j.author_id`;
 
@@ -391,7 +456,6 @@ export interface JobViewer {
   userId: string;
   engagement?: { id: string; status: EngagementStatus };
   busyDays?: number;
-  posterContact?: ContactInfo;
 }
 
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
@@ -411,14 +475,20 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
     budgetNote: row.budget_note,
     status: row.status === 'active' ? 'active' : 'closed',
     createdAt: row.created_at,
-    poster: { id: row.author_id, name: row.a_name, licenceVerified: Boolean(row.a_licence_verified) },
+    poster: {
+      id: row.author_id,
+      name: row.a_name,
+      licenceVerified: Boolean(row.a_licence_verified),
+      group: mapGroup(row.a_group),
+    },
     interestedCount: Number(row.interested_count ?? 0),
     ...(viewer
       ? {
           isMine: row.author_id === viewer.userId,
           ...(viewer.engagement ? { myEngagement: viewer.engagement } : {}),
           ...(viewer.busyDays !== undefined ? { myBusyDays: viewer.busyDays } : {}),
-          ...(viewer.posterContact ? { posterContact: viewer.posterContact } : {}),
+          // Any logged-in viewer sees the poster's contacts; anonymous callers pass no viewer.
+          posterContact: mapContactPrefixed(row, 'a'),
         }
       : {}),
   };

@@ -37,7 +37,7 @@ Aplikace plně podporuje **Světlý (výchozí)** i **Tmavý režim** přes tř�
 
 ## 3. Závazné barvy a ikony typů inzerátů (`JobCard.tsx`, `CreateJobModal.tsx`)
 
-Tyto typy inzerátů (v MVP se zakládají jen první dva, třetí je fáze 2) mají pevně dané barvy a ikony – **nikdy je neměň**:
+Tyto tři typy inzerátů (zakládá je kdokoli přihlášený) mají pevně dané barvy a ikony – **nikdy je neměň**:
 
 1. **Hledám subdodavatele (`subcontract_needed`):**
    - **Ikona:** Kladívko (`<HammerLogo />` ze `src/components/HammerLogo.tsx`)
@@ -72,10 +72,15 @@ Tyto typy inzerátů (v MVP se zakládají jen první dva, třetí je fáze 2) m
 - **Hlavní přepínače (Taby):**
   - `Nástěnka zakázek` (s počtem)
   - `Nabízím se` (s počtem)
+  - `Adresář` (bez počtu; vlastní řádek filtrů: hledání, region, návrhy oborů, pilulky skupin `Vše · Firmy · Licencovaní · Bez licence`)
   - Taby řeší i typ inzerátu (poptávka vs. nabídka) – samostatný filtr typu ani stavu (Nové / Archivované) už na nástěnce není.
 - **Filtry (`JobFilters.tsx`):**
   - Vyhledávání `Hledat zakázku, řemeslo nebo město…`, select `Všechny regiony` a přepínač `Moje inzeráty` (jen moje položky v aktuálním tabu, včetně archivovaných).
   - Obory (`Kámen & štuk`, `Dřevo & nábytek`, `Nástěnné malby & sgrafita`, `Kovářství & kovy`, `Zlacení & polychromie`) se nezobrazují jako pilulky, ale **nabízejí se jako návrhy při psaní do vyhledávání**; vybraný obor je štítek s `×`.
+- **Karta Adresáře (`DirectoryCard.tsx`):** jméno, odznak skupiny (`Firma` modrá, `Licencovaný restaurátor` zelená, `Bez licence` bílá), `Licence ověřena` jen při `licence_verified = 1`, obory, region, zkušenosti, číslo povolení. Řádek kontaktů (ikona + popisek: telefon, e-mail, web, Instagram, WhatsApp, Facebook) vidí jen přihlášený; anonym má tlačítko **`Kontakty uvidíš po přihlášení`**. Žádná informace o dostupnosti.
+- **Kontakty u inzerátu:** stejný řádek kontaktů zadavatele na `JobCard` pro každého přihlášeného. U nabídky `Nabízím se` je termín popsán jako `Volno` a vlastník vidí `Zájemci (N)` bez tlačítek přijmout / odmítnout.
+- **Formulář inzerátu:** třetí typ `Nabízím se` (modrá, `UserCheck`); štítky termínu `Volno od` / `Volno do`, úspěch `Nabídka je venku.`
+- **Přihlášení:** druhé zaškrtávátko (výchozí zaškrtnuto) `Můj profil bude vidět v Adresáři (můžeš změnit v profilu)`.
 - **Patička:** vlevo `Restaurion – platforma pro památková řemesla` (pevný text), vpravo `Všeobecné obchodní podmínky (VOP)`.
 - **Formulář inzerátu (`CreateJobModal.tsx`):** bez ukázkových fotek a bez pole „Podrobný popis“; `Odměna / Rozpočet` je volitelná (prázdná = `Dle dohody`).
 - **Hlavní akční tlačítko na kartě (`JobCard.tsx`):**

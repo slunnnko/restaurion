@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Briefcase, Plus, Bell, UserRound, LogIn } from 'lucide-react';
+import { Briefcase, Plus, Bell, UserRound, LogIn, BookUser } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  active: 'board' | 'profile';
+  active: 'board' | 'directory' | 'profile';
   isLoggedIn: boolean;
   unreadCount: number;
   onBoard: () => void;
+  onDirectory: () => void;
   onCreate: () => void;
   onNotifications: () => void;
   onProfile: () => void;
@@ -22,6 +23,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   isLoggedIn,
   unreadCount,
   onBoard,
+  onDirectory,
   onCreate,
   onNotifications,
   onProfile,
@@ -31,6 +33,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       <button onClick={onBoard} className={`${itemBase} ${active === 'board' ? itemActive : itemIdle}`}>
         <Briefcase className="w-5 h-5 mb-0.5" />
         <span className="text-[10px]">Nástěnka</span>
+      </button>
+
+      <button onClick={onDirectory} className={`${itemBase} ${active === 'directory' ? itemActive : itemIdle}`}>
+        <BookUser className="w-5 h-5 mb-0.5" />
+        <span className="text-[10px]">Adresář</span>
       </button>
 
       <button onClick={onCreate} className="flex flex-col items-center -mt-4 group cursor-pointer">

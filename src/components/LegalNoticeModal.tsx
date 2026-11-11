@@ -89,7 +89,7 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
               3. Osobní údaje
             </h3>
             <p>
-              Tvůj e-mail a telefon vidí jen protistrana, a to až po přijetí spolupráce. Termíny nedostupnosti nevidí nikdo jiný. Smazání účtu zajistíme na vyžádání e-mailem.
+              Tvé kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí každý přihlášený uživatel, nikdy anonymní návštěvník. Profil s tvým jménem, obory a zkušenostmi je zveřejněný v Adresáři, dokud to v profilu nevypneš. Termíny nedostupnosti a obsazené dny nevidí nikdo jiný. Smazání účtu zajistíme na vyžádání e-mailem.
             </p>
           </div>
 

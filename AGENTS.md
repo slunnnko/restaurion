@@ -26,7 +26,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 2. **Barvy a ikony typů zakázek (`src/components/JobCard.tsx`, `src/components/CreateJobModal.tsx`):**
    - `subcontract_needed` (**Hledám subdodavatele**): ikona kladívka (`HammerLogo`), smaragdově zelená (`bg-emerald-600`).
    - `guarantor_needed` (**Hledám zaštítění licencí MK ČR**): ikona štítu (`ShieldCheck`), korálová (`bg-[#FF5733]`).
-   - V MVP existují jen tyto dva typy.
+   - `craftsman_available` (**Nabízím se**): ikona človíčka (`UserCheck`), elektrická modř (`bg-[#2563EB]`), tlačítko **„Poptat spolupráci“**; termín se zobrazuje jako „Volno“.
    - **Památkový odznak:** jen štítek **„Kulturní památka“** (nebo *Národní kulturní památka*) s ikonou `Church`; nikdy štítek *„Běžný objekt / bez licence“*.
 3. **Texty a rozložení:** Hero nadpis **„Najdi práci nebo parťáka“**, tlačítko **„+ Přidat“**, na kartě tlačítko **„Mám zájem“**. Odměna (`job.budgetNote`) se na kartě nikdy nezkracuje (`break-words`, žádné `truncate`). Texty jsou napevno v kódu (žádné CMS).
 4. **Safari `<select>`:** každý `<select>` má `appearance-none`, výšku `h-11`, `pl-10 pr-9` (s ikonou vlevo) a vlastní `<ChevronDown className="... pointer-events-none" />` vpravo.
@@ -34,23 +34,25 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 
 ## 2. Soukromí a pravidla dat (nesmí se porušit)
 
-- **E-mail a telefon** se vracejí jen vlastníkovi (`OwnProfile`) a druhé straně přijatého engagementu (`ContactInfo`). Nikdy ve veřejných seznamech, v upozorněních ani u zájemců před přijetím.
-- **Bloky nedostupnosti a obsazené dny** vidí jen jejich vlastník. Žádný endpoint nevypisuje řemeslníky; zadavatel vidí zájemce jen u vlastní zakázky.
+- **Kontakty** (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí **každý přihlášený** uživatel (u inzerátů, v Adresáři, u zájemců). **Anonymní návštěvník je nikdy nedostane**: odpověď bez relace neobsahuje e-mail, telefon ani odkazy (UI ukáže „Kontakty uvidíš po přihlášení“). Mapování řádku na kontakt je jen v `mapContact` (`functions/api/_shared.ts`); každý endpoint ho volá jen pro přihlášeného. Pravidlo „kontakt až po přijetí“ neplatí.
+- **Adresář** (`GET /api/directory`) je veřejný. Vypisuje profily s `directory_visible = 1`, souhlasem (`consent_at`) a jménem o 3+ znacích; zveřejnění je opt-out (přepínač v profilu, zaškrtávátko při přihlášení).
+- **Bloky nedostupnosti a obsazené dny** vidí jen jejich vlastník; nikdy nejsou v Adresáři ani v jiné veřejné odpovědi. Zadavatel vidí zájemce jen u vlastního inzerátu.
+- **Nabídky „Nabízím se“** nespouštějí párovací upozornění, nemají přijetí/odmítnutí (409) a nikdy neobsazují dny. Zájem o nabídku upozorní nabízejícího (`interest`).
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
-- Obsazené dny počítají jen přijaté engagementy zakázek se `status = 'active'`.
+- Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
 - Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`).
 
 ## 3. Struktura projektu
 
 - `src/app/page.tsx` – hlavní stránka (nástěnka, filtry, modály, přepnutí na profil); `src/app/globals.css`, `src/app/layout.tsx`.
-- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `CreateJobModal`, `RespondModal`, `InterestedWorkersModal`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
+- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `InterestedWorkersModal`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
 - `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
 - `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
-- `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, me, logout), `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
+- `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
 - `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`).
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
-- `migrations/` – D1 migrace `0001`–`0006` (0006 se pouští jednou).
+- `migrations/` – D1 migrace `0001`–`0007` (0006 a 0007 se pouští jednou).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
 - `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (architektura).
 

@@ -4,7 +4,6 @@ import {
   badJson,
   getAuthenticatedUserId,
   jsonResponse,
-  mapContact,
   mapJobRow,
   noDb,
   readJson,
@@ -20,7 +19,7 @@ import type { EngagementStatus } from '../../src/types/api.ts';
 const BOARD_WHERE = `j.date_from IS NOT NULL AND j.date_to IS NOT NULL AND j.status = 'active'
   AND j.visibility = 'public' AND j.expires_at >= date('now')`;
 
-/** GET /api/jobs → veřejná nástěnka; s relací přidá pole pro přihlášeného (isMine, myEngagement, ...). */
+/** GET /api/jobs → veřejná nástěnka (zakázky i nabídky "Nabízím se"); kontakty zadavatele jen s relací; s relací přidá pole pro přihlášeného (isMine, myEngagement, ...). */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
   const { request, env } = context;
   if (!env.DB) return noDb();
@@ -37,24 +36,20 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     const today = todayUtc();
     const busy = await loadBusySlots(db, userId, today);
     const mine = await db
-      .prepare(
-        `SELECT e.id, e.job_id, e.status, p.name AS p_name, p.email AS p_email, p.phone AS p_phone
-         FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles p ON p.id = j.author_id
-         WHERE e.worker_id = ?`
-      )
+      .prepare(`SELECT id, job_id, status FROM engagements WHERE worker_id = ?`)
       .bind(userId)
-      .all<{ id: string; job_id: string; status: EngagementStatus; p_name: string; p_email: string; p_phone: string | null }>();
+      .all<{ id: string; job_id: string; status: EngagementStatus }>();
     const engByJob = new Map(mine.results.map((e) => [e.job_id, e]));
 
     const jobs = rows.results.map((r) => {
       const e = engByJob.get(r.id);
       const viewer: JobViewer = {
         userId,
-        busyDays: countBusyDays({ dateFrom: r.date_from, dateTo: r.date_to }, busy.blocks, busy.engagements, r.id),
-        ...(e ? { engagement: { id: e.id, status: e.status } } : {}),
-        ...(e && e.status === 'accepted'
-          ? { posterContact: mapContact({ name: e.p_name, email: e.p_email, phone: e.p_phone }) }
+        // Offers never count as busy days and the viewer's calendar is irrelevant for them.
+        ...(r.job_type !== 'craftsman_available'
+          ? { busyDays: countBusyDays({ dateFrom: r.date_from, dateTo: r.date_to }, busy.blocks, busy.engagements, r.id) }
           : {}),
+        ...(e ? { engagement: { id: e.id, status: e.status } } : {}),
       };
       return mapJobRow(r, viewer);
     });
@@ -111,7 +106,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       )
       .run();
 
-    const candidates = await loadMatchCandidates(db, auth.userId, values);
+    // An offer ("Nabízím se") triggers no matching notifications.
+    const isOffer = values.jobType === 'craftsman_available';
+    const candidates = isOffer ? [] : await loadMatchCandidates(db, auth.userId, values);
     const job = {
       id: jobId,
       posterId: auth.userId,

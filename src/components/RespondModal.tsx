@@ -51,6 +51,7 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
     }
   };
 
+  const isOffer = job.jobType === 'craftsman_available';
   const isMonument = job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
 
   return (
@@ -62,20 +63,20 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
           </div>
           <h3 className="font-serif text-xl font-bold text-[#111111] dark:text-white mb-1">Zájem odeslán</h3>
           <p className="text-xs font-medium text-stone-700 dark:text-stone-300">
-            Zadavatel ({job.poster.name}) dostal upozornění. Kontakty se ukážou po jeho přijetí.
+            {isOffer ? 'Nabízející' : 'Zadavatel'} ({job.poster.name}) dostal upozornění. Jeho kontakty vidíš přímo u inzerátu.
           </p>
         </div>
       ) : (
         <div>
           <div className="mb-4 pr-10">
             <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#FEF08A] border border-[#111111] text-xs font-extrabold uppercase tracking-wider text-[#111111] mb-1.5">
-              Mám zájem o spolupráci
+              {isOffer ? 'Poptat spolupráci' : 'Mám zájem o spolupráci'}
             </span>
             <h2 id="respond-title" className="font-serif text-xl font-bold text-[#111111] dark:text-white line-clamp-2">
               {job.title}
             </h2>
             <div className="text-xs text-stone-700 dark:text-stone-300 mt-2 font-medium">
-              Zadavatel: <strong className="text-[#111111] dark:text-white font-extrabold">{job.poster.name}</strong> ({job.city})
+              {isOffer ? 'Nabízí' : 'Zadavatel'}: <strong className="text-[#111111] dark:text-white font-extrabold">{job.poster.name}</strong> ({job.city})
             </div>
           </div>
 
@@ -91,7 +92,7 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div>
               <label htmlFor="respond-message" className={labelCls}>
-                Zpráva zadavateli (nepovinné)
+                {isOffer ? 'Zpráva nabízejícímu (nepovinné)' : 'Zpráva zadavateli (nepovinné)'}
               </label>
               <textarea
                 id="respond-message"
@@ -106,7 +107,7 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
             </div>
 
             <p className="text-[11px] font-bold text-stone-600 dark:text-stone-400">
-              Kontakty se zadavateli ukážou až po přijetí.
+              Kontakty druhé strany vidí každý přihlášený. Tvé kontakty uvidí ten, kdo inzerát vložil.
             </p>
 
             {error && <ErrorBox message={error} />}
@@ -117,7 +118,7 @@ export const RespondModal: React.FC<RespondModalProps> = ({ job, onClose, onSubm
               </button>
               <button type="submit" disabled={isSending} className={primaryBtn}>
                 <Send className="w-3.5 h-3.5" />
-                <span>{isSending ? 'Odesílám…' : 'Mám zájem'}</span>
+                <span>{isSending ? 'Odesílám…' : isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
               </button>
             </div>
           </form>

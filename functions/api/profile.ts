@@ -1,6 +1,16 @@
 import { badJson, jsonResponse, loadOwnProfile, noDb, readJson, requireUser } from './_shared.ts';
 import type { PagesContext } from './_shared.ts';
-import { PHONE_RE, str, validCraftIds, validationResponse } from './_lib/validate.ts';
+import {
+  PHONE_RE,
+  groupLicenceError,
+  isDirectoryGroup,
+  isHttpUrl,
+  normalizeInstagram,
+  normalizeWhatsapp,
+  str,
+  validCraftIds,
+  validationResponse,
+} from './_lib/validate.ts';
 import type { FieldErrors } from './_lib/validate.ts';
 
 /** GET /api/profile → vlastní profil (jen relace) */
@@ -81,9 +91,39 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     binds.push(lic);
     set('licence_number', lic || null);
   }
+  if ('instagram' in body) {
+    const handle = normalizeInstagram(str(body.instagram));
+    if (handle === null) errors.instagram = 'Zadej uživatelské jméno nebo odkaz na Instagram (písmena, čísla, tečka, podtržítko).';
+    set('instagram', handle || null);
+  }
+  if ('whatsapp' in body) {
+    const wa = normalizeWhatsapp(str(body.whatsapp));
+    if (wa === null) errors.whatsapp = 'Zadejte platné telefonní číslo.';
+    set('whatsapp', wa || null);
+  }
+  if ('facebook' in body) {
+    const fb = str(body.facebook);
+    if (fb && !isHttpUrl(fb)) errors.facebook = 'Zadejte odkaz začínající http:// nebo https://.';
+    set('facebook', fb || null);
+  }
+  if ('group' in body && !isDirectoryGroup(body.group)) errors.group = 'Vyberte, kdo jsi.';
+  if ('group' in body || 'licenceNumber' in body) {
+    // 'licensed' needs a licence number: judge the values this request leaves behind.
+    const stored = await db
+      .prepare(`SELECT directory_group, licence_number FROM profiles WHERE id = ?`)
+      .bind(auth.userId)
+      .first<{ directory_group: string; licence_number: string | null }>();
+    const group = isDirectoryGroup(body.group) ? body.group : stored?.directory_group ?? 'unlicensed';
+    const licence = 'licenceNumber' in body ? str(body.licenceNumber) : stored?.licence_number;
+    const problem = groupLicenceError(group, licence);
+    if (problem && !errors.group && !errors.licenceNumber) errors.licenceNumber = problem;
+    // Changing the group never touches licence_verified.
+    if (isDirectoryGroup(body.group)) set('directory_group', body.group);
+  }
   for (const [key, col] of [
     ['emailDigest', 'email_digest'],
     ['acceptingJobs', 'accepting_jobs'],
+    ['directoryVisible', 'directory_visible'],
   ] as const) {
     if (key in body) {
       if (typeof body[key] !== 'boolean') errors[key] = 'Očekává se ano/ne.';

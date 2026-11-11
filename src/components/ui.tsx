@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { X, ChevronDown } from 'lucide-react';
+import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock } from 'lucide-react';
+import { ContactInfo } from '@/types/api';
 
 // Sdílené třídy podle docs/UI-DESIGN.md (2px #111111 rámečky, tvrdé stíny, dark: varianty).
 export const inputCls =
@@ -104,26 +105,84 @@ export const ModalShell: React.FC<{
   </div>
 );
 
-export const ContactBox: React.FC<{ name: string; email: string; phone?: string; title?: string }> = ({
-  name,
-  email,
-  phone,
-  title = 'Kontakt',
-}) => (
-  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-[#111111] dark:border-emerald-500/60 text-xs font-bold text-emerald-950 dark:text-emerald-100 space-y-0.5 break-words">
-    <div className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-800 dark:text-emerald-300">{title}</div>
-    <div className="font-extrabold">{name}</div>
-    <div>
-      <a href={`mailto:${email}`} className="underline underline-offset-2">
-        {email}
-      </a>
-    </div>
-    {phone && (
-      <div>
-        <a href={`tel:${phone.replace(/\s+/g, '')}`} className="underline underline-offset-2">
-          {phone}
+/** Pouze http(s) odkaz; jinak null (ochrana proti javascript: apod.). */
+export function safeHttpUrl(url: string): string | null {
+  try {
+    const u = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+const contactLinkCls =
+  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border-2 border-[#111111] dark:border-stone-400 bg-white dark:bg-[#252834] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[11px] font-extrabold text-[#111111] dark:text-stone-100 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all break-all';
+
+/** Řádek odkazů na kontakty (jen pro přihlášené). Každý odkaz je ikona + popisek. */
+export const ContactLinks: React.FC<{ contact: ContactInfo }> = ({ contact }) => {
+  const website = contact.website ? safeHttpUrl(contact.website) : null;
+  const facebook = contact.facebook ? safeHttpUrl(contact.facebook) : null;
+  const waDigits = contact.whatsapp ? contact.whatsapp.replace(/\D/g, '') : '';
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {contact.phone && (
+        <a href={`tel:${contact.phone.replace(/\s+/g, '')}`} className={contactLinkCls}>
+          <Phone className="w-3.5 h-3.5 shrink-0" />
+          <span>{contact.phone}</span>
         </a>
-      </div>
-    )}
+      )}
+      <a href={`mailto:${contact.email}`} className={contactLinkCls}>
+        <Mail className="w-3.5 h-3.5 shrink-0" />
+        <span>{contact.email}</span>
+      </a>
+      {website && (
+        <a href={website} target="_blank" rel="noopener noreferrer" className={contactLinkCls}>
+          <Globe className="w-3.5 h-3.5 shrink-0" />
+          <span>Web</span>
+        </a>
+      )}
+      {contact.instagram && (
+        <a
+          href={`https://instagram.com/${encodeURIComponent(contact.instagram)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={contactLinkCls}
+        >
+          <AtSign className="w-3.5 h-3.5 shrink-0" />
+          <span>Instagram</span>
+        </a>
+      )}
+      {waDigits && (
+        <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer" className={contactLinkCls}>
+          <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>WhatsApp</span>
+        </a>
+      )}
+      {facebook && (
+        <a href={facebook} target="_blank" rel="noopener noreferrer" className={contactLinkCls}>
+          <Link2 className="w-3.5 h-3.5 shrink-0" />
+          <span>Facebook</span>
+        </a>
+      )}
+    </div>
+  );
+};
+
+/** Kontakty pro přihlášeného; anonym dostane tlačítko pro přihlášení. */
+export const ContactsOrLogin: React.FC<{ contact?: ContactInfo; onLogin: () => void }> = ({ contact, onLogin }) =>
+  contact ? (
+    <ContactLinks contact={contact} />
+  ) : (
+    <button type="button" onClick={onLogin} className={`${contactLinkCls} cursor-pointer`}>
+      <Lock className="w-3.5 h-3.5 shrink-0" />
+      <span>Kontakty uvidíš po přihlášení</span>
+    </button>
+  );
+
+export const ContactBox: React.FC<{ contact: ContactInfo; title?: string }> = ({ contact, title = 'Kontakt' }) => (
+  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-[#111111] dark:border-emerald-500/60 text-xs font-bold text-emerald-950 dark:text-emerald-100 space-y-1.5 break-words">
+    <div className="text-[11px] uppercase tracking-wider font-extrabold text-emerald-800 dark:text-emerald-300">{title}</div>
+    <div className="font-extrabold">{contact.name}</div>
+    <ContactLinks contact={contact} />
   </div>
 );

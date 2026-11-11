@@ -4,7 +4,7 @@ import type { PagesContext } from '../_shared.ts';
 const MAX_ATTEMPTS = 5;
 
 /**
- * POST /api/auth/verify-code {email, code, consent: true}
+ * POST /api/auth/verify-code {email, code, consent: true, directoryVisible?: boolean}
  * Max. 5 pokusů na nejnovější kód e-mailu, 30/h na IP. Vytvoří profil, nastaví consent_at a cookie `restaurion_session` na 30 dní.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
@@ -12,7 +12,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   if (!env.DB) return noDb();
   const db = env.DB;
 
-  const body = await readJson<{ email?: unknown; code?: unknown; consent?: unknown }>(request);
+  const body = await readJson<{ email?: unknown; code?: unknown; consent?: unknown; directoryVisible?: unknown }>(request);
   if (!body) return badJson();
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -75,12 +75,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
     if (!profile) {
       const newUserId = `u-${crypto.randomUUID().slice(0, 8)}`;
+      // Opt-out: listed in the directory unless the login form said otherwise (applies to new profiles only).
+      const directoryVisible = body.directoryVisible === false ? 0 : 1;
       await db
         .prepare(
-          `INSERT INTO profiles (id, name, role, verification_status, region, city, bio, email, availability, consent_at)
-           VALUES (?, '', 'unlicensed_craftsman', 'not_applicable', '', '—', '', ?, 'available_now', datetime('now'))`
+          `INSERT INTO profiles (id, name, role, verification_status, region, city, bio, email, availability, consent_at, directory_visible)
+           VALUES (?, '', 'unlicensed_craftsman', 'not_applicable', '', '—', '', ?, 'available_now', datetime('now'), ?)`
         )
-        .bind(newUserId, email)
+        .bind(newUserId, email, directoryVisible)
         .run();
       profile = { id: newUserId };
     } else {

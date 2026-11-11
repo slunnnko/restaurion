@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-6]_*.sql; do
+for f in migrations/000[1-7]_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -125,7 +125,7 @@ eq "w5 NOT notified (accepting off)" "$(has_match w5 $J1)" 0
 eq "w6 NOT notified (wrong craft)" "$(has_match w6 $J1)" 0
 eq "poster NOT notified (own job)" "$(has_match poster $J1)" 0
 
-echo "== engagements, privacy, accept"
+echo "== engagements, contacts for logged-in users, accept"
 api w1 POST /api/jobs/$J1/respond '{"message":"Dobrý den"}'
 eq "w1 respond" "$CODE" 201
 E1=$(echo "$BODY" | jq -r '.engagement.id')
@@ -137,8 +137,8 @@ api w2 POST /api/jobs/$J1/respond '{}'
 eq "w2 respond" "$CODE" 201
 api poster GET /api/jobs/$J1/engagements
 eq "poster sees 2 engagements" "$(echo "$BODY" | jq -r '.engagements | length')" 2
-echo "$BODY" | grep -q '@'; eq "no '@' in engagements before accept" "$?" 1
-echo "$BODY" | grep -qE '777|603'; eq "no phone in engagements before accept" "$?" 1
+eq "poster sees worker contact before accept (e-mail)" "$(echo "$BODY" | jq -r '.engagements[] | select(.id=="'$E1'") | .workerContact.email')" "w1@e2e.test"
+eq "poster sees worker contact before accept (phone)" "$(echo "$BODY" | jq -r '.engagements[] | select(.id=="'$E1'") | .workerContact.phone')" "+420 777 111 222"
 api poster GET /api/notifications
 echo "$BODY" | grep -q '@'; eq "no '@' in notifications" "$?" 1
 api poster2 GET /api/jobs/$J1/engagements
@@ -147,14 +147,14 @@ api - GET /api/jobs
 echo "$BODY" | grep -q '@'; eq "no '@' in unauthenticated /api/jobs" "$?" 1
 echo "$BODY" | grep -qE '777|603'; eq "no phone in unauthenticated /api/jobs" "$?" 1
 api w2 GET /api/jobs
-echo "$BODY" | grep -q '@'; eq "no '@' in /api/jobs for a worker without accepted engagement" "$?" 1
+eq "logged-in worker sees poster contact without any acceptance" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .posterContact.email')" "poster@e2e.test"
 
 api poster POST /api/engagements/$E1 '{"action":"accept"}'
 eq "poster accepts w1" "$CODE" 200
 eq "accept returns worker contact" "$(echo "$BODY" | jq -r '.contact.email')" "w1@e2e.test"
 api poster GET /api/jobs/$J1/engagements
 eq "poster sees w1 contact after accept" "$(echo "$BODY" | jq -r '.engagements[] | select(.id=="'$E1'") | .workerContact.email')" "w1@e2e.test"
-eq "w2 contact still hidden" "$(echo "$BODY" | jq -r '.engagements[] | select(.status=="pending") | .workerContact // "none"')" "none"
+eq "pending w2 contact is visible too" "$(echo "$BODY" | jq -r '.engagements[] | select(.status=="pending") | .workerContact.email')" "w2@e2e.test"
 api w1 GET /api/jobs
 eq "w1 sees poster contact on the job" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .posterContact.email')" "poster@e2e.test"
 api w1 GET /api/profile
@@ -223,6 +223,98 @@ eq "same number keeps verification" "$(echo "$BODY" | jq -r '.profile.licenceVer
 api w1 PUT /api/profile '{"licenceNumber":"MK-200"}'
 eq "different number resets verification" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" false
 
+echo "== directory: visibility rules, privacy, filters"
+d1 --command "INSERT INTO profiles (id, name, role, verification_status, region, city, bio, email, availability, consent_at) VALUES ('u-noconsent', 'Bez Souhlasu', 'unlicensed_craftsman', 'not_applicable', 'Praha', '-', '', 'noconsent@e2e.test', 'available_now', NULL);" > /dev/null
+api w1 POST /api/availability "{\"dateFrom\":\"$(dd 100)\",\"dateTo\":\"$(dd 101)\",\"note\":\"SOUKROMA-POZNAMKA\"}"
+eq "w1 private block with a note" "$CODE" 201
+api - GET /api/directory
+eq "anonymous directory -> 200" "$CODE" 200
+DIR_ANON="$BODY"
+eq "anonymous directory lists profiles" "$(echo "$DIR_ANON" | jq -r '(.entries | length) >= 6')" true
+echo "$DIR_ANON" | grep -q '@'; eq "no '@' in anonymous /api/directory" "$?" 1
+echo "$DIR_ANON" | grep -qE '777|603|604'; eq "no phone digits in anonymous /api/directory" "$?" 1
+eq "anonymous entries have no contact field" "$(echo "$DIR_ANON" | jq -r '[.entries[] | select(.contact != null)] | length')" 0
+echo "$DIR_ANON" | grep -qiE 'blocks|booked|dateFrom|unavailab|SOUKROMA'; eq "blocks and busy days never appear in the directory" "$?" 1
+eq "profile without a name is absent" "$(echo "$DIR_ANON" | jq -r '[.entries[] | select((.name | length) < 3)] | length')" 0
+eq "profile without consent is absent" "$(echo "$DIR_ANON" | jq -r '[.entries[] | select(.name == "Bez Souhlasu")] | length')" 0
+api w2 GET /api/directory
+eq "logged-in directory has w1 contact e-mail" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Jedna") | .contact.email')" "w1@e2e.test"
+eq "logged-in directory has w1 phone" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Jedna") | .contact.phone')" "+420 777 111 222"
+echo "$BODY" | grep -qiE 'blocks|booked|dateFrom|unavailab|SOUKROMA'; eq "blocks and busy days not in the logged-in directory either" "$?" 1
+
+api w6 PUT /api/profile '{"directoryVisible":false}'
+eq "w6 opts out of the directory" "$CODE/$(echo "$BODY" | jq -r '.profile.directoryVisible')" "200/false"
+api - GET /api/directory
+eq "directory_visible=0 profile is absent (anonymous)" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest")] | length')" 0
+api w2 GET /api/directory
+eq "directory_visible=0 profile is absent (logged in)" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest")] | length')" 0
+api w6 PUT /api/profile '{"directoryVisible":true}'
+api - GET /api/directory
+eq "opting back in lists the profile again" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest")] | length')" 1
+
+api w6 PUT /api/profile '{"group":"licensed"}'
+eq "group licensed without a licence number -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.licenceNumber != null')" "400/true"
+api w6 PUT /api/profile '{"group":"nonsense"}'
+eq "unknown group -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.group != null')" "400/true"
+api w1 PUT /api/profile '{"group":"licensed"}'
+eq "w1 (has a licence number) becomes licensed" "$CODE/$(echo "$BODY" | jq -r '.profile.group')" "200/licensed"
+eq "changing group keeps licence_verified as it was" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" false
+api w2 PUT /api/profile '{"group":"licensed","licenceNumber":"MK-300"}'
+eq "w2 licensed with a number in the same request" "$CODE" 200
+d1 --command "UPDATE profiles SET licence_verified = 1 WHERE email = 'w2@e2e.test'" > /dev/null
+api w3 PUT /api/profile '{"group":"firm"}'
+eq "w3 becomes a firm" "$CODE/$(echo "$BODY" | jq -r '.profile.group')" "200/firm"
+api w4 PUT /api/profile '{"instagram":"https://www.instagram.com/w4.dreva/","whatsapp":"+420 777 444 555","facebook":"https://facebook.com/w4"}'
+eq "w4 contact channels saved (instagram normalised)" "$CODE/$(echo "$BODY" | jq -r '.profile.instagram')" "200/w4.dreva"
+api w4 PUT /api/profile '{"instagram":"bad handle!"}'
+eq "invalid instagram -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.instagram != null')" "400/true"
+api w4 PUT /api/profile '{"facebook":"javascript:alert(1)"}'
+eq "facebook javascript: rejected" "$CODE" 400
+api w4 PUT /api/profile '{"whatsapp":"abc"}'
+eq "invalid whatsapp -> 400" "$CODE" 400
+api w2 GET /api/directory
+eq "verified licence is listed first" "$(echo "$BODY" | jq -r '.entries[0].name')" "Worker Dva"
+eq "verified badge flag set for w2" "$(echo "$BODY" | jq -r '.entries[0].licenceVerified')" true
+eq "w4 contact carries instagram, whatsapp, facebook" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Ctyri") | [.contact.instagram, .contact.whatsapp, .contact.facebook] | join("|")')" "w4.dreva|+420 777 444 555|https://facebook.com/w4"
+api - GET "/api/directory?group=licensed"
+eq "group filter licensed (w1 + w2)" "$(echo "$BODY" | jq -r '[.entries[].name] | sort | join(",")')" "Worker Dva,Worker Jedna"
+api - GET "/api/directory?group=firm"
+eq "group filter firm (w3)" "$(echo "$BODY" | jq -r '[.entries[].name] | join(",")')" "Worker Tri"
+api - GET "/api/directory?craft=d%C5%99evo"
+eq "craft filter dřevo (w4)" "$(echo "$BODY" | jq -r '[.entries[].name] | join(",")')" "Worker Ctyri"
+api - GET "/api/directory?q=worker%20jedna"
+eq "text filter matches the name case-insensitively" "$(echo "$BODY" | jq -r '[.entries[].name] | join(",")')" "Worker Jedna"
+api - GET "/api/directory?group=bogus"
+eq "unknown group filter -> empty list" "$(echo "$BODY" | jq -r '.total')" 0
+
+echo "== offers (Nabízím se): no matching, interest notifies the offerer, no accept"
+api poster2 POST /api/jobs "{\"title\":\"Volny kamenik\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+eq "offer created" "$CODE/$(echo "$BODY" | jq -r '.job.jobType')" "201/craftsman_available"
+eq "offer notifies nobody (notified 0)" "$(echo "$BODY" | jq -r '.notified')" 0
+OFFER=$(echo "$BODY" | jq -r '.job.id')
+ROWS=$(d1 --json --command "SELECT COUNT(*) AS n FROM notifications WHERE job_id='$OFFER'" | jq -r '.[0].results[0].n')
+eq "no notification rows exist for the offer" "$ROWS" 0
+api - GET /api/jobs
+eq "offer is on the public board" "$(echo "$BODY" | jq -r --arg j "$OFFER" '[.jobs[] | select(.id==$j and .jobType=="craftsman_available")] | length')" 1
+echo "$BODY" | grep -q '@'; eq "no '@' in anonymous /api/jobs with an offer" "$?" 1
+api w1 GET /api/jobs
+eq "logged-in viewer sees the offerer's contact" "$(echo "$BODY" | jq -r --arg j "$OFFER" '.jobs[] | select(.id==$j) | .posterContact.email')" "poster2@e2e.test"
+api w1 POST /api/jobs/$OFFER/respond '{"message":"Zajem o spolupraci"}'
+eq "w1 asks the offerer" "$CODE" 201
+EO=$(echo "$BODY" | jq -r '.engagement.id')
+api poster2 GET /api/notifications
+eq "offerer got an 'interest' notification" "$(echo "$BODY" | jq -r --arg j "$OFFER" '[.items[] | select(.type=="interest" and .jobId==$j)] | length')" 1
+api poster2 GET /api/jobs/$OFFER/engagements
+eq "offerer sees the interested user with contact" "$(echo "$BODY" | jq -r '.engagements[0].workerContact.email')" "w1@e2e.test"
+api poster2 POST /api/engagements/$EO '{"action":"accept"}'
+eq "accept on an offer -> 409" "$CODE" 409
+api poster2 POST /api/engagements/$EO '{"action":"decline"}'
+eq "decline on an offer -> 409" "$CODE" 409
+api w1 GET /api/profile
+eq "an offer never books or busies anyone" "$(echo "$BODY" | jq -r '.profile.booked | length')" 0
+api w1 GET /api/jobs
+eq "offers carry no busy-day note" "$(echo "$BODY" | jq -r --arg j "$OFFER" '.jobs[] | select(.id==$j) | .myBusyDays // "none"')" "none"
+
 echo "== login code brute force and second code request"
 SQL="INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('bf@e2e.test', '$(sha "bf@e2e.test:654321")', datetime('now','+1 hour'));"
 SQL="$SQL INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('cc@e2e.test', '$(sha "cc@e2e.test:111111")', datetime('now','+1 hour'));"
@@ -273,7 +365,7 @@ api - GET /api/notifications; eq "unauth notifications -> 401" "$CODE" 401
 api poster POST /api/jobs '{"title":"x"}'
 eq "invalid job -> 400 with fieldErrors" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.title != null')" "400/true"
 api poster POST /api/jobs "{\"title\":\"Ve včerejšku\",\"jobType\":\"craftsman_available\",\"monumentStatus\":\"cultural_monument\",\"crafts\":[\"kámen\"],\"region\":\"x\",\"city\":\"Brno\",\"dateFrom\":\"2020-01-01\",\"dateTo\":\"2020-01-02\"}"
-eq "craftsman_available + past dates rejected" "$CODE/$(echo "$BODY" | jq -r '(.fieldErrors.jobType != null) and (.fieldErrors.dateFrom != null)')" "400/true"
+eq "craftsman_available + past dates rejected (dates only)" "$CODE/$(echo "$BODY" | jq -r '(.fieldErrors.jobType == null) and (.fieldErrors.dateFrom != null)')" "400/true"
 
 echo "== notifications read"
 api w2 GET /api/notifications
@@ -309,8 +401,8 @@ for _ in $(seq 1 60); do curl -s -o /dev/null "$BASE/api/jobs" && break; sleep 1
 api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
 TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
 echo "$TESTCODE" | grep -qE '^[0-9]{6}$'; eq "request-code returns a 6-digit testCode (got '$TESTCODE')" "$?" 0
-api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true}"
-eq "login with the echoed code" "$CODE" 200
+api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"directoryVisible\":false}"
+eq "login with the echoed code (directory checkbox off)" "$CODE/$(echo "$BODY" | jq -r '.user.directoryVisible')" "200/false"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

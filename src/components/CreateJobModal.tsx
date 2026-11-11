@@ -19,7 +19,7 @@ import {
   secondaryBtn,
 } from './ui';
 import { HammerLogo } from './HammerLogo';
-import { ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, UserCheck } from 'lucide-react';
 
 interface CreateJobModalProps {
   onClose: () => void;
@@ -27,16 +27,25 @@ interface CreateJobModalProps {
   onCreated: () => void;
   /** API vrátilo 400 profile=name: otevřít profil. */
   onNeedProfile: () => void;
+  /** Předvybraný typ (např. na záložce Nabízím se). */
+  initialType?: MvpJobType;
 }
 
 const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
   { id: 'subcontract_needed', label: 'Hledám subdodavatele', hint: 'Potřebuji výpomoc nebo subdodávku' },
   { id: 'guarantor_needed', label: 'Hledám zaštítění licencí MK ČR', hint: 'Potřebuji restaurátora s licencí' },
+  { id: 'craftsman_available', label: 'Nabízím se', hint: 'Mám volno a nabízím své služby' },
 ];
 
-export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreated, onNeedProfile }) => {
+const TYPE_STYLE: Record<MvpJobType, { icon: React.ComponentType<{ className?: string }>; tile: string }> = {
+  subcontract_needed: { icon: HammerLogo, tile: 'bg-emerald-600' },
+  guarantor_needed: { icon: ShieldCheck, tile: 'bg-[#FF5733]' },
+  craftsman_available: { icon: UserCheck, tile: 'bg-[#2563EB]' },
+};
+
+export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreated, onNeedProfile, initialType }) => {
   const today = todayIso();
-  const [jobType, setJobType] = useState<MvpJobType>('subcontract_needed');
+  const [jobType, setJobType] = useState<MvpJobType>(initialType ?? 'subcontract_needed');
   const [title, setTitle] = useState('');
   const [crafts, setCrafts] = useState<string[]>([]);
   const [region, setRegion] = useState(REGIONS[0]);
@@ -50,6 +59,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notified, setNotified] = useState<number | null>(null);
+  const isOffer = jobType === 'craftsman_available';
 
   const toggleCraft = (id: string) =>
     setCrafts((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
@@ -67,8 +77,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
           title: title.trim(),
           description: '',
           jobType,
-          monumentStatus,
-          monumentName: monumentName.trim() || undefined,
+          ...(isOffer ? {} : { monumentStatus, monumentName: monumentName.trim() || undefined }),
           crafts,
           region,
           city: city.trim(),
@@ -103,7 +112,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
             <CheckCircle2 className="w-7 h-7" />
           </div>
           <h3 className="font-serif text-xl font-bold text-[#111111] dark:text-white mb-1">
-            Inzerát je venku. Upozornili jsme {pluralCraftsmen(notified)}.
+            {isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
           </h3>
           <div className="mt-5">
             <button type="button" onClick={onClose} className={primaryBtn}>
@@ -122,18 +131,17 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
           Nový inzerát
         </span>
         <h2 id="create-title" className="font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
-          Přidat zakázku
+          {isOffer ? 'Přidat nabídku' : 'Přidat zakázku'}
         </h2>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <span className={labelCls}>Typ inzerátu</span>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {JOB_TYPES.map((t) => {
               const selected = jobType === t.id;
-              const isSub = t.id === 'subcontract_needed';
-              const Icon = isSub ? HammerLogo : ShieldCheck;
+              const { icon: Icon, tile } = TYPE_STYLE[t.id];
               return (
                 <button
                   key={t.id}
@@ -147,9 +155,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
                   }`}
                 >
                   <span
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-[#111111] text-white ${
-                      isSub ? 'bg-emerald-600' : 'bg-[#FF5733]'
-                    }`}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-[#111111] text-white ${tile}`}
                   >
                     <Icon className="w-5 h-5" />
                   </span>
@@ -181,7 +187,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
         </div>
 
         <div>
-          <span className={labelCls}>Požadované obory * (alespoň jeden)</span>
+          <span className={labelCls}>{isOffer ? 'Moje obory * (alespoň jeden)' : 'Požadované obory * (alespoň jeden)'}</span>
           <div className="flex flex-wrap gap-2">
             {CRAFT_CATEGORIES.map((c) => (
               <Pill key={c.id} checked={crafts.includes(c.id)} onChange={() => toggleCraft(c.id)}>
@@ -226,7 +232,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label htmlFor="job-from" className={labelCls}>
-              Termín od *
+              {isOffer ? 'Volno od *' : 'Termín od *'}
             </label>
             <input
               id="job-from"
@@ -244,7 +250,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
           </div>
           <div>
             <label htmlFor="job-to" className={labelCls}>
-              Termín do *
+              {isOffer ? 'Volno do *' : 'Termín do *'}
             </label>
             <input
               id="job-to"
@@ -259,6 +265,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
           </div>
         </div>
 
+        {!isOffer && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label htmlFor="job-monument" className={labelCls}>
@@ -292,10 +299,11 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
             <FieldError message={fieldErrors.monumentName} />
           </div>
         </div>
+        )}
 
         <div>
           <label htmlFor="job-budget" className={labelCls}>
-            Odměna (nepovinné)
+            {isOffer ? 'Sazba (nepovinné)' : 'Odměna (nepovinné)'}
           </label>
           <input
             id="job-budget"

@@ -2,7 +2,7 @@ import { insertNotification, jsonResponse, noDb, readJson, requireUser } from '.
 import type { PagesContext } from '../../_shared.ts';
 import { profileNameMissing, profileNameResponse } from '../../_lib/validate.ts';
 
-/** POST /api/jobs/:id/respond {message?} → „Mám zájem“: vznikne engagement `pending`. */
+/** POST /api/jobs/:id/respond {message?} → „Mám zájem“ / „Poptat spolupráci“: vznikne engagement `pending`, zadavatel (nabízející) dostane upozornění. */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
   if (!env.DB) return noDb();

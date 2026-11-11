@@ -10,12 +10,63 @@ export function validationResponse(fieldErrors: FieldErrors): Response {
   return jsonResponse({ error: 'Zkontrolujte vyplněné údaje.', fieldErrors }, 400);
 }
 
-export const JOB_TYPES = ['subcontract_needed', 'guarantor_needed'];
+export const JOB_TYPES = ['subcontract_needed', 'guarantor_needed', 'craftsman_available'];
+export const DIRECTORY_GROUPS = ['firm', 'licensed', 'unlicensed'];
 export const MONUMENT_STATUSES = ['cultural_monument', 'national_monument', 'historic_unregistered', 'craft_work'];
 export const PHONE_RE = /^[+()\d\s.-]{7,25}$/;
 
 export function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+export function isDirectoryGroup(value: unknown): value is 'firm' | 'licensed' | 'unlicensed' {
+  return typeof value === 'string' && DIRECTORY_GROUPS.includes(value);
+}
+
+/** Group 'licensed' needs a licence number. Returns the error text or null. */
+export function groupLicenceError(group: string, licenceNumber: string | null | undefined): string | null {
+  if (group === 'licensed' && !(licenceNumber ?? '').trim()) {
+    return 'Pro skupinu Licencovaný restaurátor vyplň číslo povolení MK ČR.';
+  }
+  return null;
+}
+
+/** http(s) URL up to `max` chars, or false. */
+export function isHttpUrl(value: string, max = 300): boolean {
+  if (!value || value.length > max) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Instagram handle or profile URL → bare handle (no @). '' stays ''. Returns null when invalid
+ * (characters outside [A-Za-z0-9._], longer than 60, or a URL of another site).
+ */
+export function normalizeInstagram(value: string): string | null {
+  let v = value.trim();
+  if (v === '') return '';
+  if (/^https?:\/\//i.test(v) || /^(www\.)?instagram\.com\//i.test(v)) {
+    try {
+      const u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`);
+      if (!/^(www\.)?instagram\.com$/i.test(u.hostname)) return null;
+      v = u.pathname.split('/').filter(Boolean)[0] ?? '';
+    } catch {
+      return null;
+    }
+  }
+  v = v.replace(/^@/, '');
+  return /^[A-Za-z0-9._]{1,60}$/.test(v) ? v : null;
+}
+
+/** WhatsApp number: same format as the phone field. '' stays ''. Returns null when invalid. */
+export function normalizeWhatsapp(value: string): string | null {
+  const v = value.trim();
+  if (v === '') return '';
+  return PHONE_RE.test(v) ? v : null;
 }
 
 export function validCraftIds(value: unknown): string[] | null {
@@ -66,8 +117,10 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
   if (title.length < 5 || title.length > 120) errors.title = 'Název musí mít 5 až 120 znaků.';
   if (description.length > 2000) errors.description = 'Popis může mít nejvýše 2000 znaků.';
   if (!JOB_TYPES.includes(body.jobType as string)) errors.jobType = 'Vyberte typ zakázky.';
-  if (!MONUMENT_STATUSES.includes(body.monumentStatus as string)) errors.monumentStatus = 'Vyberte status objektu.';
-  if (monumentName.length > 120) errors.monumentName = 'Název objektu může mít nejvýše 120 znaků.';
+  // An offer ("Nabízím se") has no object: status is fixed and the name is dropped.
+  const isOffer = body.jobType === 'craftsman_available';
+  if (!isOffer && !MONUMENT_STATUSES.includes(body.monumentStatus as string)) errors.monumentStatus = 'Vyberte status objektu.';
+  if (!isOffer && monumentName.length > 120) errors.monumentName = 'Název objektu může mít nejvýše 120 znaků.';
   if (crafts.length === 0) errors.crafts = 'Vyberte alespoň jeden obor.';
   if (!region || region.length > 60) errors.region = 'Vyberte kraj.';
   if (city.length < 2 || city.length > 60) errors.city = 'Obec musí mít 2 až 60 znaků.';
@@ -80,8 +133,8 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
       title,
       description,
       jobType: str(body.jobType),
-      monumentStatus: str(body.monumentStatus),
-      monumentName,
+      monumentStatus: isOffer ? 'craft_work' : str(body.monumentStatus),
+      monumentName: isOffer ? '' : monumentName,
       crafts,
       region,
       city,

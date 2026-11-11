@@ -1,11 +1,21 @@
-import { badJson, insertNotification, jsonResponse, mapContact, noDb, readJson, requireUser, todayUtc } from '../_shared.ts';
+import {
+  badJson,
+  contactSelect,
+  insertNotification,
+  jsonResponse,
+  mapContactPrefixed,
+  noDb,
+  readJson,
+  requireUser,
+  todayUtc,
+} from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
 import { loadBusySlots } from '../_lib/data.ts';
 import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
 
 /**
  * POST /api/engagements/:id {action}
- * accept|decline: jen zadavatel zakázky, jen z `pending`. withdraw: jen řemeslník, z `pending`/`accepted`.
+ * accept|decline: jen zadavatel zakázky (ne nabídky), jen z `pending`. withdraw: jen zájemce, z `pending`/`accepted`.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
@@ -27,8 +37,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     const eng = await db
       .prepare(
         `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
-                j.date_from AS j_from, j.date_to AS j_to,
-                w.name AS w_name, w.email AS w_email, w.phone AS w_phone
+                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type,
+                ${contactSelect('w', 'w')}
          FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles w ON w.id = e.worker_id
          WHERE e.id = ?`
       )
@@ -43,9 +53,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         j_expires: string | null;
         j_from: string | null;
         j_to: string | null;
+        j_type: string;
         w_name: string;
         w_email: string;
         w_phone: string | null;
+        w_portfolio_url: string | null;
+        w_instagram: string | null;
+        w_whatsapp: string | null;
+        w_facebook: string | null;
       }>();
     if (!eng) return jsonResponse({ error: 'Zájem nenalezen.' }, 404);
 
@@ -58,6 +73,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     }
 
     if (eng.author_id !== auth.userId) return jsonResponse({ error: 'Rozhodnout může jen zadavatel zakázky.' }, 403);
+    if (eng.j_type === 'craftsman_available') return jsonResponse({ error: 'U nabídky se nepřijímá.' }, 409);
     if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
 
     if (action === 'accept') {
@@ -77,7 +93,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     await insertNotification(db, { profileId: eng.worker_id, type: status, jobId: eng.job_id, engagementId: id });
     return jsonResponse({
       engagement: { id, status },
-      ...(status === 'accepted' ? { contact: mapContact({ name: eng.w_name, email: eng.w_email, phone: eng.w_phone }) } : {}),
+      ...(status === 'accepted' ? { contact: mapContactPrefixed(eng, 'w') } : {}),
     });
   } catch (err) {
     console.error('Chyba při POST /api/engagements/:id:', err);

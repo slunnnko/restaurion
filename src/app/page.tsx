@@ -5,6 +5,9 @@ import { Header } from '@/components/Header';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { JobCard } from '@/components/JobCard';
 import { JobFilters } from '@/components/JobFilters';
+import { DirectoryCard } from '@/components/DirectoryCard';
+import { DirectoryFilters, initialDirectoryFilters } from '@/components/DirectoryFilters';
+import type { DirectoryFilterState } from '@/components/DirectoryFilters';
 import { CreateJobModal } from '@/components/CreateJobModal';
 import { RespondModal } from '@/components/RespondModal';
 import { LoginModal } from '@/components/LoginModal';
@@ -15,10 +18,10 @@ import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { ErrorBox, primaryBtn } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
-import { OwnProfile, PublicJob, NotificationItem } from '@/types/api';
+import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES, jobMatchesCraft, normalizeText } from '@/lib/crafts';
-import { Briefcase, CheckCircle2, Plus, Scale, ChevronDown } from 'lucide-react';
+import { Briefcase, CheckCircle2, Plus, Scale, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
 const initialFilters: FilterState = {
   searchQuery: '',
@@ -30,10 +33,18 @@ const initialFilters: FilterState = {
 const badgeCls =
   'inline-flex items-center gap-2 bg-white dark:bg-[#252834] px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111]';
 
+type Tab = 'jobs' | 'offers' | 'directory';
+
 const PROFILE_HINT = 'Doplň jméno a obory, ať ti chodí zakázky.';
 
 export default function Home() {
   const [view, setView] = useState<'board' | 'profile'>('board');
+  const [tab, setTab] = useState<Tab>('jobs');
+  const [dirFilters, setDirFilters] = useState<DirectoryFilterState>(initialDirectoryFilters);
+  const [dirEntries, setDirEntries] = useState<DirectoryEntry[]>([]);
+  const [dirTotal, setDirTotal] = useState(0);
+  const [dirLoading, setDirLoading] = useState(false);
+  const [dirError, setDirError] = useState('');
   const [isHeroInfoOpen, setIsHeroInfoOpen] = useState(false);
   const [isDark, setIsDark] = useState<boolean>(false);
 
@@ -125,6 +136,36 @@ export default function Home() {
     void loadAll();
   }, [loadAll]);
 
+  // Adresář: načte se po otevření záložky, změně filtrů (hledání s prodlevou) a změně přihlášení (kontakty).
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (tab !== 'directory') return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setDirLoading(true);
+      setDirError('');
+      try {
+        const params = new URLSearchParams();
+        if (dirFilters.group !== 'all') params.set('group', dirFilters.group);
+        if (dirFilters.craft !== 'all') params.set('craft', dirFilters.craft);
+        if (dirFilters.region !== 'Všechny regiony') params.set('region', dirFilters.region);
+        if (dirFilters.q.trim()) params.set('q', dirFilters.q.trim());
+        const data = await api<{ entries: DirectoryEntry[]; total: number }>(`/api/directory?${params.toString()}`);
+        if (cancelled) return;
+        setDirEntries(Array.isArray(data.entries) ? data.entries : []);
+        setDirTotal(data.total ?? 0);
+      } catch (err) {
+        if (!cancelled) setDirError(err instanceof ApiError ? err.message : 'Adresář se nepodařilo načíst.');
+      } finally {
+        if (!cancelled) setDirLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [tab, dirFilters, userId]);
+
   // Deep link ?profil=1
   const deepLinkHandled = useRef(false);
   useEffect(() => {
@@ -206,6 +247,13 @@ export default function Home() {
     action?.();
   };
 
+  const goDirectory = () => {
+    setProfileHint('');
+    setView('board');
+    setTab('directory');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleLogout = async () => {
     try {
       await api('/api/auth/logout', { method: 'POST', body: {} });
@@ -256,6 +304,7 @@ export default function Home() {
   const goBoard = () => {
     setProfileHint('');
     setView('board');
+    setTab((t) => (t === 'directory' ? 'jobs' : t));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -268,6 +317,7 @@ export default function Home() {
       return;
     }
     setNotice('');
+    setTab(job.jobType === 'craftsman_available' ? 'offers' : 'jobs');
     setFilters(initialFilters);
     setHighlightId(jobId);
     setTimeout(() => {
@@ -276,9 +326,14 @@ export default function Home() {
     setTimeout(() => setHighlightId((cur) => (cur === jobId ? null : cur)), 3500);
   };
 
+  const boardJobs = useMemo(() => jobs.filter((j) => j.jobType !== 'craftsman_available'), [jobs]);
+  const offers = useMemo(() => jobs.filter((j) => j.jobType === 'craftsman_available'), [jobs]);
+  const tabJobs = tab === 'offers' ? offers : boardJobs;
+  const isOffersTab = tab === 'offers';
+
   const filteredJobs = useMemo(() => {
     const query = normalizeText(filters.searchQuery.trim());
-    return jobs.filter((job) => {
+    return tabJobs.filter((job) => {
       if (filters.mineOnly && !job.isMine) return false;
       if (query) {
         const craftLabels = job.crafts.map((c) => CRAFT_CATEGORIES.find((cat) => cat.id === c)?.label ?? c);
@@ -293,7 +348,7 @@ export default function Home() {
       if (filters.craft !== 'all' && !jobMatchesCraft(job.crafts, filters.craft)) return false;
       return true;
     });
-  }, [jobs, filters]);
+  }, [tabJobs, filters]);
 
   const activeFiltersCount =
     (filters.searchQuery ? 1 : 0) +
@@ -338,8 +393,8 @@ export default function Home() {
                 {isHeroInfoOpen && (
                   <p className="text-xs sm:text-base mb-4 sm:mb-5 text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl">
                     Restaurion propojuje licencované restaurátory a umělecké řemeslníky v ČR. Zadavatel vloží zakázku s
-                    termínem, každý řemeslník v oboru dostane upozornění a může se přihlásit. Kontakty se ukážou až po
-                    přijetí.
+                    termínem, každý řemeslník v oboru dostane upozornění a může se přihlásit. Můžeš se i nabídnout a
+                    v Adresáři najít firmy, restaurátory a řemeslníky. Kontakty vidí každý přihlášený.
                   </p>
                 )}
 
@@ -347,7 +402,7 @@ export default function Home() {
                   {[
                     'Poptávky subdodávek a zaštítění',
                     'Upozornění na zakázky v tvém oboru',
-                    'Kontakt až po přijetí',
+                    'Adresář s kontakty pro přihlášené',
                   ].map((text) => (
                     <div key={text} className={badgeCls}>
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -362,13 +417,37 @@ export default function Home() {
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div className="inline-flex items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000]">
-                <div className="flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-extrabold rounded-xl border-2 bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]">
-                  <Briefcase className="w-4 h-4" />
-                  <span>Nástěnka zakázek</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full font-extrabold border bg-white text-[#111111] border-[#111111]">
-                    {jobs.length}
-                  </span>
-                </div>
+                {(
+                  [
+                    { id: 'jobs', label: 'Nástěnka zakázek', icon: Briefcase, count: boardJobs.length },
+                    { id: 'offers', label: 'Nabízím se', icon: UserCheck, count: offers.length },
+                    { id: 'directory', label: 'Adresář', icon: BookUser, count: null },
+                  ] as const
+                ).map((t) => {
+                  const on = tab === t.id;
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setTab(t.id)}
+                      className={`flex items-center justify-center gap-2 py-2.5 px-3 sm:px-4 text-xs sm:text-sm font-extrabold rounded-xl border-2 transition-all cursor-pointer ${
+                        on
+                          ? 'bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]'
+                          : 'border-transparent text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#262933]'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{t.label}</span>
+                      {t.count !== null && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-extrabold border bg-white text-[#111111] border-[#111111]">
+                          {t.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="hidden md:flex flex-wrap items-center gap-2.5">
@@ -389,12 +468,16 @@ export default function Home() {
               </div>
             </div>
 
-            <JobFilters
-              filters={filters}
-              onChange={setFilters}
-              onReset={() => setFilters(initialFilters)}
-              activeCount={activeFiltersCount}
-            />
+            {tab === 'directory' ? (
+              <DirectoryFilters filters={dirFilters} onChange={setDirFilters} />
+            ) : (
+              <JobFilters
+                filters={filters}
+                onChange={setFilters}
+                onReset={() => setFilters(initialFilters)}
+                activeCount={activeFiltersCount}
+              />
+            )}
 
             {actionError && (
               <div className="mb-4">
@@ -410,15 +493,56 @@ export default function Home() {
               </div>
             )}
 
-            {jobsError ? (
+            {tab === 'directory' ? (
+              dirError ? (
+                <ErrorBox message={dirError} onRetry={() => setDirFilters((f) => ({ ...f }))} />
+              ) : dirLoading && dirEntries.length === 0 ? (
+                <p className="text-sm font-bold text-stone-600 dark:text-stone-400 py-8 text-center">Načítám adresář…</p>
+              ) : dirEntries.length > 0 ? (
+                <>
+                  <div className="text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
+                    Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{dirTotal}</strong>{' '}
+                    {dirTotal === 1 ? 'profil' : dirTotal < 5 ? 'profily' : 'profilů'}
+                    {dirTotal > dirEntries.length ? ` (zobrazeno ${dirEntries.length})` : ''}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {dirEntries.map((entry) => (
+                      <DirectoryCard key={entry.id} entry={entry} onLogin={() => setIsLoginOpen(true)} />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="bg-white dark:bg-[#1C1E26] rounded-3xl border-2 border-[#111111] dark:border-stone-500 p-12 text-center my-6 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]">
+                  <div className="w-14 h-14 bg-[#FEF08A] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <BookUser className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-serif text-lg font-bold text-[#111111] dark:text-white mb-1">
+                    V Adresáři nikdo takový není
+                  </h3>
+                  <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto">
+                    Zkus uvolnit vyhledávání, jiný region, obor nebo skupinu.
+                  </p>
+                </div>
+              )
+            ) : jobsError ? (
               <ErrorBox message={jobsError} onRetry={() => void loadAll()} />
             ) : jobsLoading && jobs.length === 0 ? (
-              <p className="text-sm font-bold text-stone-600 dark:text-stone-400 py-8 text-center">Načítám zakázky…</p>
+              <p className="text-sm font-bold text-stone-600 dark:text-stone-400 py-8 text-center">Načítám inzeráty…</p>
             ) : filteredJobs.length > 0 ? (
               <>
                 <div className="text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
                   Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{filteredJobs.length}</strong>{' '}
-                  {filteredJobs.length === 1 ? 'zakázka' : filteredJobs.length < 5 ? 'zakázky' : 'zakázek'}
+                  {isOffersTab
+                    ? filteredJobs.length === 1
+                      ? 'nabídka'
+                      : filteredJobs.length < 5
+                        ? 'nabídky'
+                        : 'nabídek'
+                    : filteredJobs.length === 1
+                      ? 'zakázka'
+                      : filteredJobs.length < 5
+                        ? 'zakázky'
+                        : 'zakázek'}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredJobs.map((job) => (
@@ -430,6 +554,7 @@ export default function Home() {
                       onWithdraw={handleWithdraw}
                       onCloseJob={handleCloseJob}
                       onOpenInterested={setInterestedJob}
+                      onLogin={() => setIsLoginOpen(true)}
                     />
                   ))}
                 </div>
@@ -437,18 +562,26 @@ export default function Home() {
             ) : (
               <div className="bg-white dark:bg-[#1C1E26] rounded-3xl border-2 border-[#111111] dark:border-stone-500 p-12 text-center my-6 shadow-[6px_6px_0px_#111111] dark:shadow-[6px_6px_0px_#000000]">
                 <div className="w-14 h-14 bg-[#FEF08A] text-[#111111] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <Briefcase className="w-6 h-6" />
+                  {isOffersTab ? <UserCheck className="w-6 h-6" /> : <Briefcase className="w-6 h-6" />}
                 </div>
                 <h3 className="font-serif text-lg font-bold text-[#111111] dark:text-white mb-1">
-                  {jobs.length === 0 ? 'Zatím tu nejsou žádné zakázky' : 'Žádné zakázky neodpovídají zadaným filtrům'}
+                  {tabJobs.length === 0
+                    ? isOffersTab
+                      ? 'Zatím tu nikdo nic nenabízí'
+                      : 'Zatím tu nejsou žádné zakázky'
+                    : isOffersTab
+                      ? 'Žádné nabídky neodpovídají zadaným filtrům'
+                      : 'Žádné zakázky neodpovídají zadaným filtrům'}
                 </h3>
                 <p className="text-xs font-medium text-stone-600 dark:text-stone-400 max-w-sm mx-auto mb-4">
-                  {jobs.length === 0
-                    ? 'Buď první a přidej zakázku. Řemeslníci v oboru dostanou upozornění.'
-                    : 'Zkus uvolnit vyhledávání, vybrat jiný region nebo obor, nebo přidej vlastní zakázku.'}
+                  {tabJobs.length === 0
+                    ? isOffersTab
+                      ? 'Buď první a nabídni se s volným termínem.'
+                      : 'Buď první a přidej zakázku. Řemeslníci v oboru dostanou upozornění.'
+                    : 'Zkus uvolnit vyhledávání, vybrat jiný region nebo obor, nebo přidej vlastní inzerát.'}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  {jobs.length > 0 && activeFiltersCount > 0 && (
+                  {tabJobs.length > 0 && activeFiltersCount > 0 && (
                     <button
                       onClick={() => setFilters(initialFilters)}
                       className="px-4 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-300 shadow-[3px_3px_0px_#111111] transition-all cursor-pointer"
@@ -486,10 +619,11 @@ export default function Home() {
       </footer>
 
       <MobileBottomNav
-        active={view === 'profile' ? 'profile' : 'board'}
+        active={view === 'profile' ? 'profile' : tab === 'directory' ? 'directory' : 'board'}
         isLoggedIn={Boolean(user)}
         unreadCount={unread}
         onBoard={goBoard}
+        onDirectory={goDirectory}
         onCreate={openCreate}
         onNotifications={openNotifications}
         onProfile={() => (user ? setView((v) => (v === 'profile' ? 'board' : 'profile')) : setIsLoginOpen(true))}
@@ -498,6 +632,7 @@ export default function Home() {
       {/* Modální okna */}
       {isCreateOpen && (
         <CreateJobModal
+          initialType={tab === 'offers' ? 'craftsman_available' : undefined}
           onClose={() => setIsCreateOpen(false)}
           onCreated={() => void loadJobs()}
           onNeedProfile={openProfileWithHint}
