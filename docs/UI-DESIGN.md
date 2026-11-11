@@ -83,6 +83,10 @@ Tyto tři typy inzerátů (zakládá je kdokoli přihlášený) mají pevně dan
 - **Přihlášení:** druhé zaškrtávátko (výchozí zaškrtnuto) `Můj profil bude vidět v Adresáři (můžeš změnit v profilu)`.
 - **Patička:** vlevo `Restaurion – platforma pro památková řemesla` (pevný text), vpravo `Všeobecné obchodní podmínky (VOP)`.
 - **Formulář inzerátu (`CreateJobModal.tsx`):** bez ukázkových fotek a bez pole „Podrobný popis“; `Odměna / Rozpočet` je volitelná (prázdná = `Dle dohody`).
+- **Hlavička (`Header.tsx`):** logo + `Restaurion` + odznak `Památková řemesla`, přepínač `Tmavý / Světlý`, tlačítko `Ověřit licenci MK ČR` (smaragdové, skryté pod `sm`, otevře `LicenceModal`; anonym se nejdřív přihlásí), jen přihlášený: `Administrace` (ikona `Settings2`, title „Správa vlastních inzerátů a zájemců“, otevře `MyListingsModal`), zvonek s odznakem nepřečtených (od `md`), profil (kruh s iniciálou, jméno + `Můj profil`, text od `sm`). `+ Přidat` od `md`, anonym má `Přihlásit`. Řádek se zalamuje (`flex-wrap`), aby se na 375 px nepřetékalo.
+- **Moje inzeráty (`MyListings.tsx`, `MyListingsModal.tsx` „Administrace / Moje inzeráty“, sekce nahoře v `ProfilePage`):** skupiny `Aktivní` a `Ukončené`. Řádek: typ s barvou a ikonou podle kontraktu v §3, název, termín (`Volno` u nabídky), obec, počet zájemců. Aktivní: `Upravit`, `Zájemci (N)`, `Ukončit` (confirm). Ukončené jsou jen ke čtení a zešedlé. Na mobilu se správa otevírá z profilu (do `MobileBottomNav` nepřibývá nic).
+- **Úprava inzerátu (`CreateJobModal.tsx`, prop `editJob`):** nadpis `Upravit inzerát`, tlačítko `Uložit změny`, typ inzerátu je vidět, ale neměnný; status a název objektu jsou jen ke čtení. Posílá se jen změněná pole.
+- **Karta (`JobCard.tsx`), akce vlastníka:** `Zájemci (N)`, `Upravit`, `Ukončit`.
 - **Hlavní akční tlačítko na kartě (`JobCard.tsx`):**
   - U zakázek: **`Mám zájem`**
   - U záložky „Nabízím se“ (`craftsman_available`): **`Poptat spolupráci`**

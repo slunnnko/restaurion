@@ -19,13 +19,24 @@ import type { EngagementStatus } from '../../src/types/api.ts';
 const BOARD_WHERE = `j.date_from IS NOT NULL AND j.date_to IS NOT NULL AND j.status = 'active'
   AND j.visibility = 'public' AND j.expires_at >= date('now')`;
 
-/** GET /api/jobs → veřejná nástěnka (zakázky i nabídky "Nabízím se"); kontakty zadavatele jen s relací; s relací přidá pole pro přihlášeného (isMine, myEngagement, ...). */
+/** GET /api/jobs?mine=1 → vlastní inzeráty přihlášeného (aktivní i ukončené, bez ohledu na data; 401 bez relace).
+ * GET /api/jobs → veřejná nástěnka (zakázky i nabídky "Nabízím se"); kontakty zadavatele jen s relací; s relací přidá pole pro přihlášeného (isMine, myEngagement, ...). */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
   const { request, env } = context;
   if (!env.DB) return noDb();
   const db = env.DB;
 
   try {
+    if (new URL(request.url).searchParams.get('mine') === '1') {
+      const auth = await requireUser(request, db);
+      if ('response' in auth) return auth.response;
+      const own = await db
+        .prepare(`${JOB_SELECT} WHERE j.author_id = ? AND j.status IN ('active', 'archived') ORDER BY (j.status = 'active') DESC, j.created_at DESC LIMIT 100`)
+        .bind(auth.userId)
+        .all<JobRow>();
+      return jsonResponse({ jobs: own.results.map((r) => mapJobRow(r, { userId: auth.userId })) });
+    }
+
     const rows = await db
       .prepare(`${JOB_SELECT} WHERE ${BOARD_WHERE} ORDER BY j.created_at DESC LIMIT 300`)
       .all<JobRow>();

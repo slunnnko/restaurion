@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { MvpJobType, MvpMonumentStatus, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
-import { CRAFT_CATEGORIES } from '@/lib/crafts';
+import { CRAFT_CATEGORIES, toCraftIds } from '@/lib/crafts';
 import { REGIONS } from '@/lib/regions';
 import { pluralCraftsmen, todayIso } from '@/lib/format';
 import {
@@ -29,6 +29,10 @@ interface CreateJobModalProps {
   onNeedProfile: () => void;
   /** Předvybraný typ (např. na záložce Nabízím se). */
   initialType?: MvpJobType;
+  /** Režim úprav: předvyplní pole, typ inzerátu je neměnný, odesílá PATCH jen se změněnými poli. */
+  editJob?: PublicJob;
+  /** Po úspěšném uložení úprav (seznam i nástěnka se znovu načtou). */
+  onSaved?: () => void;
 }
 
 const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
@@ -43,18 +47,26 @@ const TYPE_STYLE: Record<MvpJobType, { icon: React.ComponentType<{ className?: s
   craftsman_available: { icon: UserCheck, tile: 'bg-[#2563EB]' },
 };
 
-export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreated, onNeedProfile, initialType }) => {
+export const CreateJobModal: React.FC<CreateJobModalProps> = ({
+  onClose,
+  onCreated,
+  onNeedProfile,
+  initialType,
+  editJob,
+  onSaved,
+}) => {
   const today = todayIso();
-  const [jobType, setJobType] = useState<MvpJobType>(initialType ?? 'subcontract_needed');
-  const [title, setTitle] = useState('');
-  const [crafts, setCrafts] = useState<string[]>([]);
-  const [region, setRegion] = useState(REGIONS[0]);
-  const [city, setCity] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [monumentStatus, setMonumentStatus] = useState<MvpMonumentStatus>('cultural_monument');
-  const [monumentName, setMonumentName] = useState('');
-  const [budgetNote, setBudgetNote] = useState('');
+  const isEdit = Boolean(editJob);
+  const [jobType, setJobType] = useState<MvpJobType>(editJob?.jobType ?? initialType ?? 'subcontract_needed');
+  const [title, setTitle] = useState(editJob?.title ?? '');
+  const [crafts, setCrafts] = useState<string[]>(editJob ? toCraftIds(editJob.crafts) : []);
+  const [region, setRegion] = useState(editJob?.region ?? REGIONS[0]);
+  const [city, setCity] = useState(editJob?.city ?? '');
+  const [dateFrom, setDateFrom] = useState(editJob?.dateFrom ?? '');
+  const [dateTo, setDateTo] = useState(editJob?.dateTo ?? '');
+  const [monumentStatus, setMonumentStatus] = useState<MvpMonumentStatus>(editJob?.monumentStatus ?? 'cultural_monument');
+  const [monumentName, setMonumentName] = useState(editJob?.monumentName ?? '');
+  const [budgetNote, setBudgetNote] = useState(editJob && editJob.budgetNote !== 'Dle dohody' ? editJob.budgetNote : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -71,6 +83,24 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
     setFieldErrors({});
     setBusy(true);
     try {
+      if (editJob) {
+        const origCrafts = toCraftIds(editJob.crafts);
+        const body: Record<string, unknown> = {};
+        if (title.trim() !== editJob.title) body.title = title.trim();
+        if (crafts.length !== origCrafts.length || crafts.some((c) => !origCrafts.includes(c))) body.crafts = crafts;
+        if (region !== editJob.region) body.region = region;
+        if (city.trim() !== editJob.city) body.city = city.trim();
+        if (dateFrom && dateFrom !== editJob.dateFrom) body.dateFrom = dateFrom;
+        if (dateTo && dateTo !== editJob.dateTo) body.dateTo = dateTo;
+        const origBudget = editJob.budgetNote === 'Dle dohody' ? '' : editJob.budgetNote;
+        if (budgetNote.trim() !== origBudget) body.budgetNote = budgetNote.trim();
+        if (Object.keys(body).length > 0) {
+          await api<{ job: PublicJob }>(`/api/jobs/${encodeURIComponent(editJob.id)}`, { method: 'PATCH', body });
+          onSaved?.();
+        }
+        onClose();
+        return;
+      }
       const data = await api<{ job: PublicJob; notified: number }>('/api/jobs', {
         method: 'POST',
         body: {
@@ -128,10 +158,10 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
     <ModalShell onClose={onClose} maxWidth="max-w-2xl" labelledBy="create-title">
       <div className="mb-4 pr-10">
         <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#FEF08A] border border-[#111111] text-xs font-extrabold uppercase tracking-wider text-[#111111] mb-1.5">
-          Nový inzerát
+          {isEdit ? 'Úprava' : 'Nový inzerát'}
         </span>
         <h2 id="create-title" className="font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
-          {isOffer ? 'Přidat nabídku' : 'Přidat zakázku'}
+          {isEdit ? 'Upravit inzerát' : isOffer ? 'Přidat nabídku' : 'Přidat zakázku'}
         </h2>
       </div>
 
@@ -139,7 +169,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
         <div>
           <span className={labelCls}>Typ inzerátu</span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {JOB_TYPES.map((t) => {
+            {JOB_TYPES.filter((t) => !isEdit || t.id === jobType).map((t) => {
               const selected = jobType === t.id;
               const { icon: Icon, tile } = TYPE_STYLE[t.id];
               return (
@@ -147,6 +177,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
                   key={t.id}
                   type="button"
                   aria-pressed={selected}
+                  disabled={isEdit}
                   onClick={() => setJobType(t.id)}
                   className={`flex items-center gap-3 p-3 text-left rounded-xl border-2 border-[#111111] dark:border-stone-500 transition-all cursor-pointer ${
                     selected
@@ -238,7 +269,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
               id="job-from"
               type="date"
               required
-              min={today}
+              min={editJob && editJob.dateFrom < today ? editJob.dateFrom : today}
               value={dateFrom}
               onChange={(e) => {
                 setDateFrom(e.target.value);
@@ -274,6 +305,8 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
             <SelectBox
               id="job-monument"
               value={monumentStatus}
+              disabled={isEdit}
+              className="disabled:opacity-60 disabled:cursor-not-allowed"
               onChange={(e) => setMonumentStatus(e.target.value as MvpMonumentStatus)}
             >
               <option value="cultural_monument">Ano – Kulturní památka (vyžaduje licenci MK)</option>
@@ -293,8 +326,9 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
               maxLength={120}
               placeholder="např. Zámek Lednice"
               value={monumentName}
+              disabled={isEdit}
               onChange={(e) => setMonumentName(e.target.value)}
-              className={inputCls}
+              className={`${inputCls} disabled:opacity-60 disabled:cursor-not-allowed`}
             />
             <FieldError message={fieldErrors.monumentName} />
           </div>
@@ -324,7 +358,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({ onClose, onCreat
             Zrušit
           </button>
           <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? 'Ukládám…' : 'Zveřejnit inzerát'}
+            {busy ? 'Ukládám…' : isEdit ? 'Uložit změny' : 'Zveřejnit inzerát'}
           </button>
         </div>
       </form>

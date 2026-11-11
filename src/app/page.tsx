@@ -13,6 +13,8 @@ import { RespondModal } from '@/components/RespondModal';
 import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { InterestedWorkersModal } from '@/components/InterestedWorkersModal';
+import { MyListingsModal } from '@/components/MyListingsModal';
+import { LicenceModal } from '@/components/LicenceModal';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { ErrorBox, primaryBtn } from '@/components/ui';
@@ -67,6 +69,9 @@ export default function Home() {
   const [isVopOpen, setIsVopOpen] = useState(false);
   const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
   const [interestedJob, setInterestedJob] = useState<PublicJob | null>(null);
+  const [editingJob, setEditingJob] = useState<PublicJob | null>(null);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isLicenceOpen, setIsLicenceOpen] = useState(false);
 
   // Akce, která čeká na přihlášení.
   const pendingAction = useRef<(() => void) | null>(null);
@@ -298,6 +303,7 @@ export default function Home() {
   const openNotifications = () => requireLogin(() => setIsNotifOpen(true));
   const openProfileWithHint = () => {
     setIsCreateOpen(false);
+    setEditingJob(null);
     setRespondingJob(null);
     setProfileHint(PROFILE_HINT);
     setView('profile');
@@ -369,11 +375,20 @@ export default function Home() {
         onOpenCreateJob={openCreate}
         onOpenNotifications={openNotifications}
         onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
+        onOpenAdministration={() => setIsAdminOpen(true)}
+        onOpenLicence={() => requireLogin(() => setIsLicenceOpen(true))}
         onLogin={() => setIsLoginOpen(true)}
       />
 
       {view === 'profile' && user ? (
-        <ProfilePage user={user} onUserChange={setUser} onBack={goBoard} onLogout={handleLogout} hint={profileHint} />
+        <ProfilePage
+          user={user}
+          onUserChange={setUser}
+          onBack={goBoard}
+          onLogout={handleLogout}
+          hint={profileHint}
+          onListingsChanged={() => void loadJobs()}
+        />
       ) : (
         <>
           {/* Hero sekce */}
@@ -549,6 +564,7 @@ export default function Home() {
                       onWithdraw={handleWithdraw}
                       onCloseJob={handleCloseJob}
                       onOpenInterested={setInterestedJob}
+                      onEdit={setEditingJob}
                       onLogin={() => setIsLoginOpen(true)}
                     />
                   ))}
@@ -632,6 +648,31 @@ export default function Home() {
           onCreated={() => void loadJobs()}
           onNeedProfile={openProfileWithHint}
         />
+      )}
+
+      {editingJob && (
+        <CreateJobModal
+          editJob={editingJob}
+          onClose={() => setEditingJob(null)}
+          onCreated={() => undefined}
+          onSaved={() => void loadJobs()}
+          onNeedProfile={openProfileWithHint}
+        />
+      )}
+
+      {isAdminOpen && user && (
+        <MyListingsModal
+          onClose={() => setIsAdminOpen(false)}
+          onChanged={() => void loadJobs()}
+          onNeedProfile={() => {
+            setIsAdminOpen(false);
+            openProfileWithHint();
+          }}
+        />
+      )}
+
+      {isLicenceOpen && user && (
+        <LicenceModal user={user} onClose={() => setIsLicenceOpen(false)} onUserChange={setUser} />
       )}
 
       {respondingJob && (

@@ -41,7 +41,8 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `GET /api/jobs` | kdokoli | veřejná nástěnka (zakázky i nabídky `craftsman_available`); s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` (kontakty zadavatele pro každého přihlášeného) |
 | `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, ověřená licence první, potom jméno); `contact` jen s relací |
 | `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky; nabídka `craftsman_available` nikoho neupozorní |
-| `PATCH /api/jobs/:id` | zadavatel | úprava, `status: 'closed'` uvolní termíny a pošle `job_closed` |
+| `GET /api/jobs?mine=1` | relace | vlastní inzeráty (aktivní i ukončené, všechny typy, max 100); 401 bez relace |
+| `PATCH /api/jobs/:id` | zadavatel | úprava (název, popis, odměna, termíny, obory, kraj, obec; typ je neměnný, ukončený inzerát 409, žádná nová párovací upozornění), `status: 'closed'` uvolní termíny a pošle `job_closed` |
 | `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
 | `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |

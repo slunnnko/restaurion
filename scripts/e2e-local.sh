@@ -195,8 +195,12 @@ api poster POST /api/engagements/$E5 '{"action":"accept"}'
 eq "poster accepts w1 on fifth job" "$CODE" 200
 mk_job "Sesta zakazka"; J6=$JOBID
 eq "w1 busy (accepted J5): sixth job notifies only w2" "$NOTIFIED" 1
+api poster PATCH /api/jobs/$J5 '{"dateFrom":"2099-01-01","dateTo":"2099-01-02"}'
+eq "changing dates with an accepted engagement -> 409" "$CODE" 409
 api poster PATCH /api/jobs/$J5 '{"status":"closed"}'
 eq "poster closes fifth job" "$CODE" 200
+api poster PATCH /api/jobs/$J5 '{"status":"closed"}'
+eq "closing an already closed job is idempotent -> 200" "$CODE" 200
 api w1 GET /api/notifications
 eq "w1 (accepted) got job_closed" "$(echo "$BODY" | jq -r --arg j "$J5" '[.items[] | select(.type=="job_closed" and .jobId==$j)] | length')" 1
 api w1 GET /api/profile
@@ -352,6 +356,26 @@ api poster PATCH /api/jobs/$J3 '{"status":"closed"}'
 eq "owner closes job" "$CODE/$(echo "$BODY" | jq -r '.job.status')" "200/closed"
 api - GET /api/jobs
 eq "closed job leaves the board" "$(echo "$BODY" | jq -r --arg j "$J3" '[.jobs[] | select(.id==$j)] | length')" 0
+api poster PATCH /api/jobs/$J3 '{"title":"Upraveno po ukončení"}'
+eq "PATCH on a closed job -> 409" "$CODE" 409
+api - GET "/api/jobs?mine=1"
+eq "GET /api/jobs?mine=1 without session -> 401" "$CODE" 401
+api poster GET "/api/jobs?mine=1"
+eq "mine=1 includes the closed job with status closed" "$(echo "$BODY" | jq -r --arg j "$J3" '[.jobs[] | select(.id==$j and .status=="closed" and .isMine==true)] | length')" 1
+api poster2 GET "/api/jobs?mine=1"
+eq "mine=1 never lists someone else's jobs" "$(echo "$BODY" | jq -r --arg j "$J3" '[.jobs[] | select(.id==$j)] | length')" 0
+api poster PATCH /api/jobs/$J1 '{"title":"Upravená zakázka","crafts":["kámen","dřevo"]}'
+eq "owner edits title + crafts" "$CODE/$(echo "$BODY" | jq -r '.job.title')/$(echo "$BODY" | jq -r '.job.crafts | length')" "200/Upravená zakázka/2"
+api poster PATCH /api/jobs/$J1 '{"crafts":["neexistuje"]}'
+eq "unknown craft id on edit -> 400" "$CODE" 400
+api poster PATCH /api/jobs/$J1 '{"crafts":[]}'
+eq "edit with empty crafts -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.crafts != null')" "400/true"
+api poster PATCH /api/jobs/$J1 '{"jobType":"craftsman_available"}'
+eq "changing jobType -> 400" "$CODE" 400
+api poster2 PATCH /api/jobs/$OFFER '{"title":"Volný kameník upraveno","city":"Brno"}'
+eq "offer edited by its owner" "$CODE/$(echo "$BODY" | jq -r '.job.city')" "200/Brno"
+api poster2 PATCH /api/jobs/$OFFER '{"status":"closed"}'
+eq "offer closed by its owner" "$CODE/$(echo "$BODY" | jq -r '.job.status')" "200/closed"
 api poster2 DELETE /api/availability/$W2_BLOCK
 eq "DELETE someone's block -> 403" "$CODE" 403
 api w2 DELETE /api/availability/$W2_BLOCK

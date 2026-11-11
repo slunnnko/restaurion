@@ -5,7 +5,7 @@ import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, pluralDays } from '@/lib/format';
 import { ContactsOrLogin, dangerBtn } from './ui';
-import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck } from 'lucide-react';
+import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
 interface JobCardProps {
@@ -15,6 +15,7 @@ interface JobCardProps {
   onWithdraw: (job: PublicJob) => Promise<void>;
   onCloseJob: (job: PublicJob) => Promise<void>;
   onOpenInterested: (job: PublicJob) => void;
+  onEdit: (job: PublicJob) => void;
   onLogin: () => void;
 }
 
@@ -58,6 +59,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onWithdraw,
   onCloseJob,
   onOpenInterested,
+  onEdit,
   onLogin,
 }) => {
   const [busy, setBusy] = useState(false);
@@ -221,6 +223,14 @@ export const JobCard: React.FC<JobCardProps> = ({
             >
               <Users className="w-3.5 h-3.5" />
               <span>Zájemci ({job.interestedCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit(job)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Upravit</span>
             </button>
             <button type="button" disabled={busy} onClick={handleClose} className={dangerBtn}>
               Ukončit

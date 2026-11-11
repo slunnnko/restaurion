@@ -1,9 +1,13 @@
 import { JOB_SELECT, addDays, badJson, jsonResponse, mapJobRow, noDb, readJson, requireUser } from '../_shared.ts';
 import type { JobRow, PagesContext } from '../_shared.ts';
-import { str, validateDateRange, validationResponse } from '../_lib/validate.ts';
+import { cityError, craftsError, regionError, str, validCraftIds, validateDateRange, validationResponse } from '../_lib/validate.ts';
 import type { FieldErrors } from '../_lib/validate.ts';
 
-/** PATCH /api/jobs/:id (jen zadavatel): title, description, budgetNote, dateFrom, dateTo, status:'closed' */
+/**
+ * PATCH /api/jobs/:id (jen zadavatel): title, description, budgetNote, dateFrom, dateTo, crafts, region, city,
+ * status:'closed'. Typ (jobType) je neměnný; ukončený inzerát je jen ke čtení (409).
+ * Úprava NEPOSÍLÁ nové párovací upozornění (job_match jen při vytvoření).
+ */
 export async function onRequestPatch(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
   if (!env.DB) return noDb();
@@ -19,6 +23,18 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   const existing = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
   if (!existing) return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
   if (existing.author_id !== auth.userId) return jsonResponse({ error: 'Zakázku může upravit jen její zadavatel.' }, 403);
+
+  if ('jobType' in body && body.jobType !== existing.job_type) {
+    return jsonResponse({ error: 'Typ inzerátu nelze změnit.', fieldErrors: { jobType: 'Typ inzerátu nelze změnit.' } }, 400);
+  }
+  if (existing.status !== 'active') {
+    const keys = Object.keys(body);
+    // Closing stays idempotent: only status:'closed' on an archived job returns the current job.
+    if (keys.length === 1 && body.status === 'closed') {
+      return jsonResponse({ job: mapJobRow(existing, { userId: auth.userId }) });
+    }
+    return jsonResponse({ error: 'Ukončený inzerát nelze upravit.' }, 409);
+  }
 
   const errors: FieldErrors = {};
   const sets: string[] = [];
@@ -42,10 +58,41 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
     sets.push('budget_note = ?');
     binds.push(budgetNote);
   }
+  if ('crafts' in body) {
+    const validCrafts = validCraftIds(body.crafts);
+    const crafts = validCrafts ?? [];
+    const err = validCrafts === null ? 'Neznámý obor.' : craftsError(crafts);
+    if (err) errors.crafts = err;
+    sets.push('required_crafts_json = ?');
+    binds.push(JSON.stringify(crafts));
+  }
+  if ('region' in body) {
+    const region = str(body.region);
+    const err = regionError(region);
+    if (err) errors.region = err;
+    sets.push('region = ?');
+    binds.push(region);
+  }
+  if ('city' in body) {
+    const city = str(body.city);
+    const err = cityError(city);
+    if (err) errors.city = err;
+    sets.push('city = ?');
+    binds.push(city);
+  }
   if ('dateFrom' in body || 'dateTo' in body) {
     const dateFrom = 'dateFrom' in body ? body.dateFrom : existing.date_from;
     const dateTo = 'dateTo' in body ? body.dateTo : existing.date_to;
     validateDateRange(dateFrom, dateTo, errors, { checkFrom: 'dateFrom' in body });
+    if (!errors.dateFrom && !errors.dateTo && (dateFrom !== existing.date_from || dateTo !== existing.date_to)) {
+      const accepted = await db
+        .prepare(`SELECT 1 AS x FROM engagements WHERE job_id = ? AND status = 'accepted' LIMIT 1`)
+        .bind(jobId)
+        .first();
+      if (accepted) {
+        return jsonResponse({ error: 'Termín nelze změnit, když už je někdo přijatý. Ukonči inzerát a vytvoř nový.' }, 409);
+      }
+    }
     if (!errors.dateFrom && !errors.dateTo) {
       sets.push('date_from = ?', 'start_date = ?', 'date_to = ?', 'expires_at = ?');
       binds.push(dateFrom, dateFrom, dateTo, addDays(dateTo as string, 14));

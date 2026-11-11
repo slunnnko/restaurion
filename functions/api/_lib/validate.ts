@@ -94,6 +94,19 @@ export function validCraftIds(value: unknown): string[] | null {
   return [...new Set(value as string[])];
 }
 
+/** Shared field rules of a job (create and edit). Each returns the error text or null. */
+export function cityError(city: string): string | null {
+  return city.length < 2 || city.length > 60 ? 'Obec musí mít 2 až 60 znaků.' : null;
+}
+
+export function regionError(region: string): string | null {
+  return !region || region.length > 60 ? 'Vyberte kraj.' : null;
+}
+
+export function craftsError(crafts: string[]): string | null {
+  return crafts.length === 0 ? 'Vyberte alespoň jeden obor.' : null;
+}
+
 export function validateDateRange(
   dateFrom: unknown,
   dateTo: unknown,
@@ -139,9 +152,12 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
   const isOffer = body.jobType === 'craftsman_available';
   if (!isOffer && !MONUMENT_STATUSES.includes(body.monumentStatus as string)) errors.monumentStatus = 'Vyberte status objektu.';
   if (!isOffer && monumentName.length > 120) errors.monumentName = 'Název objektu může mít nejvýše 120 znaků.';
-  if (crafts.length === 0) errors.crafts = 'Vyberte alespoň jeden obor.';
-  if (!region || region.length > 60) errors.region = 'Vyberte kraj.';
-  if (city.length < 2 || city.length > 60) errors.city = 'Obec musí mít 2 až 60 znaků.';
+  const craftsErr = craftsError(crafts);
+  if (craftsErr) errors.crafts = craftsErr;
+  const regionErr = regionError(region);
+  if (regionErr) errors.region = regionErr;
+  const cityErr = cityError(city);
+  if (cityErr) errors.city = cityErr;
   if (budgetNote.length > 120) errors.budgetNote = 'Odměna může mít nejvýše 120 znaků.';
   validateDateRange(body.dateFrom, body.dateTo, errors, { checkFrom: true });
 

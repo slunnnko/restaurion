@@ -21,6 +21,7 @@ import {
   secondaryBtn,
   dangerBtn,
 } from './ui';
+import { MyListings } from './MyListings';
 import { ArrowLeft, ShieldCheck, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
@@ -30,6 +31,8 @@ interface ProfilePageProps {
   onLogout: () => Promise<void>;
   /** Krátká výzva nad formulářem (např. po přihlášení bez jména a oborů). */
   hint?: string;
+  /** Po změně vlastního inzerátu, aby si nástěnka obnovila data. */
+  onListingsChanged?: () => void;
 }
 
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string }> = ({
@@ -48,7 +51,7 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label
   </label>
 );
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, onBack, onLogout, hint }) => {
+export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, onBack, onLogout, hint, onListingsChanged }) => {
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone ?? '');
   const [region, setRegion] = useState(user.region || 'Celá ČR');
@@ -206,6 +209,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
       </div>
 
       {loadError && <ErrorBox message={loadError} onRetry={() => void refresh()} />}
+
+      <section className={`${cardCls} p-5 sm:p-6`}>
+        <h2 className={sectionTitle}>Moje inzeráty</h2>
+        <MyListings onChanged={() => onListingsChanged?.()} />
+      </section>
 
       <form onSubmit={save} className={`${cardCls} p-5 sm:p-6 space-y-4`}>
         <h2 className={sectionTitle}>Můj profil</h2>

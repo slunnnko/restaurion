@@ -132,6 +132,8 @@ export interface NotificationItem {
 // POST /api/auth/logout                     → { ok: true } (clears cookie, deletes session)
 // GET  /api/jobs                            → { jobs: PublicJob[] } active, not expired, with dates; jobs AND
 //                                             offers (jobType 'craftsman_available'); posterContact only when logged in
+// GET  /api/jobs?mine=1                    → { jobs: PublicJob[] } the caller's own jobs and offers, status 'active' and
+//                                             'closed', regardless of dates, newest first, max 100; 401 without a session
 // POST /api/jobs  {title, description?, jobType, monumentStatus?, monumentName?, crafts[], region, city,
 //                  dateFrom, dateTo, budgetNote?}  → 201 { job: PublicJob, notified: number }
 //   Offers (craftsman_available): dates mean "free from / to", no matching notifications (notified 0),
@@ -139,7 +141,10 @@ export interface NotificationItem {
 // GET  /api/directory?group=&craft=&region=&q= → { entries: DirectoryEntry[], total: number }
 //   Public. Listed: directory_visible, consent given, name >= 3 chars. Max 200, verified licence first, then name.
 //   contact only for a logged-in viewer. region also matches profiles with region 'Celá ČR'.
-// PATCH /api/jobs/:id {title?, description?, budgetNote?, dateFrom?, dateTo?, status?: 'closed'} (owner) → { job }
+// PATCH /api/jobs/:id {title?, description?, budgetNote?, dateFrom?, dateTo?, crafts?, region?, city?,
+//                      status?: 'closed'} (owner) → { job }
+//   jobType is immutable (400 if sent and different). A closed job is read-only (409). Editing sends NO new
+//   match notifications (job_match only on create). Closing notifies workers with a pending/accepted engagement.
 // POST /api/jobs/:id/respond {message?}     → 201 { engagement: { id, status } }  (not own job; on an offer
 //                                             the offerer gets an 'interest' notification)
 // GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts)
