@@ -1,4 +1,15 @@
-import { JOB_SELECT, addDays, badJson, jsonResponse, mapJobRow, noDb, readJson, requireUser } from '../_shared.ts';
+import {
+  JOB_SELECT,
+  addDays,
+  badJson,
+  jobClosedNotifications,
+  jsonResponse,
+  mapJobRow,
+  noDb,
+  readJson,
+  requireAdmin,
+  requireUser,
+} from '../_shared.ts';
 import type { JobRow, PagesContext } from '../_shared.ts';
 import { cityError, craftsError, regionError, str, validCraftIds, validateDateRange, validationResponse } from '../_lib/validate.ts';
 import type { FieldErrors } from '../_lib/validate.ts';
@@ -21,7 +32,7 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   if (!body) return badJson();
 
   const existing = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
-  if (!existing) return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
+  if (!existing || existing.visibility === 'deleted') return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
   if (existing.author_id !== auth.userId) return jsonResponse({ error: 'Zakázku může upravit jen její zadavatel.' }, 403);
 
   if ('jobType' in body && body.jobType !== existing.job_type) {
@@ -116,17 +127,7 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
       );
     }
     if (closing) {
-      const engagements = await db
-        .prepare(`SELECT id, worker_id FROM engagements WHERE job_id = ? AND status IN ('pending', 'accepted')`)
-        .bind(jobId)
-        .all<{ id: string; worker_id: string }>();
-      for (const e of engagements.results) {
-        statements.push(
-          db
-            .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id) VALUES (?, ?, 'job_closed', ?, ?)`)
-            .bind(`n-${crypto.randomUUID()}`, e.worker_id, jobId, e.id)
-        );
-      }
+      statements.push(...(await jobClosedNotifications(db, jobId)));
     }
     if (statements.length > 0) await db.batch(statements);
     const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
@@ -134,5 +135,43 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   } catch (err) {
     console.error('Chyba při PATCH /api/jobs/:id:', err);
     return jsonResponse({ error: 'Nepodařilo se upravit zakázku.' }, 500);
+  }
+}
+
+/**
+ * DELETE /api/jobs/:id (jen správce z ADMIN_EMAILS): měkké smazání cizího i vlastního inzerátu.
+ * Řádek zůstane v D1 (visibility = 'deleted', status = 'archived'), zmizí z nástěnky i ze „Moje inzeráty“.
+ * Zájemci s pending/accepted dostanou `job_closed`. Opakované smazání vrací 200.
+ * Obnova ručně: UPDATE jobs SET visibility = 'public', status = 'active' WHERE id = ?;
+ */
+export async function onRequestDelete(context: PagesContext): Promise<Response> {
+  const { request, env, params } = context;
+  if (!env.DB) return noDb();
+  const db = env.DB;
+  const jobId = String(params.id);
+
+  const auth = await requireAdmin(request, env, db);
+  if ('response' in auth) return auth.response;
+
+  const existing = await db
+    .prepare(`SELECT status, visibility FROM jobs WHERE id = ?`)
+    .bind(jobId)
+    .first<{ status: string; visibility: string }>();
+  if (!existing) return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
+  if (existing.visibility === 'deleted') return jsonResponse({ ok: true });
+
+  try {
+    // Workers of an already closed job were notified when it was closed.
+    const notifications = existing.status === 'active' ? await jobClosedNotifications(db, jobId) : [];
+    await db.batch([
+      db
+        .prepare(`UPDATE jobs SET visibility = 'deleted', status = 'archived', updated_at = datetime('now') WHERE id = ?`)
+        .bind(jobId),
+      ...notifications,
+    ]);
+    return jsonResponse({ ok: true });
+  } catch (err) {
+    console.error('Chyba při DELETE /api/jobs/:id:', err);
+    return jsonResponse({ error: 'Nepodařilo se smazat zakázku.' }, 500);
   }
 }

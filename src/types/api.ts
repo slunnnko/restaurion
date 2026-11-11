@@ -88,6 +88,8 @@ export interface BookedJob {
 
 export interface OwnProfile extends PublicPerson {
   email: string;
+  /** True for e-mails listed in the ADMIN_EMAILS env var. Gates the admin UI; the API re-checks on every call. */
+  isAdmin: boolean;
   phone?: string;
   region: string;
   emailDigest: boolean;
@@ -99,6 +101,28 @@ export interface OwnProfile extends PublicPerson {
   facebook?: string;
   blocks: UnavailabilityBlock[]; // only blocks with dateTo >= today
   booked: BookedJob[]; // accepted engagements with job dateTo >= today
+}
+
+export type LicenceRequestStatus = 'pending' | 'approved' | 'rejected';
+
+/** The caller's own licence verification request. The document itself is never returned. */
+export interface OwnLicenceRequest {
+  id: string;
+  status: LicenceRequestStatus;
+  licenceNumber: string;
+  note?: string; // admin's reason when rejected
+  createdAt: string;
+  decidedAt?: string;
+}
+
+/** Pending request as an administrator sees it. */
+export interface AdminLicenceRequest {
+  id: string;
+  profileName: string;
+  email: string;
+  licenceNumber: string;
+  contentType: string;
+  createdAt: string;
 }
 
 /** Interested worker as the job's (or offer's) poster sees it. The poster is logged in, so contacts are always present. */
@@ -158,7 +182,23 @@ export interface NotificationItem {
 //                                           → { profile: OwnProfile }
 //   group 'licensed' requires a licence number. Changing group never touches licenceVerified.
 // POST /api/availability {dateFrom, dateTo, note?} → 201 { block }
+// PUT  /api/availability/:id {dateFrom, dateTo, note?} → { block } (owner only; foreign or missing id → 404;
+//                                           same validation as POST, 400 with fieldErrors)
 // DELETE /api/availability/:id              → { ok: true } (owner only, else 403)
+// DELETE /api/jobs/:id                      → { ok: true } (ADMIN_EMAILS only: 401 without session, 403 otherwise).
+//   Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
+//   accepted workers get 'job_closed'. Idempotent: an already deleted job → 200. Owner PATCH on it → 404.
+// GET  /api/licence/request                 → { request: OwnLicenceRequest | null } (own latest request)
+// POST /api/licence/request multipart: licenceNumber (<= 40), file (PDF/JPEG/PNG/HEIC by magic bytes, <= 10 MB)
+//                                           → 201 { request: OwnLicenceRequest }. One pending request per user:
+//                                           a new upload replaces the old one. Sets profile licenceNumber.
+//   503 without the LICENCE_DOCS R2 binding, 429 rate limit (5 per hour).
+// GET  /api/admin/licence-requests          → { requests: AdminLicenceRequest[] } pending only (admin, else 403)
+// GET  /api/admin/licence-requests/:id/document → the file, inline, no-store (admin; 404 once decided)
+// POST /api/admin/licence-requests/:id {decision: 'approve'|'reject', note?} → { request: OwnLicenceRequest,
+//                                           documentDeleted: boolean } (admin). approve → licenceVerified = true and
+//                                           group 'licensed' (a firm stays a firm). The document is deleted from R2.
+//   Documents and requests appear in no public response; only the request's owner and admins see them.
 // GET  /api/notifications                   → { items: NotificationItem[], unread: number }
 // POST /api/notifications/read {ids?: string[]} (no ids = all) → { unread: number }
 // Errors: { error: string, fieldErrors?: Record<string,string> } with 400/401/403/404/409/429/503.

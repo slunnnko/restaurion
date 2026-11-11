@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { DirectoryGroup, OwnProfile, UnavailabilityBlock } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
@@ -22,7 +22,8 @@ import {
   dangerBtn,
 } from './ui';
 import { MyListings } from './MyListings';
-import { ArrowLeft, ShieldCheck, Trash2 } from 'lucide-react';
+import { LicenceAdmin } from './LicenceAdmin';
+import { ArrowLeft, Pencil, ShieldCheck, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
@@ -81,6 +82,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
   const [blockError, setBlockError] = useState('');
   const [blockFieldErrors, setBlockFieldErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState('');
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [blockSavedMsg, setBlockSavedMsg] = useState('');
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const blockFormRef = useRef<HTMLFormElement | null>(null);
 
   const today = todayIso();
 
@@ -103,17 +109,36 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Po uložení termínu ho krátce zvýrazníme a doscrollujeme na něj (jinak by zůstal mimo obrazovku).
+  useEffect(() => {
+    if (!highlightId) return;
+    rowRefs.current[highlightId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightId(null), 3000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+
   const toggleCraft = (id: string) =>
     setCrafts((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
-    setSaving(true);
     setSaved(false);
     setSaveError('');
     setFieldErrors({});
+    // Rozepsaný termín v "Kdy nemůžu" se uloží společně s profilem, ať se nic neztratí.
+    if ((blockFrom || blockTo) && !(blockFrom && blockTo)) {
+      setBlockFieldErrors({ [blockFrom ? 'dateTo' : 'dateFrom']: 'Vyplň obě data, nebo termín vymaž.' });
+      setSaveError('Rozepsaný termín v sekci „Kdy nemůžu“ nemá obě data. Doplň je, nebo je vymaž.');
+      blockFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    setSaving(true);
     try {
+      if (blockFrom && blockTo && !(await submitBlock())) {
+        setSaveError('Rozepsaný termín se nepodařilo uložit, oprav ho v sekci „Kdy nemůžu“.');
+        return;
+      }
       const data = await api<{ profile: OwnProfile }>('/api/profile', {
         method: 'PUT',
         body: {
@@ -147,21 +172,37 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
     }
   };
 
-  const addBlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (blockBusy) return;
+  const resetBlockForm = () => {
+    setEditingBlockId(null);
+    setBlockFrom('');
+    setBlockTo('');
+    setBlockNote('');
+    setBlockError('');
+    setBlockFieldErrors({});
+  };
+
+  /** Uloží termín z formuláře (nový, nebo úprava). Vrací true při úspěchu. */
+  const submitBlock = async (): Promise<boolean> => {
+    if (blockBusy) return false;
     setBlockBusy(true);
     setBlockError('');
     setBlockFieldErrors({});
+    setBlockSavedMsg('');
     try {
-      const data = await api<{ block: UnavailabilityBlock }>('/api/availability', {
-        method: 'POST',
-        body: { dateFrom: blockFrom, dateTo: blockTo, note: blockNote.trim() || undefined },
-      });
-      setBlocks((prev) => [...prev, data.block].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom)));
-      setBlockFrom('');
-      setBlockTo('');
-      setBlockNote('');
+      const payload = { dateFrom: blockFrom, dateTo: blockTo, note: blockNote.trim() || undefined };
+      const data = editingBlockId
+        ? await api<{ block: UnavailabilityBlock }>(`/api/availability/${encodeURIComponent(editingBlockId)}`, {
+            method: 'PUT',
+            body: payload,
+          })
+        : await api<{ block: UnavailabilityBlock }>('/api/availability', { method: 'POST', body: payload });
+      setBlocks((prev) =>
+        [...prev.filter((b) => b.id !== data.block.id), data.block].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))
+      );
+      resetBlockForm();
+      setBlockSavedMsg('Termín uložen.');
+      setHighlightId(data.block.id);
+      return true;
     } catch (err) {
       if (err instanceof ApiError) {
         setBlockError(err.message);
@@ -169,9 +210,26 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
       } else {
         setBlockError('Termín se nepodařilo uložit.');
       }
+      return false;
     } finally {
       setBlockBusy(false);
     }
+  };
+
+  const addBlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitBlock();
+  };
+
+  const startEditBlock = (b: UnavailabilityBlock) => {
+    setEditingBlockId(b.id);
+    setBlockFrom(b.dateFrom);
+    setBlockTo(b.dateTo);
+    setBlockNote(b.note ?? '');
+    setBlockError('');
+    setBlockFieldErrors({});
+    setBlockSavedMsg('');
+    blockFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const removeBlock = async (id: string) => {
@@ -179,6 +237,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
     try {
       await api(`/api/availability/${encodeURIComponent(id)}`, { method: 'DELETE' });
       setBlocks((prev) => prev.filter((b) => b.id !== id));
+      if (editingBlockId === id) resetBlockForm();
     } catch (err) {
       setBlockError(err instanceof ApiError ? err.message : 'Termín se nepodařilo smazat.');
     }
@@ -214,6 +273,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
         <h2 className={sectionTitle}>Moje inzeráty</h2>
         <MyListings onChanged={() => onListingsChanged?.()} />
       </section>
+
+      {user.isAdmin && (
+        <section className={`${cardCls} p-5 sm:p-6`}>
+          <h2 className={sectionTitle}>Ověření licencí</h2>
+          <LicenceAdmin />
+        </section>
+      )}
 
       <form onSubmit={save} className={`${cardCls} p-5 sm:p-6 space-y-4`}>
         <h2 className={sectionTitle}>Můj profil</h2>
@@ -415,21 +481,38 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
             {blocks.map((b) => (
               <li
                 key={b.id}
-                className="flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318]"
+                ref={(el) => {
+                  rowRefs.current[b.id] = el;
+                }}
+                className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 transition-colors ${
+                  highlightId === b.id ? 'bg-[#FEF08A] dark:bg-[#FEF08A]/30' : 'bg-[#FFFDF7] dark:bg-[#121318]'
+                }`}
               >
                 <div className="min-w-0 text-xs font-bold text-[#111111] dark:text-stone-100">
                   <div>{formatRange(b.dateFrom, b.dateTo)}</div>
                   {b.note && <div className="font-medium text-stone-600 dark:text-stone-400 break-words">{b.note}</div>}
                 </div>
-                <button type="button" onClick={() => void removeBlock(b.id)} aria-label="Smazat termín" className={dangerBtn}>
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button type="button" onClick={() => startEditBlock(b)} className={secondaryBtn}>
+                    <Pencil className="w-3.5 h-3.5" />
+                    <span>Upravit</span>
+                  </button>
+                  <button type="button" onClick={() => void removeBlock(b.id)} aria-label="Smazat termín" className={dangerBtn}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
 
-        <form onSubmit={addBlock} className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        {blockSavedMsg && (
+          <p role="status" className="mb-3 text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
+            {blockSavedMsg}
+          </p>
+        )}
+
+        <form ref={blockFormRef} onSubmit={addBlock} className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label htmlFor="blk-from" className={labelCls}>
               Od
@@ -438,7 +521,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
               id="blk-from"
               type="date"
               required
-              min={today}
+              min={editingBlockId ? undefined : today}
               value={blockFrom}
               onChange={(e) => {
                 setBlockFrom(e.target.value);
@@ -483,9 +566,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
             </div>
           )}
           <div className="sm:col-span-2">
-            <button type="submit" disabled={blockBusy} className={primaryBtn}>
-              {blockBusy ? 'Ukládám…' : 'Přidat termín'}
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="submit" disabled={blockBusy} className={primaryBtn}>
+                {blockBusy ? 'Ukládám…' : editingBlockId ? 'Uložit změnu' : 'Přidat termín'}
+              </button>
+              {editingBlockId && (
+                <button type="button" onClick={resetBlockForm} className={secondaryBtn}>
+                  Zrušit
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </section>

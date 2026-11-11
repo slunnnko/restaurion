@@ -20,7 +20,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   if (!env.DB) return noDb();
   const auth = await requireUser(request, env.DB);
   if ('response' in auth) return auth.response;
-  const profile = await loadOwnProfile(env.DB, auth.userId);
+  const profile = await loadOwnProfile(env.DB, auth.userId, env);
   if (!profile) return jsonResponse({ error: 'Profil nenalezen.' }, 404);
   return jsonResponse({ profile });
 }
@@ -132,7 +132,7 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
         .bind(...binds, auth.userId)
         .run();
     }
-    const profile = await loadOwnProfile(db, auth.userId);
+    const profile = await loadOwnProfile(db, auth.userId, env);
     return jsonResponse({ profile });
   } catch (err) {
     console.error('Chyba při PUT /api/profile:', err);

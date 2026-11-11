@@ -14,8 +14,8 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | Digest worker | `restaurion-digest` deployed, cron `0 6 * * *`. It only cleans up rows until Resend is configured. `[measured 2026-11-11: wrangler deploy output]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
 | Pages secrets | `TEST_LOGIN_ECHO=1` is set. `RESEND_API_KEY` and `RESEND_FROM` are not set. `[measured 2026-11-11]` |
-| Tests | `npm test` 41/41, `scripts/e2e-local.sh` all PASS, tsc and build clean after the owner-management commit. `[measured 2026-11-11]` |
-| Not deployed yet | Owner management (edit, "Moje inzeráty", `GET /api/jobs?mine=1`), header port from `main` (Administrace, Ověřit licenci MK ČR, profile button), `LicenceModal` (manual verification, D18–D20). Production still runs `1810c32`. `[measured 2026-11-11]` |
+| Tests | `npm test` 45/45, `scripts/e2e-local.sh` all PASS, tsc and build clean after the owner-management commit. `[measured 2026-11-11]` |
+| Not deployed yet | Owner management (edit, "Moje inzeráty", `GET /api/jobs?mine=1`), header port from `main` (Administrace, Ověřit licenci MK ČR, profile button), `LicenceModal` (manual verification, D18–D20). Also not deployed: admin soft delete, `ADMIN_EMAILS`, licence documents in R2 with migration `0008` (D21–D24), block editing in the profile; the header no longer has Administrace. Needs: R2 bucket `restaurion-licence-docs` (production and preview share the same D1, so they share the bucket), `0008` (not yet applied anywhere; its `object_key` is nullable and status has `replaced`), `ADMIN_EMAILS` secret (see README). Production still runs `1810c32`. `[measured 2026-11-11]` |
 | Directory content | 0 of 8 existing profiles are visible (pre-0007 profiles start hidden by design, D14). `[measured 2026-11-11: D1 query]` |
 
 D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-pre-mvp-2026-11-11-063902.sql` (before 0006), `~/Personal/workspace/restaurion/backups/backup-pre-0007-2026-11-11-093913.sql` (before 0007).

@@ -121,6 +121,16 @@ export function validateDateRange(
   else if (isIsoDate(dateFrom) && daysInRange(dateFrom, dateTo) > 366) errors.dateTo = 'Zakázka může trvat nejvýše 366 dní.';
 }
 
+/** Shared by POST and PUT /api/availability. A block may start in the past but must not end there. */
+export function validateBlock(body: Record<string, unknown>): { errors: FieldErrors; note: string } {
+  const errors: FieldErrors = {};
+  const note = str(body.note);
+  if (note.length > 200) errors.note = 'Poznámka může mít nejvýše 200 znaků.';
+  validateDateRange(body.dateFrom, body.dateTo, errors, { checkFrom: false });
+  if (!errors.dateTo && (body.dateTo as string) < todayUtc()) errors.dateTo = 'Konec nemůže být v minulosti.';
+  return { errors, note };
+}
+
 export interface JobFields {
   title: string;
   description: string;

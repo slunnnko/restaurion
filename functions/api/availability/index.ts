@@ -1,7 +1,6 @@
 import { badJson, jsonResponse, mapBlock, noDb, readJson, requireUser, todayUtc } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
-import { str, validateDateRange, validationResponse } from '../_lib/validate.ts';
-import type { FieldErrors } from '../_lib/validate.ts';
+import { validateBlock, validationResponse } from '../_lib/validate.ts';
 
 const MAX_FUTURE_BLOCKS = 50;
 
@@ -16,12 +15,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   const body = await readJson<Record<string, unknown>>(request);
   if (!body) return badJson();
 
-  const errors: FieldErrors = {};
-  const note = str(body.note);
-  if (note.length > 200) errors.note = 'Poznámka může mít nejvýše 200 znaků.';
-  // A block may start in the past (already running absence) but must not end there.
-  validateDateRange(body.dateFrom, body.dateTo, errors, { checkFrom: false });
-  if (!errors.dateTo && (body.dateTo as string) < todayUtc()) errors.dateTo = 'Konec nemůže být v minulosti.';
+  const { errors, note } = validateBlock(body);
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 
   const count = await db

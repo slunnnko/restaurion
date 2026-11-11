@@ -19,7 +19,7 @@ export async function loadBusySlots(
     db
       .prepare(
         `SELECT e.job_id, e.status, j.date_from, j.date_to FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ?
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')`
       )
       .bind(userId, today)
@@ -57,7 +57,7 @@ export async function loadMatchCandidates(
       .prepare(
         `SELECT e.worker_id, e.job_id, e.status, j.date_from, j.date_to
          FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ? AND j.date_from <= ?
+         WHERE e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ? AND j.date_from <= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')`
       )
       .bind(range.dateFrom, range.dateTo)

@@ -47,7 +47,10 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
 | `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |
 | `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`); změna čísla licence nuluje `licence_verified`, změna skupiny ne; skupina `licensed` vyžaduje číslo povolení |
-| `POST /api/availability`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (mazat smí jen vlastník) |
+| `DELETE /api/jobs/:id` | správce (`ADMIN_EMAILS`) | měkké smazání jakéhokoli inzerátu (`visibility = 'deleted'`, `status = 'archived'`, řádek zůstává v D1), zájemci dostanou `job_closed`; opakované volání 200; ostatním 403 |
+| `POST /api/availability`, `PUT`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (upravit a mazat smí jen vlastník; cizí id u PUT 404) |
+| `GET`, `POST /api/licence/request` | relace | vlastní stav žádosti; nahrání skenu rozhodnutí MK ČR (multipart `licenceNumber` + `file`, PDF/JPEG/PNG/HEIC do 10 MB podle prvních bajtů) do R2 `LICENCE_DOCS`; jedna čekající žádost na uživatele |
+| `GET /api/admin/licence-requests`, `GET …/:id/document`, `POST …/:id` | správce | čekající žádosti, dokument (inline, `no-store`), rozhodnutí `approve` / `reject` (smaže dokument z R2; `approve` nastaví `licence_verified = 1` a skupinu `licensed`) |
 | `GET /api/notifications`, `POST /api/notifications/read` | relace | upozornění a označení za přečtená |
 
 Kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) se vrací jen přihlášeným, vždy přes jednu funkci `mapContact` v `functions/api/_shared.ts`; odpověď bez relace je nikdy neobsahuje. Bloky nedostupnosti a obsazené dny nikdy neopouštějí vlastníka a v Adresáři nejsou.

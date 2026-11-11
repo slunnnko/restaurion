@@ -53,6 +53,8 @@ Migrace 0006 a 0007 se pouští **jen jednou** (`ALTER TABLE ADD COLUMN` není i
 | `RESEND_API_KEY` | Pages + digest worker | bez něj se e-maily neposílají |
 | `RESEND_FROM` | Pages + digest worker | adresa odesílatele na ověřené doméně v Resendu |
 | `APP_URL` | volitelné | odkazy v e-mailech, výchozí `https://restaurion.pages.dev` |
+| `ADMIN_EMAILS` | Pages (secret) | e-maily správců oddělené čárkou, bez ohledu na velikost písmen. Správce smí smazat jakýkoli inzerát a rozhoduje o ověření licencí. |
+| `LICENCE_DOCS` | Pages (R2 binding, `wrangler.json`) | soukromý bucket `restaurion-licence-docs` se scany rozhodnutí MK ČR; musí se vytvořit (`npx wrangler r2 bucket create restaurion-licence-docs`), dokument se po rozhodnutí smaže |
 | `TEST_LOGIN_ECHO` | **jen test** | `1` a zároveň nenastavený Resend: `request-code` vrátí kód v odpovědi (`testCode`). Před ostrým spuštěním smazat. |
 
 Secret se nastavuje příkazem `npx wrangler pages secret put <NÁZEV> --project-name restaurion` (digest worker: `npx wrangler secret put <NÁZEV> -c workers/digest/wrangler.json`).

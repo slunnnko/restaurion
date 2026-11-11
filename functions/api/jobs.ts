@@ -31,7 +31,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
       const auth = await requireUser(request, db);
       if ('response' in auth) return auth.response;
       const own = await db
-        .prepare(`${JOB_SELECT} WHERE j.author_id = ? AND j.status IN ('active', 'archived') ORDER BY (j.status = 'active') DESC, j.created_at DESC LIMIT 100`)
+        .prepare(`${JOB_SELECT} WHERE j.author_id = ? AND j.status IN ('active', 'archived') AND j.visibility = 'public' ORDER BY (j.status = 'active') DESC, j.created_at DESC LIMIT 100`)
         .bind(auth.userId)
         .all<JobRow>();
       return jsonResponse({ jobs: own.results.map((r) => mapJobRow(r, { userId: auth.userId })) });

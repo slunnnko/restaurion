@@ -6,6 +6,6 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   const { request, env } = context;
   if (!env.DB) return noDb();
   const userId = await getAuthenticatedUserId(request, env.DB);
-  const user = userId ? await loadOwnProfile(env.DB, userId) : null;
+  const user = userId ? await loadOwnProfile(env.DB, userId, env) : null;
   return jsonResponse({ user });
 }

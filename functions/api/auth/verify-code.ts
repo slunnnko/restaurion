@@ -105,7 +105,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       .run();
 
     const cookie = `restaurion_session=${encodeURIComponent(rawToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
-    const user = await loadOwnProfile(db, profile.id);
+    const user = await loadOwnProfile(db, profile.id, env);
     return jsonResponse({ user }, 200, { 'Set-Cookie': cookie });
   } catch (err) {
     console.error('Chyba při POST /api/auth/verify-code:', err);

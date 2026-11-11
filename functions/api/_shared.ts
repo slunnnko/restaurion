@@ -25,8 +25,27 @@ export interface D1Database {
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<T[]>;
 }
 
+export interface R2ObjectBody {
+  body: ReadableStream;
+  httpMetadata?: { contentType?: string };
+}
+
+export interface R2Bucket {
+  put(
+    key: string,
+    value: ArrayBuffer | Uint8Array,
+    options?: { httpMetadata?: { contentType?: string } }
+  ): Promise<unknown>;
+  get(key: string): Promise<R2ObjectBody | null>;
+  delete(key: string): Promise<void>;
+}
+
 export interface Env {
   DB?: D1Database;
+  /** Private bucket for licence documents (scans of MK ČR decisions). Never public. */
+  LICENCE_DOCS?: R2Bucket;
+  /** Comma-separated e-mails of administrators (case-insensitive). Secret, only the name is in git. */
+  ADMIN_EMAILS?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   APP_URL?: string;
@@ -97,6 +116,13 @@ export async function getAuthenticatedUserId(request: Request, db?: D1Database):
   return session?.user_id ?? null;
 }
 
+/** True when the e-mail is listed in the ADMIN_EMAILS env var (comma-separated, case-insensitive). */
+export function isAdmin(env: Pick<Env, 'ADMIN_EMAILS'>, email: string | null | undefined): boolean {
+  if (!email || !env.ADMIN_EMAILS) return false;
+  const wanted = email.trim().toLowerCase();
+  return env.ADMIN_EMAILS.split(',').some((e) => e.trim().toLowerCase() === wanted && wanted !== '');
+}
+
 /** Returns the session user id, or a 401 JSON response. */
 export async function requireUser(
   request: Request,
@@ -105,6 +131,19 @@ export async function requireUser(
   const userId = await getAuthenticatedUserId(request, db);
   if (!userId) return { response: jsonResponse({ error: 'Pro tuto akci se musíte přihlásit.' }, 401) };
   return { userId };
+}
+
+/** Session user who is an administrator (ADMIN_EMAILS), or a 401 / 403 JSON response. */
+export async function requireAdmin(
+  request: Request,
+  env: Env,
+  db: D1Database
+): Promise<{ userId: string } | { response: Response }> {
+  const auth = await requireUser(request, db);
+  if ('response' in auth) return auth;
+  const row = await db.prepare(`SELECT email FROM profiles WHERE id = ?`).bind(auth.userId).first<{ email: string }>();
+  if (!isAdmin(env, row?.email)) return { response: jsonResponse({ error: 'Tuto akci smí provést jen správce.' }, 403) };
+  return auth;
 }
 
 export function noDb(): Response {
@@ -357,7 +396,7 @@ export interface BookedRow {
 }
 
 /** Full own profile including blocks and accepted jobs. Only for the profile's owner. */
-export async function loadOwnProfile(db: D1Database, userId: string): Promise<OwnProfile | null> {
+export async function loadOwnProfile(db: D1Database, userId: string, env?: Env): Promise<OwnProfile | null> {
   const row = await db
     .prepare(`SELECT ${PROFILE_COLUMNS} FROM profiles WHERE id = ? LIMIT 1`)
     .bind(userId)
@@ -379,7 +418,7 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
          FROM engagements e
          JOIN jobs j ON j.id = e.job_id
          JOIN profiles p ON p.id = j.author_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.date_to >= ?
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')
          ORDER BY j.date_from`
       )
@@ -398,6 +437,7 @@ export async function loadOwnProfile(db: D1Database, userId: string): Promise<Ow
   return {
     ...mapPublicPerson(row),
     email: row.email,
+    isAdmin: env ? isAdmin(env, row.email) : false,
     ...(row.phone ? { phone: row.phone } : {}),
     region: row.region,
     emailDigest: Boolean(row.email_digest),
@@ -428,6 +468,7 @@ export interface JobRow {
   date_to: string;
   budget_note: string;
   status: string;
+  visibility: string;
   created_at: string;
   expires_at: string | null;
   a_name: string;
@@ -445,7 +486,7 @@ export interface JobRow {
 export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url, j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
-         j.status, j.created_at, j.expires_at,
+         j.status, j.visibility, j.created_at, j.expires_at,
          a.name AS a_name, a.licence_verified AS a_licence_verified, a.directory_group AS a_group,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
@@ -502,4 +543,20 @@ export async function insertNotification(
     .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id) VALUES (?, ?, ?, ?, ?)`)
     .bind(`n-${crypto.randomUUID()}`, n.profileId, n.type, n.jobId ?? null, n.engagementId ?? null)
     .run();
+}
+
+/**
+ * Statements that notify every worker with a pending or accepted engagement that the job is closed.
+ * Shared by closing (PATCH) and the admin delete; the caller puts them in the same db.batch as the update.
+ */
+export async function jobClosedNotifications(db: D1Database, jobId: string): Promise<D1PreparedStatement[]> {
+  const engagements = await db
+    .prepare(`SELECT id, worker_id FROM engagements WHERE job_id = ? AND status IN ('pending', 'accepted')`)
+    .bind(jobId)
+    .all<{ id: string; worker_id: string }>();
+  return engagements.results.map((e) =>
+    db
+      .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id) VALUES (?, ?, 'job_closed', ?, ?)`)
+      .bind(`n-${crypto.randomUUID()}`, e.worker_id, jobId, e.id)
+  );
 }

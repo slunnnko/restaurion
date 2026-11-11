@@ -5,7 +5,7 @@ import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, pluralDays } from '@/lib/format';
 import { ContactsOrLogin, dangerBtn } from './ui';
-import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil } from 'lucide-react';
+import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil, Trash2 } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
 interface JobCardProps {
@@ -17,6 +17,9 @@ interface JobCardProps {
   onOpenInterested: (job: PublicJob) => void;
   onEdit: (job: PublicJob) => void;
   onLogin: () => void;
+  /** Správce (ADMIN_EMAILS) smí smazat jakýkoli inzerát. */
+  isAdmin?: boolean;
+  onDeleteJob?: (job: PublicJob) => Promise<void>;
 }
 
 const tileShadowBorder = 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
@@ -61,6 +64,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   onOpenInterested,
   onEdit,
   onLogin,
+  isAdmin = false,
+  onDeleteJob,
 }) => {
   const [busy, setBusy] = useState(false);
 
@@ -92,6 +97,12 @@ export const JobCard: React.FC<JobCardProps> = ({
   const handleClose = () => {
     if (!window.confirm('Opravdu chceš inzerát ukončit? Zmizí z nástěnky.')) return;
     void run(() => onCloseJob(job));
+  };
+
+  const handleDelete = () => {
+    if (!onDeleteJob) return;
+    if (!window.confirm('Smazat inzerát? Zájemci dostanou upozornění.')) return;
+    void run(() => onDeleteJob(job));
   };
 
   const labelFor = (id: string) => CRAFT_CATEGORIES.find((c) => c.id === id)?.label ?? id;
@@ -267,6 +278,19 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span>{isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
+        )}
+        {isAdmin && onDeleteJob && (
+          <div className="mt-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleDelete}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-[#DC2626] hover:bg-[#B91C1C] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Smazat</span>
+            </button>
+          </div>
         )}
       </div>
     </article>

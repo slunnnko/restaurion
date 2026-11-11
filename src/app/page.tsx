@@ -13,7 +13,6 @@ import { RespondModal } from '@/components/RespondModal';
 import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { InterestedWorkersModal } from '@/components/InterestedWorkersModal';
-import { MyListingsModal } from '@/components/MyListingsModal';
 import { LicenceModal } from '@/components/LicenceModal';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
@@ -70,7 +69,6 @@ export default function Home() {
   const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
   const [interestedJob, setInterestedJob] = useState<PublicJob | null>(null);
   const [editingJob, setEditingJob] = useState<PublicJob | null>(null);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isLicenceOpen, setIsLicenceOpen] = useState(false);
 
   // Akce, která čeká na přihlášení.
@@ -299,6 +297,16 @@ export default function Home() {
     }
   };
 
+  const handleDeleteJob = async (job: PublicJob) => {
+    setActionError('');
+    try {
+      await api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' });
+      await loadJobs();
+    } catch (err) {
+      handleApiError(err, 'Inzerát se nepodařilo smazat.');
+    }
+  };
+
   const openCreate = () => requireLogin(() => setIsCreateOpen(true));
   const openNotifications = () => requireLogin(() => setIsNotifOpen(true));
   const openProfileWithHint = () => {
@@ -375,7 +383,6 @@ export default function Home() {
         onOpenCreateJob={openCreate}
         onOpenNotifications={openNotifications}
         onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
-        onOpenAdministration={() => setIsAdminOpen(true)}
         onOpenLicence={() => requireLogin(() => setIsLicenceOpen(true))}
         onLogin={() => setIsLoginOpen(true)}
       />
@@ -566,6 +573,8 @@ export default function Home() {
                       onOpenInterested={setInterestedJob}
                       onEdit={setEditingJob}
                       onLogin={() => setIsLoginOpen(true)}
+                      isAdmin={user?.isAdmin === true}
+                      onDeleteJob={handleDeleteJob}
                     />
                   ))}
                 </div>
@@ -657,17 +666,6 @@ export default function Home() {
           onCreated={() => undefined}
           onSaved={() => void loadJobs()}
           onNeedProfile={openProfileWithHint}
-        />
-      )}
-
-      {isAdminOpen && user && (
-        <MyListingsModal
-          onClose={() => setIsAdminOpen(false)}
-          onChanged={() => void loadJobs()}
-          onNeedProfile={() => {
-            setIsAdminOpen(false);
-            openProfileWithHint();
-          }}
         />
       )}
 

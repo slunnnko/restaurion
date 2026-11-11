@@ -4,7 +4,7 @@ import React from 'react';
 import { HammerLogo } from './HammerLogo';
 import { OwnProfile } from '@/types/api';
 import { initials } from '@/lib/format';
-import { Moon, Sun, Bell, Plus, LogIn, Settings2, ShieldCheck, Camera } from 'lucide-react';
+import { Moon, Sun, Bell, Plus, LogIn, ShieldCheck, Camera } from 'lucide-react';
 
 interface HeaderProps {
   user: OwnProfile | null;
@@ -14,7 +14,6 @@ interface HeaderProps {
   onOpenCreateJob: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
-  onOpenAdministration: () => void;
   onOpenLicence: () => void;
   onLogin: () => void;
 }
@@ -30,7 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCreateJob,
   onOpenNotifications,
   onOpenProfile,
-  onOpenAdministration,
   onOpenLicence,
   onLogin,
 }) => (
@@ -68,17 +66,6 @@ export const Header: React.FC<HeaderProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
             <span>Ověřit licenci MK ČR</span>
           </button>
-
-          {user && (
-            <button
-              onClick={onOpenAdministration}
-              className={`${btnBase} bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white`}
-              title="Správa vlastních inzerátů a zájemců"
-            >
-              <Settings2 className="w-4 h-4 text-[#111111] dark:text-[#FEF08A] shrink-0" />
-              <span>Administrace</span>
-            </button>
-          )}
 
           {user && (
             <button

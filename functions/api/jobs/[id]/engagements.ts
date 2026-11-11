@@ -19,7 +19,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   if ('response' in auth) return auth.response;
 
   const job = await db
-    .prepare(`SELECT author_id FROM jobs WHERE id = ?`)
+    .prepare(`SELECT author_id FROM jobs WHERE id = ? AND visibility = 'public'`)
     .bind(String(params.id))
     .first<{ author_id: string }>();
   if (!job) return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);

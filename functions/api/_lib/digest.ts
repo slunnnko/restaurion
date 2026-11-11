@@ -84,7 +84,7 @@ export async function runDigest(env: Env): Promise<number> {
   for (const r of pickDigestRecipients(rows.results, budget)) {
     const items = await db
       .prepare(
-        `SELECT n.id, n.type, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id
+        `SELECT n.id, n.type, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility = 'public' OR n.type = 'job_closed')
          WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL ORDER BY n.created_at LIMIT 50`
       )
       .bind(r.profileId)

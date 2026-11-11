@@ -10,6 +10,12 @@
       "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "LICENCE_DOCS",
+      "bucket_name": "restaurion-licence-docs"
+    }
+  ],
   "env": {
     "production": {
       "d1_databases": [
@@ -17,6 +23,12 @@
           "binding": "DB",
           "database_name": "restaurion-db",
           "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "LICENCE_DOCS",
+          "bucket_name": "restaurion-licence-docs"
         }
       ]
     },
@@ -26,6 +38,12 @@
           "binding": "DB",
           "database_name": "restaurion-db",
           "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "LICENCE_DOCS",
+          "bucket_name": "restaurion-licence-docs"
         }
       ]
     }

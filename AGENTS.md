@@ -41,7 +41,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
 - Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
-- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`).
+- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`). Dokumenty k ověření licence (R2 `LICENCE_DOCS`) a žádosti o ověření nejsou v žádné veřejné odpovědi; vidí je jen žadatel (stav) a správce (dokument)..
 
 ## 3. Struktura projektu
 

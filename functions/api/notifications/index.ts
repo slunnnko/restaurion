@@ -27,7 +27,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   const rows = await db
     .prepare(
       `SELECT n.id, n.type, n.created_at, n.read_at, n.job_id, n.engagement_id, j.title, j.date_from, j.date_to
-       FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id
+       FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility = 'public' OR n.type = 'job_closed')
        WHERE n.profile_id = ? ORDER BY n.created_at DESC, n.rowid DESC LIMIT 50`
     )
     .bind(auth.userId)
