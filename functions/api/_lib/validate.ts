@@ -42,6 +42,9 @@ export function isHttpUrl(value: string, max = 300): boolean {
   }
 }
 
+const INSTAGRAM_RESERVED = ['accounts', 'p', 'reel', 'reels', 'explore', 'stories', 'tv'];
+const FACEBOOK_HOSTS = ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.com'];
+
 /**
  * Instagram handle or profile URL → bare handle (no @). '' stays ''. Returns null when invalid
  * (characters outside [A-Za-z0-9._], longer than 60, or a URL of another site).
@@ -54,6 +57,7 @@ export function normalizeInstagram(value: string): string | null {
       const u = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`);
       if (!/^(www\.)?instagram\.com$/i.test(u.hostname)) return null;
       v = u.pathname.split('/').filter(Boolean)[0] ?? '';
+      if (INSTAGRAM_RESERVED.includes(v.toLowerCase())) return null;
     } catch {
       return null;
     }
@@ -62,11 +66,25 @@ export function normalizeInstagram(value: string): string | null {
   return /^[A-Za-z0-9._]{1,60}$/.test(v) ? v : null;
 }
 
-/** WhatsApp number: same format as the phone field. '' stays ''. Returns null when invalid. */
+/** Facebook profile/page URL (http(s), host facebook.com / fb.com family, up to 300 chars). '' stays ''. null when invalid. */
+export function normalizeFacebook(value: string): string | null {
+  const v = value.trim();
+  if (v === '') return '';
+  if (!isHttpUrl(v)) return null;
+  return FACEBOOK_HOSTS.includes(new URL(v).hostname.toLowerCase()) ? v : null;
+}
+
+/**
+ * WhatsApp number → digits only (wa.me format). '' stays ''. 9 digits without country code get 420.
+ * Returns null when invalid (phone-field characters only, 11–15 digits after normalisation).
+ */
 export function normalizeWhatsapp(value: string): string | null {
   const v = value.trim();
   if (v === '') return '';
-  return PHONE_RE.test(v) ? v : null;
+  if (!PHONE_RE.test(v)) return null;
+  let digits = v.replace(/\D/g, '');
+  if (digits.length === 9 && !v.startsWith('+')) digits = `420${digits}`;
+  return digits.length >= 11 && digits.length <= 15 ? digits : null;
 }
 
 export function validCraftIds(value: unknown): string[] | null {

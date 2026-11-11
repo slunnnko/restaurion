@@ -275,7 +275,7 @@ eq "invalid whatsapp -> 400" "$CODE" 400
 api w2 GET /api/directory
 eq "verified licence is listed first" "$(echo "$BODY" | jq -r '.entries[0].name')" "Worker Dva"
 eq "verified badge flag set for w2" "$(echo "$BODY" | jq -r '.entries[0].licenceVerified')" true
-eq "w4 contact carries instagram, whatsapp, facebook" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Ctyri") | [.contact.instagram, .contact.whatsapp, .contact.facebook] | join("|")')" "w4.dreva|+420 777 444 555|https://facebook.com/w4"
+eq "w4 contact carries instagram, whatsapp, facebook" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Ctyri") | [.contact.instagram, .contact.whatsapp, .contact.facebook] | join("|")')" "w4.dreva|420777444555|https://facebook.com/w4"
 api - GET "/api/directory?group=licensed"
 eq "group filter licensed (w1 + w2)" "$(echo "$BODY" | jq -r '[.entries[].name] | sort | join(",")')" "Worker Dva,Worker Jedna"
 api - GET "/api/directory?group=firm"
@@ -309,7 +309,7 @@ eq "offerer sees the interested user with contact" "$(echo "$BODY" | jq -r '.eng
 api poster2 POST /api/engagements/$EO '{"action":"accept"}'
 eq "accept on an offer -> 409" "$CODE" 409
 api poster2 POST /api/engagements/$EO '{"action":"decline"}'
-eq "decline on an offer -> 409" "$CODE" 409
+eq "decline on an offer -> 200" "$CODE" 200
 api w1 GET /api/profile
 eq "an offer never books or busies anyone" "$(echo "$BODY" | jq -r '.profile.booked | length')" 0
 api w1 GET /api/jobs
@@ -403,6 +403,16 @@ TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
 echo "$TESTCODE" | grep -qE '^[0-9]{6}$'; eq "request-code returns a 6-digit testCode (got '$TESTCODE')" "$?" 0
 api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"directoryVisible\":false}"
 eq "login with the echoed code (directory checkbox off)" "$CODE/$(echo "$BODY" | jq -r '.user.directoryVisible')" "200/false"
+d1 --command "DELETE FROM rate_limit_events" >/dev/null
+api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
+TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
+api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"directoryVisible\":true}"
+eq "re-login with the checkbox on never re-enables an opt-out" "$CODE/$(echo "$BODY" | jq -r '.user.directoryVisible')" "200/false"
+api echo PUT /api/profile '{"directoryVisible":true}'
+api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
+TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
+api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"directoryVisible\":false}"
+eq "login with the checkbox off hides an existing profile" "$CODE/$(echo "$BODY" | jq -r '.user.directoryVisible')" "200/false"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

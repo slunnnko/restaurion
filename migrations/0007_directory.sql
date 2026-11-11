@@ -9,6 +9,9 @@
 ALTER TABLE profiles ADD COLUMN directory_group TEXT NOT NULL DEFAULT 'unlicensed'
     CHECK (directory_group IN ('firm', 'licensed', 'unlicensed'));
 ALTER TABLE profiles ADD COLUMN directory_visible INTEGER NOT NULL DEFAULT 1;
+-- Profiles that existed before this migration gave consent under the old terms (contacts only after
+-- acceptance), so they are NOT listed until they opt in via the profile toggle. New profiles keep DEFAULT 1.
+UPDATE profiles SET directory_visible = 0;
 ALTER TABLE profiles ADD COLUMN instagram TEXT;
 ALTER TABLE profiles ADD COLUMN whatsapp TEXT;
 ALTER TABLE profiles ADD COLUMN facebook TEXT;

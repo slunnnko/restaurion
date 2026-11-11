@@ -20,6 +20,7 @@ import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
+import { plural } from '@/lib/format';
 import { CRAFT_CATEGORIES, jobMatchesCraft, normalizeText } from '@/lib/crafts';
 import { Briefcase, CheckCircle2, Plus, Scale, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
@@ -261,6 +262,8 @@ export default function Home() {
       // cookie se stejně smaže při dalším neúspěšném požadavku; UI se odhlásí
     }
     setUser(null);
+    setDirEntries([]);
+    setDirTotal(0);
     setView('board');
     setUnread(0);
     setFilters((prev) => ({ ...prev, mineOnly: false }));
@@ -502,7 +505,7 @@ export default function Home() {
                 <>
                   <div className="text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
                     Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{dirTotal}</strong>{' '}
-                    {dirTotal === 1 ? 'profil' : dirTotal < 5 ? 'profily' : 'profilů'}
+                    {plural(dirTotal, 'profil', 'profily', 'profilů')}
                     {dirTotal > dirEntries.length ? ` (zobrazeno ${dirEntries.length})` : ''}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -533,16 +536,8 @@ export default function Home() {
                 <div className="text-xs text-stone-700 dark:text-stone-300 font-bold mb-4 px-1">
                   Nalezeno <strong className="text-[#111111] dark:text-white font-extrabold">{filteredJobs.length}</strong>{' '}
                   {isOffersTab
-                    ? filteredJobs.length === 1
-                      ? 'nabídka'
-                      : filteredJobs.length < 5
-                        ? 'nabídky'
-                        : 'nabídek'
-                    : filteredJobs.length === 1
-                      ? 'zakázka'
-                      : filteredJobs.length < 5
-                        ? 'zakázky'
-                        : 'zakázek'}
+                    ? plural(filteredJobs.length, 'nabídka', 'nabídky', 'nabídek')
+                    : plural(filteredJobs.length, 'zakázka', 'zakázky', 'zakázek')}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredJobs.map((job) => (

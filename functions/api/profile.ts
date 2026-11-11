@@ -5,6 +5,7 @@ import {
   groupLicenceError,
   isDirectoryGroup,
   isHttpUrl,
+  normalizeFacebook,
   normalizeInstagram,
   normalizeWhatsapp,
   str,
@@ -70,16 +71,7 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   }
   if ('portfolioUrl' in body) {
     const url = str(body.portfolioUrl);
-    let ok = url === '';
-    if (!ok && url.length <= 300) {
-      try {
-        const u = new URL(url);
-        ok = u.protocol === 'http:' || u.protocol === 'https:';
-      } catch {
-        ok = false;
-      }
-    }
-    if (!ok) errors.portfolioUrl = 'Zadejte odkaz začínající http:// nebo https://.';
+    if (url !== '' && !isHttpUrl(url)) errors.portfolioUrl = 'Zadejte odkaz začínající http:// nebo https://.';
     set('portfolio_url', url || null);
   }
   if ('licenceNumber' in body) {
@@ -103,8 +95,9 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   }
   if ('facebook' in body) {
     const fb = str(body.facebook);
-    if (fb && !isHttpUrl(fb)) errors.facebook = 'Zadejte odkaz začínající http:// nebo https://.';
-    set('facebook', fb || null);
+    const fbNorm = normalizeFacebook(fb);
+    if (fbNorm === null) errors.facebook = 'Zadejte odkaz na Facebook (https://facebook.com/…).';
+    set('facebook', fbNorm || null);
   }
   if ('group' in body && !isDirectoryGroup(body.group)) errors.group = 'Vyberte, kdo jsi.';
   if ('group' in body || 'licenceNumber' in body) {

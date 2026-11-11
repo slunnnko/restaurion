@@ -160,11 +160,13 @@ export const InterestedWorkersModal: React.FC<InterestedWorkersModalProps> = ({ 
                   </blockquote>
                 )}
 
-                {!isOffer && x.status === 'pending' && (
+                {x.status === 'pending' && (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    <button type="button" disabled={busyId === x.id} onClick={() => void decide(x.id, 'accept')} className={primaryBtn}>
-                      Přijmout
-                    </button>
+                    {!isOffer && (
+                      <button type="button" disabled={busyId === x.id} onClick={() => void decide(x.id, 'accept')} className={primaryBtn}>
+                        Přijmout
+                      </button>
+                    )}
                     <button type="button" disabled={busyId === x.id} onClick={() => void decide(x.id, 'decline')} className={dangerBtn}>
                       Odmítnout
                     </button>

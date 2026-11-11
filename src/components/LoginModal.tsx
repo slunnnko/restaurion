@@ -183,7 +183,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
               onChange={(e) => setDirectoryVisible(e.target.checked)}
               className="mt-0.5 w-4 h-4 shrink-0 accent-[#111111] dark:accent-[#FEF08A] cursor-pointer"
             />
-            <span>Můj profil bude vidět v Adresáři (můžeš změnit v profilu)</span>
+            <span>Můj profil bude vidět v Adresáři (odškrtnutím ho skryješ, zapnout lze v profilu)</span>
           </label>
 
           {error && <ErrorBox message={error} />}

@@ -4,6 +4,7 @@ import {
   groupLicenceError,
   isDirectoryGroup,
   isHttpUrl,
+  normalizeFacebook,
   normalizeInstagram,
   normalizeWhatsapp,
   validateNewJob,
@@ -27,11 +28,33 @@ test('instagram: rejects other sites, bad characters and over-long handles', () 
   assert.equal(normalizeInstagram('a'.repeat(60)), 'a'.repeat(60));
 });
 
-test('whatsapp: same format as the phone field, empty stays empty', () => {
-  assert.equal(normalizeWhatsapp('+420 777 111 222'), '+420 777 111 222');
+test('instagram: reserved first path segments are rejected', () => {
+  for (const seg of ['accounts', 'p', 'reel', 'reels', 'explore', 'stories', 'tv']) {
+    assert.equal(normalizeInstagram(`https://www.instagram.com/${seg}/abc/`), null);
+  }
+  assert.equal(normalizeInstagram('https://instagram.com/restaurion/p/abc'), 'restaurion');
+});
+
+test('facebook: http(s) on facebook.com / fb.com hosts only', () => {
+  assert.equal(normalizeFacebook(''), '');
+  assert.equal(normalizeFacebook('https://www.facebook.com/restaurion'), 'https://www.facebook.com/restaurion');
+  assert.equal(normalizeFacebook('http://m.facebook.com/x'), 'http://m.facebook.com/x');
+  assert.equal(normalizeFacebook('https://fb.com/x'), 'https://fb.com/x');
+  assert.equal(normalizeFacebook('https://facebook.com.evil.example/x'), null);
+  assert.equal(normalizeFacebook('https://example.com/x'), null);
+  assert.equal(normalizeFacebook('facebook.com/x'), null);
+  assert.equal(normalizeFacebook('javascript:alert(1)'), null);
+});
+
+test('whatsapp: digits only, 9 digits get 420, 11–15 digits required', () => {
+  assert.equal(normalizeWhatsapp('+420 777 111 222'), '420777111222');
+  assert.equal(normalizeWhatsapp('777 111 222'), '420777111222');
+  assert.equal(normalizeWhatsapp('00420777111222'), '00420777111222');
   assert.equal(normalizeWhatsapp(''), '');
   assert.equal(normalizeWhatsapp('abc'), null);
   assert.equal(normalizeWhatsapp('123'), null);
+  assert.equal(normalizeWhatsapp('1234567890'), null);
+  assert.equal(normalizeWhatsapp('+1234567890123456'), null);
 });
 
 test('facebook / web: only http(s) URLs up to 300 chars', () => {
@@ -111,4 +134,12 @@ test('new job: an offer needs no monument status and ignores one', () => {
   assert.equal(values.monumentName, '');
   const job = validateNewJob({ ...body, jobType: 'subcontract_needed' });
   assert.notEqual(job.errors.monumentStatus, undefined);
+});
+
+test('plural: Czech 1 / 2–4 / 5+', async () => {
+  const { plural } = await import('../src/lib/format.ts');
+  assert.equal(plural(1, 'den', 'dny', 'dní'), 'den');
+  assert.equal(plural(3, 'den', 'dny', 'dní'), 'dny');
+  assert.equal(plural(0, 'den', 'dny', 'dní'), 'dní');
+  assert.equal(plural(5, 'den', 'dny', 'dní'), 'dní');
 });

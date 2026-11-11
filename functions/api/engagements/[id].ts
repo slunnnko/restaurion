@@ -15,7 +15,7 @@ import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
 
 /**
  * POST /api/engagements/:id {action}
- * accept|decline: jen zadavatel zakázky (ne nabídky), jen z `pending`. withdraw: jen zájemce, z `pending`/`accepted`.
+ * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. withdraw: jen zájemce, z `pending`/`accepted`.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
@@ -73,7 +73,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     }
 
     if (eng.author_id !== auth.userId) return jsonResponse({ error: 'Rozhodnout může jen zadavatel zakázky.' }, 403);
-    if (eng.j_type === 'craftsman_available') return jsonResponse({ error: 'U nabídky se nepřijímá.' }, 409);
+    if (eng.j_type === 'craftsman_available' && action === 'accept') return jsonResponse({ error: 'U nabídky se nepřijímá.' }, 409);
     if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
 
     if (action === 'accept') {

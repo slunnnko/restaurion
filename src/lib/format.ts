@@ -22,11 +22,16 @@ export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/** Czech plural form: 1 → one, 2–4 → few, otherwise many (word only, without the number). */
+export function plural(n: number, one: string, few: string, many: string): string {
+  if (n === 1) return one;
+  if (n >= 2 && n <= 4) return few;
+  return many;
+}
+
 /** 1 den, 2–4 dny, 5+ dní */
 export function pluralDays(n: number): string {
-  if (n === 1) return `${n} den`;
-  if (n >= 2 && n <= 4) return `${n} dny`;
-  return `${n} dní`;
+  return `${n} ${plural(n, 'den', 'dny', 'dní')}`;
 }
 
 /** 1 řemeslníka, 2–4 řemeslníky, 5+ řemeslníků (4. pád: „Upozornili jsme …“). */

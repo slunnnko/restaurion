@@ -5,7 +5,7 @@ const MAX_ATTEMPTS = 5;
 
 /**
  * POST /api/auth/verify-code {email, code, consent: true, directoryVisible?: boolean}
- * Max. 5 pokusů na nejnovější kód e-mailu, 30/h na IP. Vytvoří profil, nastaví consent_at a cookie `restaurion_session` na 30 dní.
+ * Max. 5 pokusů na nejnovější kód e-mailu, 30/h na IP. directoryVisible=false skryje i existující profil (true nikdy nezapne zpět). Vytvoří profil, nastaví consent_at a cookie `restaurion_session` na 30 dní.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env } = context;
@@ -75,7 +75,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
     if (!profile) {
       const newUserId = `u-${crypto.randomUUID().slice(0, 8)}`;
-      // Opt-out: listed in the directory unless the login form said otherwise (applies to new profiles only).
+      // Opt-out: listed in the directory unless the login form said otherwise.
       const directoryVisible = body.directoryVisible === false ? 0 : 1;
       await db
         .prepare(
@@ -90,6 +90,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         .prepare(`UPDATE profiles SET consent_at = datetime('now') WHERE id = ? AND consent_at IS NULL`)
         .bind(profile.id)
         .run();
+      // An opt-out at login always hides the profile; `true` never re-enables someone who opted out.
+      if (body.directoryVisible === false) {
+        await db.prepare(`UPDATE profiles SET directory_visible = 0 WHERE id = ?`).bind(profile.id).run();
+      }
     }
 
     const rawToken = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
