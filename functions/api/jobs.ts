@@ -76,12 +76,13 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
   const body = await readJson<Record<string, unknown>>(request);
   if (!body) return badJson();
-  const poster = await db.prepare(`SELECT name FROM profiles WHERE id = ?`).bind(auth.userId).first<{ name: string }>();
-  if (profileNameMissing(poster?.name)) return profileNameResponse();
   const { errors, values } = validateNewJob(body);
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 
   try {
+    const poster = await db.prepare(`SELECT name FROM profiles WHERE id = ?`).bind(auth.userId).first<{ name: string }>();
+    if (profileNameMissing(poster?.name)) return profileNameResponse();
+
     const jobId = `j-${crypto.randomUUID().slice(0, 8)}`;
     const expiresAt = addDays(values.dateTo, 14);
     await db

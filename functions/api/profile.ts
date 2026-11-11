@@ -75,15 +75,11 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   if ('licenceNumber' in body) {
     const lic = str(body.licenceNumber);
     if (lic.length > 40) errors.licenceNumber = 'Nejvýše 40 znaků.';
+    // A changed number is unverified again until an admin re-checks it in D1. One UPDATE:
+    // every right-hand side sees the old row, so the CASE compares against the stored number.
+    sets.push(`licence_verified = CASE WHEN COALESCE(licence_number, '') <> ? THEN 0 ELSE licence_verified END`);
+    binds.push(lic);
     set('licence_number', lic || null);
-    // A changed number is unverified again until an admin re-checks it in D1.
-    if (!errors.licenceNumber) {
-      const current = await db
-        .prepare(`SELECT licence_number FROM profiles WHERE id = ?`)
-        .bind(auth.userId)
-        .first<{ licence_number: string | null }>();
-      if ((current?.licence_number ?? '') !== lic) set('licence_verified', 0);
-    }
   }
   for (const [key, col] of [
     ['emailDigest', 'email_digest'],

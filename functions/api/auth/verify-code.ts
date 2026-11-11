@@ -32,6 +32,11 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     return jsonResponse({ error: 'Příliš mnoho pokusů. Zkuste to znovu za hodinu.' }, 429);
   }
 
+  // Guesses are compared against every live code but counted only on the latest one, so cap them per e-mail too.
+  if (!(await rateLimit(db, 'verify-email', email, 10, 60))) {
+    return jsonResponse({ error: 'Příliš mnoho pokusů, vyžádej si nový kód.' }, 429);
+  }
+
   try {
     // Consume an attempt on the latest unexpired code first (atomic), so parallel guesses cannot exceed the cap.
     const consumed = await db
@@ -43,6 +48,11 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       .bind(email, MAX_ATTEMPTS)
       .first<{ id: number }>();
     if (!consumed) {
+      const live = await db
+        .prepare(`SELECT id FROM login_codes WHERE email = ? AND expires_at > datetime('now') LIMIT 1`)
+        .bind(email)
+        .first<{ id: number }>();
+      if (!live) return jsonResponse({ error: 'Kód je neplatný nebo vypršel.' }, 401);
       return jsonResponse({ error: 'Příliš mnoho pokusů, vyžádej si nový kód.' }, 429);
     }
 

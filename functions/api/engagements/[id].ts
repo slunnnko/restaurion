@@ -62,7 +62,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
     if (action === 'accept') {
       const today = todayUtc();
-      if (eng.j_status !== 'active' || !eng.j_from || !eng.j_to || (eng.j_expires ?? '') < today) {
+      if (eng.j_status !== 'active' || !eng.j_from || !eng.j_to || !eng.j_expires || eng.j_expires < today) {
         return jsonResponse({ error: 'Zakázka už není aktivní.' }, 409);
       }
       const busy = await loadBusySlots(db, eng.worker_id, today);

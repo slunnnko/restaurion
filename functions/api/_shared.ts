@@ -156,12 +156,18 @@ export async function rateLimit(
 ): Promise<boolean> {
   const keyHash = await sha256Hex(`rl:${key}`);
   const since = new Date(Date.now() - windowMin * 60_000).toISOString().replace('T', ' ').slice(0, 19);
-  await db.prepare(`INSERT INTO rate_limit_events (bucket, key_hash) VALUES (?, ?)`).bind(bucket, keyHash).run();
+  const inserted = await db
+    .prepare(`INSERT INTO rate_limit_events (bucket, key_hash) VALUES (?, ?) RETURNING id`)
+    .bind(bucket, keyHash)
+    .first<{ id: number }>();
   const row = await db
     .prepare(`SELECT COUNT(*) AS n FROM rate_limit_events WHERE bucket = ? AND key_hash = ? AND created_at >= ?`)
     .bind(bucket, keyHash, since)
     .first<{ n: number }>();
-  return (row?.n ?? 0) <= max;
+  if ((row?.n ?? 0) <= max) return true;
+  // Rejected attempts must not count, otherwise retrying keeps extending the lockout.
+  if (inserted) await db.prepare(`DELETE FROM rate_limit_events WHERE id = ?`).bind(inserted.id).run();
+  return false;
 }
 
 // ---- Email ----

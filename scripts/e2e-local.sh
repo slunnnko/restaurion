@@ -237,6 +237,22 @@ eq "no testCode without TEST_LOGIN_ECHO" "$(echo "$BODY" | jq -r '.testCode // "
 api cc POST /api/auth/verify-code '{"email":"cc@e2e.test","code":"111111","consent":true}'
 eq "first code still valid after a second request" "$CODE" 200
 
+echo "== verify-code without a live code -> 401; rate limit leaves no rows for rejected attempts"
+api - POST /api/auth/verify-code '{"email":"nocode@e2e.test","code":"123456","consent":true}'
+eq "no unexpired code -> 401" "$CODE" 401
+RL_KEY=$(sha "rl:rl2@e2e.test")
+for i in 1 2 3 4 5 6 7 8; do api - POST /api/auth/request-code '{"email":"rl2@e2e.test"}'; done
+eq "8th request -> 429" "$CODE" 429
+ROWS=$(d1 --json --command "SELECT COUNT(*) AS n FROM rate_limit_events WHERE bucket='code-email' AND key_hash='$RL_KEY'" | jq -r '.[0].results[0].n')
+eq "rejected attempts left no rate-limit rows (5 kept)" "$ROWS" 5
+
+echo "== per-e-mail verify limit (10/h) holds even after a fresh code"
+d1 --command "INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('ve@e2e.test', '$(sha "ve@e2e.test:111222")', datetime('now','+1 hour'));" > /dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do api - POST /api/auth/verify-code '{"email":"ve@e2e.test","code":"000000","consent":true}'; done
+d1 --command "INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('ve@e2e.test', '$(sha "ve@e2e.test:333444")', datetime('now','+1 hour'));" > /dev/null
+api - POST /api/auth/verify-code '{"email":"ve@e2e.test","code":"333444","consent":true}'
+eq "11th verify for one e-mail -> 429 despite a fresh valid code" "$CODE" 429
+
 echo "== authorization"
 api poster2 PATCH /api/jobs/$J1 '{"title":"Hacknuto zakazka"}'
 eq "non-owner PATCH job -> 403" "$CODE" 403
