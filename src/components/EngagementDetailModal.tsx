@@ -6,7 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { ModalShell, ErrorBox, ContactLinks, primaryBtn, secondaryBtn, dangerBtn } from './ui';
 import { iconBtn } from './ActionMenu';
 import { DirectoryCard } from './DirectoryCard';
-import { STATUS_CLS, STATUS_LABEL } from './InterestedList';
+import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
 import { ArrowLeft, UserRound } from 'lucide-react';
 
 interface EngagementDetailModalProps {

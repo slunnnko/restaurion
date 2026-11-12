@@ -1,24 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { EngagementForPoster, EngagementStatus, PublicJob } from '@/types/api';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { EngagementForPoster, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { initials } from '@/lib/format';
 import { ErrorBox } from './ui';
 import { EngagementDetailModal } from './EngagementDetailModal';
-
-export const STATUS_LABEL: Record<EngagementStatus, string> = {
-  pending: 'Čeká na rozhodnutí',
-  accepted: 'Přijat',
-  declined: 'Odmítnut',
-  withdrawn: 'Odstoupil',
-};
-export const STATUS_CLS: Record<EngagementStatus, string> = {
-  pending: 'bg-[#FEF08A] text-[#111111]',
-  accepted: 'bg-emerald-100 dark:bg-emerald-950 text-emerald-950 dark:text-emerald-200',
-  declined: 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300',
-  withdrawn: 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300',
-};
+import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
 
 interface InterestedListProps {
   job: PublicJob;
@@ -32,32 +20,29 @@ const mutedCls = 'text-xs font-semibold text-stone-600 dark:text-stone-400';
 export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, showHeading = false }) => {
   const [items, setItems] = useState<EngagementForPoster[] | null>(null);
   const [error, setError] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<EngagementForPoster | null>(null);
+  const reqId = useRef(0);
   const isOffer = job.jobType === 'craftsman_available';
   const count = job.interestedCount;
 
   const load = useCallback(async () => {
+    const id = ++reqId.current;
     setError('');
-    setItems(null);
     try {
       const data = await api<{ engagements: EngagementForPoster[] }>(
         `/api/jobs/${encodeURIComponent(job.id)}/engagements`
       );
-      setItems(data.engagements);
+      if (id === reqId.current) setItems(data.engagements);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Zájemce se nepodařilo načíst.');
+      if (id === reqId.current) setError(err instanceof ApiError ? err.message : 'Zájemce se nepodařilo načíst.');
     }
-    // interestedCount je v závislostech, aby se seznam obnovil po změně počtu.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.id, job.interestedCount]);
+  }, [job.id]);
 
   useEffect(() => {
     if (count === 0) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load, count]);
-
-  const selected = items?.find((x) => x.id === selectedId) ?? null;
 
   return (
     <div>
@@ -66,9 +51,9 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
           Zájemci ({count})
         </div>
       )}
-      {count === 0 ? (
+      {count === 0 && !(items && items.length > 0) ? (
         <p className={mutedCls}>Zatím žádný zájemce.</p>
-      ) : error ? (
+      ) : error && items === null ? (
         <ErrorBox message={error} onRetry={() => void load()} />
       ) : items === null ? (
         <p className={mutedCls}>Načítám zájemce…</p>
@@ -78,7 +63,7 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
             <li key={x.id}>
               <button
                 type="button"
-                onClick={() => setSelectedId(x.id)}
+                onClick={() => setSelected(x)}
                 aria-label={`${x.worker.name} – zobrazit detail`}
                 className={`inline-flex items-center gap-2 min-h-10 pl-1.5 pr-3 py-1 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#262933] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-xs font-extrabold text-[#111111] dark:text-white cursor-pointer transition-colors ${
                   x.status === 'declined' || x.status === 'withdrawn' ? 'opacity-60' : ''
@@ -105,9 +90,10 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
         <EngagementDetailModal
           job={job}
           engagement={selected}
-          onClose={() => setSelectedId(null)}
+          onClose={() => setSelected(null)}
           onDecided={(e) => {
             setItems((prev) => (prev ? prev.map((x) => (x.id === e.id ? e : x)) : prev));
+            setSelected(e);
             onChanged();
           }}
         />

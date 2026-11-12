@@ -45,13 +45,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
       <button
         onClick={onProfile}
-        aria-label={isLoggedIn && unreadCount > 0 ? `Profil, ${unreadLabel(unreadCount)}` : undefined}
+        aria-label={isLoggedIn ? (unreadCount > 0 ? `Profil, ${unreadLabel(unreadCount)}` : 'Profil') : undefined}
         className={`relative ${itemBase} ${
           active === 'profile' ? itemActive : itemIdle
         }`}
       >
         {isLoggedIn ? (
-          <span className="relative w-6 h-6 rounded-full border-2 border-[#111111] dark:border-stone-300 bg-[#FEF08A] text-[#111111] text-[9px] font-bold flex items-center justify-center mb-0.5">
+          <span aria-hidden="true" className="relative w-6 h-6 rounded-full border-2 border-[#111111] dark:border-stone-300 bg-[#FEF08A] text-[#111111] text-[9px] font-bold flex items-center justify-center mb-0.5">
             {avatarText}
             <UnreadBadge count={unreadCount} />
           </span>

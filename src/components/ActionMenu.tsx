@@ -28,6 +28,24 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ actions, triggerIcon: Tr
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const menuItems = () =>
+    Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? []);
+
+  const onMenuKeyDown = (e: React.KeyboardEvent) => {
+    const items = menuItems();
+    if (items.length === 0) return;
+    const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next = -1;
+    if (e.key === 'ArrowDown') next = (idx + 1) % items.length;
+    else if (e.key === 'ArrowUp') next = (idx - 1 + items.length) % items.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = items.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    items[next].focus();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -40,6 +58,7 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ actions, triggerIcon: Tr
         triggerRef.current?.focus();
       }
     };
+    menuItems()[0]?.focus();
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
     return () => {
@@ -68,7 +87,13 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ actions, triggerIcon: Tr
   }
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div
+      ref={wrapRef}
+      className="relative"
+      onBlur={(e) => {
+        if (open && !wrapRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -83,6 +108,8 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ actions, triggerIcon: Tr
       </button>
       {open && (
         <div
+          ref={menuRef}
+          onKeyDown={onMenuKeyDown}
           role="menu"
           aria-label={triggerLabel}
           className="absolute right-0 top-full mt-2 z-20 min-w-44 p-1.5 rounded-xl bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-400 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] space-y-1"
