@@ -95,8 +95,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       .prepare(
         `INSERT INTO jobs (id, author_id, title, description, job_type, monument_status, monument_name,
            required_crafts_json, region, city, start_date, budget_note, status, date_from, date_to,
-           visibility, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'public', ?)`
+           visibility, expires_at, reward_type, reward_amount, reward_currency, reward_scope)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 'public', ?, ?, ?, ?, ?)`
       )
       .bind(
         jobId,
@@ -113,7 +113,11 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         values.budgetNote,
         values.dateFrom,
         values.dateTo,
-        expiresAt
+        expiresAt,
+        values.reward.type,
+        values.reward.amount,
+        values.reward.currency,
+        values.reward.scope
       )
       .run();
 

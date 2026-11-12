@@ -45,7 +45,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     const rows = await db
       .prepare(
         `SELECT ${PROFILE_COLUMNS} FROM profiles WHERE ${where.join(' AND ')}
-         ORDER BY licence_verified DESC, name COLLATE NOCASE LIMIT ${SCAN_LIMIT}`
+         ORDER BY name COLLATE NOCASE LIMIT ${SCAN_LIMIT}`
       )
       .bind(...binds)
       .all<ProfileRow>();

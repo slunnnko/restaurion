@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
-import { formatRange, pluralDays } from '@/lib/format';
+import { formatRange, pluralDays, rewardDisplay } from '@/lib/format';
 import { ContactsOrLogin, dangerBtn } from './ui';
 import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil, Trash2 } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
@@ -76,6 +76,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const eng = job.myEngagement;
   const engStatus = eng?.status;
   const isOffer = job.jobType === 'craftsman_available';
+  const reward = rewardDisplay(job);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -200,21 +201,18 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-[#111111] dark:border-emerald-500/50 text-xs mb-3.5">
           <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1 leading-snug">
-            <span className="text-[11px] font-bold text-stone-600 dark:text-emerald-300/80 mr-1.5">Odměna:</span>
+            <span className="text-[11px] font-bold text-stone-600 dark:text-emerald-300/80 mr-1.5">{isOffer ? 'Moje sazba:' : 'Odměna:'}</span>
             <span className="font-extrabold text-emerald-950 dark:text-emerald-200 break-words">
-              {job.budgetNote || 'Dle dohody'}
+              {reward.headline}
             </span>
+            {reward.scope && (
+              <p className="mt-1 font-medium text-stone-800 dark:text-emerald-100/90 whitespace-pre-line break-words">{reward.scope}</p>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 mb-2.5 text-xs min-w-0">
           <span className="font-extrabold text-[#111111] dark:text-white truncate">{job.poster.name}</span>
-          {job.poster.licenceVerified && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 text-[10px] font-extrabold shrink-0">
-              <ShieldCheck className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-              Licence ověřena
-            </span>
-          )}
         </div>
 
         {/* Kontakty zadavatele: přihlášený je vidí hned, anonym dostane tlačítko přihlášení */}

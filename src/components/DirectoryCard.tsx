@@ -36,12 +36,6 @@ export const DirectoryCard: React.FC<DirectoryCardProps> = ({ entry, onLogin }) 
             <GroupIcon className="w-3.5 h-3.5" />
             <span>{GROUP_LABEL[entry.group]}</span>
           </span>
-          {entry.licenceVerified && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 text-[10px] font-extrabold">
-              <ShieldCheck className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
-              Licence ověřena
-            </span>
-          )}
         </div>
 
         <h3 className="font-serif font-bold text-lg text-[#111111] dark:text-white leading-snug break-words mb-2">
@@ -78,8 +72,8 @@ export const DirectoryCard: React.FC<DirectoryCardProps> = ({ entry, onLogin }) 
           )}
           {entry.licenceNumber && (
             <span className="font-semibold">
-              Povolení MK ČR: {entry.licenceNumber}
-              {!entry.licenceVerified && <span className="text-stone-500 dark:text-stone-400"> (samodeklarované)</span>}
+              Číslo povolení MK ČR: {entry.licenceNumber}
+              <span className="text-stone-500 dark:text-stone-400"> (uvádí sám)</span>
             </span>
           )}
         </div>

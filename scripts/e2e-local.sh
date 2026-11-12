@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-8]_*.sql; do
+for f in migrations/000[1-9]_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -28,7 +28,7 @@ done
 d1 --command "UPDATE profiles SET accepting_jobs = 0" > /dev/null
 
 echo "== start wrangler pages dev on :$PORT"
-# admin@e2e.test is the only administrator (ADMIN_EMAILS); LICENCE_DOCS comes from wrangler.json (local R2 emulation).
+# admin@e2e.test is the only administrator (ADMIN_EMAILS).
 npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --binding ADMIN_EMAILS=admin@e2e.test > "$LOG" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null; pkill -P $SERVER 2>/dev/null; rm -rf "$JARS"' EXIT
@@ -240,16 +240,6 @@ E8=$(echo "$BODY" | jq -r '.engagement.id')
 api poster POST /api/engagements/$E8 '{"action":"accept"}'
 eq "accept of a fully busy worker -> 409" "$CODE" 409
 
-echo "== licence change resets licence_verified"
-api w1 PUT /api/profile '{"licenceNumber":"MK-100"}'
-d1 --command "UPDATE profiles SET licence_verified = 1 WHERE email = 'w1@e2e.test'" > /dev/null
-api w1 GET /api/profile
-eq "manually verified in D1" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" true
-api w1 PUT /api/profile '{"licenceNumber":"MK-100"}'
-eq "same number keeps verification" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" true
-api w1 PUT /api/profile '{"licenceNumber":"MK-200"}'
-eq "different number resets verification" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" false
-
 echo "== directory: visibility rules, privacy, filters"
 d1 --command "INSERT INTO profiles (id, name, role, verification_status, region, city, bio, email, availability, consent_at) VALUES ('u-noconsent', 'Bez Souhlasu', 'unlicensed_craftsman', 'not_applicable', 'Praha', '-', '', 'noconsent@e2e.test', 'available_now', NULL);" > /dev/null
 api w1 POST /api/availability "{\"dateFrom\":\"$(dd 100)\",\"dateTo\":\"$(dd 101)\",\"note\":\"SOUKROMA-POZNAMKA\"}"
@@ -283,12 +273,10 @@ api w6 PUT /api/profile '{"group":"licensed"}'
 eq "group licensed without a licence number -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.licenceNumber != null')" "400/true"
 api w6 PUT /api/profile '{"group":"nonsense"}'
 eq "unknown group -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.group != null')" "400/true"
-api w1 PUT /api/profile '{"group":"licensed"}'
-eq "w1 (has a licence number) becomes licensed" "$CODE/$(echo "$BODY" | jq -r '.profile.group')" "200/licensed"
-eq "changing group keeps licence_verified as it was" "$(echo "$BODY" | jq -r '.profile.licenceVerified')" false
+api w1 PUT /api/profile '{"group":"licensed","licenceNumber":"MK-100"}'
+eq "w1 (with a licence number) becomes licensed" "$CODE/$(echo "$BODY" | jq -r '.profile.group')" "200/licensed"
 api w2 PUT /api/profile '{"group":"licensed","licenceNumber":"MK-300"}'
 eq "w2 licensed with a number in the same request" "$CODE" 200
-d1 --command "UPDATE profiles SET licence_verified = 1 WHERE email = 'w2@e2e.test'" > /dev/null
 api w3 PUT /api/profile '{"group":"firm"}'
 eq "w3 becomes a firm" "$CODE/$(echo "$BODY" | jq -r '.profile.group')" "200/firm"
 api w4 PUT /api/profile '{"instagram":"https://www.instagram.com/w4.dreva/","whatsapp":"+420 777 444 555","facebook":"https://facebook.com/w4"}'
@@ -300,8 +288,6 @@ eq "facebook javascript: rejected" "$CODE" 400
 api w4 PUT /api/profile '{"whatsapp":"abc"}'
 eq "invalid whatsapp -> 400" "$CODE" 400
 api w2 GET /api/directory
-eq "verified licence is listed first" "$(echo "$BODY" | jq -r '.entries[0].name')" "Worker Dva"
-eq "verified badge flag set for w2" "$(echo "$BODY" | jq -r '.entries[0].licenceVerified')" true
 eq "w4 contact carries instagram, whatsapp, facebook" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Ctyri") | [.contact.instagram, .contact.whatsapp, .contact.facebook] | join("|")')" "w4.dreva|420777444555|https://facebook.com/w4"
 api - GET "/api/directory?group=licensed"
 eq "group filter licensed (w1 + w2)" "$(echo "$BODY" | jq -r '[.entries[].name] | sort | join(",")')" "Worker Dva,Worker Jedna"
@@ -403,6 +389,24 @@ api poster2 DELETE /api/availability/$W2_BLOCK
 eq "DELETE someone's block -> 403" "$CODE" 403
 api w2 DELETE /api/availability/$W2_BLOCK
 eq "owner deletes own block" "$CODE" 200
+
+echo "== structured reward (offers, so nobody is notified)"
+OFFER_BASE="\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\""
+api poster POST /api/jobs "{\"title\":\"Odměna bez rozsahu\",$OFFER_BASE,\"rewardType\":\"fixed\",\"rewardAmount\":25000,\"rewardCurrency\":\"CZK\"}"
+eq "fixed reward without a scope -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.rewardScope != null')" "400/true"
+api poster POST /api/jobs "{\"title\":\"Odměna bez částky\",$OFFER_BASE,\"rewardType\":\"hourly\"}"
+eq "hourly reward without an amount -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.rewardAmount != null')" "400/true"
+api poster POST /api/jobs "{\"title\":\"Odměna s rozsahem\",$OFFER_BASE,\"rewardType\":\"fixed\",\"rewardAmount\":25000,\"rewardCurrency\":\"CZK\",\"rewardScope\":\"Oprava fasády do 40 m2, materiál v ceně\"}"
+eq "fixed reward with a scope -> 201 and returned reward" "$CODE/$(echo "$BODY" | jq -r '[.job.reward.type, .job.reward.amount, .job.reward.currency, .job.budgetNote] | join("|")')" "201/fixed|25000|CZK|25 000 Kč za celou práci"
+JREW=$(echo "$BODY" | jq -r '.job.id')
+api poster PATCH /api/jobs/$JREW '{"rewardType":"hourly","rewardAmount":450,"rewardCurrency":"EUR"}'
+eq "edit to hourly -> 200, scope cleared" "$CODE/$(echo "$BODY" | jq -r '[.job.reward.type, .job.reward.amount, .job.reward.currency, .job.budgetNote, (.job.reward.scope // "none")] | join("|")')" "200/hourly|450|EUR|450 €/hod|none"
+api poster PATCH /api/jobs/$JREW '{"rewardType":"fixed","rewardAmount":900,"rewardCurrency":"CZK"}'
+eq "edit to fixed without a scope -> 400" "$CODE" 400
+api poster PATCH /api/jobs/$JREW '{"rewardAmount":900}'
+eq "PATCH rewardAmount without rewardType -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.rewardType')" "400/Vyber typ odměny."
+api poster POST /api/jobs "{\"title\":\"Odměna dohodou\",$OFFER_BASE,\"rewardType\":\"negotiable\",\"rewardAmount\":999}"
+eq "negotiable ignores the amount" "$CODE/$(echo "$BODY" | jq -r '[.job.reward.type, (.job.reward.amount // "none"), .job.budgetNote] | join("|")')" "201/negotiable|none|Dohodou"
 api - POST /api/jobs '{"title":"anonymni zakazka"}'; eq "unauth POST /api/jobs -> 401" "$CODE" 401
 api - POST /api/availability '{}'; eq "unauth POST /api/availability -> 401" "$CODE" 401
 api - PUT /api/profile '{"name":"Hacker"}'; eq "unauth PUT /api/profile -> 401" "$CODE" 401
@@ -448,88 +452,8 @@ eq "interested worker got job_closed for it" "$(echo "$BODY" | jq -r "[.items[] 
 eq "job_closed after admin delete still shows the title and dates" "$(echo "$BODY" | jq -r "[.items[] | select(.jobId == \"$JDEL\" and .type == \"job_closed\") | .jobTitle] | first")" "Zakazka ke smazani"
 eq "row stays in D1 (soft delete)" "$(d1 --command "SELECT visibility || '/' || status AS v FROM jobs WHERE id = '$JDEL'" | grep -o 'deleted/archived' | head -1)" "deleted/archived"
 
-echo "== licence document verification"
-PDF="$JARS/decision.pdf"; printf '%%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%%%EOF\n' > "$PDF"
-TXT="$JARS/fake.pdf"; echo '<html><script>alert(1)</script></html>' > "$TXT"
-upload() { # user number file -> $CODE/$BODY
-  CODE=$(curl -s -o "$JARS/body" -w '%{http_code}' -b "$JARS/$1.jar" -c "$JARS/$1.jar" -X POST "$BASE/api/licence/request" -F "licenceNumber=$2" -F "file=@$3;type=application/pdf")
-  BODY=$(cat "$JARS/body")
-}
-upload w6 "MK-6" "$TXT"
-eq "HTML disguised as application/pdf is refused (magic bytes)" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.file != null')" "400/true"
-api w6 POST /api/licence/request '{}'
-eq "POST /api/licence/request without multipart -> 400" "$CODE" 400
-CODE=$(curl -s -o "$JARS/body" -w '%{http_code}' -X POST "$BASE/api/licence/request" -F "licenceNumber=X" -F "file=@$PDF;type=application/pdf")
-eq "unauth upload -> 401" "$CODE" 401
-upload w6 "MK-6" "$PDF"
-eq "w6 uploads a PDF" "$CODE/$(echo "$BODY" | jq -r '.request.status')" "201/pending"
-R1=$(echo "$BODY" | jq -r '.request.id')
-KEY1=$(d1 --command "SELECT object_key FROM licence_requests WHERE id = '$R1'" | grep -o 'licence/[A-Za-z0-9/_-]*' | head -1)
-r2_has() { npx wrangler r2 object get "restaurion-licence-docs/$1" --local --file "$JARS/r2probe" > /dev/null 2>&1; }
-r2_has "$KEY1"; check "object $KEY1 is in R2" $?
-api w6 GET /api/licence/request
-eq "own request status is pending" "$(echo "$BODY" | jq -r '.request.status')" pending
-eq "response never carries the object key" "$(echo "$BODY" | grep -c object_key)" 0
-api w6 GET /api/profile
-eq "upload leaves the profile untouched (number only on the request)" "$(echo "$BODY" | jq -r '(.profile.licenceNumber // "none") + "/" + (.profile.licenceVerified | tostring)')" "none/false"
-for p in "GET /api/admin/licence-requests" "GET /api/admin/licence-requests/$R1/document" "POST /api/admin/licence-requests/$R1"; do
-  set -- $p
-  api w1 $1 $2 '{"decision":"approve"}'; eq "non-admin $p -> 403" "$CODE" 403
-  api w6 $1 $2 '{"decision":"approve"}'; eq "the uploader is no admin either: $p -> 403" "$CODE" 403
-  api - $1 $2 '{"decision":"approve"}'; eq "unauth $p -> 401" "$CODE" 401
-done
-api admin GET /api/admin/licence-requests
-eq "admin sees the pending request with name and e-mail" "$(echo "$BODY" | jq -r "[.requests[] | select(.id == \"$R1\") | .email] | first")" "w6@e2e.test"
-CODE=$(curl -s -o "$JARS/doc" -D "$JARS/doc.h" -w '%{http_code}' -b "$JARS/admin.jar" "$BASE/api/admin/licence-requests/$R1/document")
-eq "admin streams the document" "$CODE/$(head -c 5 "$JARS/doc")" "200/%PDF-"
-grep -qi '^content-disposition: inline' "$JARS/doc.h"; check "document is served inline" $?
-grep -qi '^cache-control: no-store' "$JARS/doc.h"; check "document is no-store" $?
-grep -qi '^content-security-policy:.*sandbox' "$JARS/doc.h"; check "document response carries CSP sandbox" $?
-grep -qi '^x-content-type-options: nosniff' "$JARS/doc.h"; check "document response carries nosniff" $?
-upload w6 "MK-6" "$PDF"
-R2ID=$(echo "$BODY" | jq -r '.request.id')
-eq "a new upload replaces the pending one (new id)" "$([ "$R2ID" != "$R1" ] && echo yes)" yes
-api admin GET /api/admin/licence-requests
-eq "still one pending request for w6" "$(echo "$BODY" | jq -r '[.requests[] | select(.email == "w6@e2e.test")] | length')" 1
-r2_has "$KEY1"; [ $? -ne 0 ]; check "the replaced object is deleted from R2" $?
-eq "replaced row has object_key NULL" "$(d1 --command "SELECT COUNT(*) AS n FROM licence_requests WHERE id = '$R1' AND object_key IS NULL" | grep -o '"n": [0-9]*' | head -1)" '"n": 1'
-KEY2=$(d1 --command "SELECT object_key FROM licence_requests WHERE id = '$R2ID'" | grep -o 'licence/[A-Za-z0-9/_-]*' | head -1)
-api admin POST /api/admin/licence-requests/$R2ID '{"decision":"maybe"}'
-eq "unknown decision -> 400" "$CODE" 400
-api admin POST /api/admin/licence-requests/$R2ID '{"decision":"approve"}'
-eq "admin approves" "$CODE/$(echo "$BODY" | jq -r '.request.status + "/" + (.documentDeleted | tostring)')" "200/approved/true"
-api w6 GET /api/profile
-eq "approved -> licenceVerified true, group licensed" "$(echo "$BODY" | jq -r '(.profile.licenceVerified | tostring) + "/" + .profile.group')" "true/licensed"
-eq "approve copied the number to the profile" "$(echo "$BODY" | jq -r '.profile.licenceNumber')" "MK-6"
-eq "decided row has object_key NULL" "$(d1 --command "SELECT COUNT(*) AS n FROM licence_requests WHERE id = '$R2ID' AND object_key IS NULL" | grep -o '"n": [0-9]*' | head -1)" '"n": 1'
-r2_has "$KEY2"; [ $? -ne 0 ]; check "the object is gone from R2 after the decision" $?
-api admin GET /api/admin/licence-requests/$R2ID/document
-eq "document of a decided request -> 404" "$CODE" 404
-api admin POST /api/admin/licence-requests/$R2ID '{"decision":"reject"}'
-eq "deciding twice -> 409" "$CODE" 409
-upload w6 "MK-6B" "$PDF"
-R6B=$(echo "$BODY" | jq -r '.request.id')
-api w6 GET /api/profile
-eq "re-upload by a verified user keeps verified and the old number" "$(echo "$BODY" | jq -r '(.profile.licenceVerified | tostring) + "/" + .profile.licenceNumber')" "true/MK-6"
-api admin POST /api/admin/licence-requests/$R6B '{"decision":"reject"}'
-eq "w6 re-upload rejected" "$CODE" 200
-upload w5 "MK-5" "$PDF"
-R5=$(echo "$BODY" | jq -r '.request.id')
-api admin POST /api/admin/licence-requests/$R5 '{"decision":"reject","note":"necitelny sken"}'
-eq "admin rejects with a note" "$CODE/$(echo "$BODY" | jq -r '.request.status')" "200/rejected"
-api w5 GET /api/licence/request
-eq "the user sees status and note" "$(echo "$BODY" | jq -r '.request.status + "|" + .request.note')" "rejected|necitelny sken"
-api w5 GET /api/profile
-eq "rejected -> licenceVerified stays false" "$(echo "$BODY" | jq -r '.profile.licenceVerified | tostring')" "false"
-api admin POST /api/admin/licence-requests/$R5 '{"decision":"approve"}'
-eq "approving an already rejected request -> 409" "$CODE" 409
-api w5 GET /api/profile
-eq "failed approve did not touch the profile" "$(echo "$BODY" | jq -r '.profile.licenceVerified | tostring')" "false"
-api admin GET "/api/directory?q=Worker"
-eq "directory never exposes documents or requests" "$(echo "$BODY" | grep -ci 'object_key\|licence/')" 0
-
 echo "== removed routes"
-for p in "GET /api/settings" "GET /api/admin/verify" "POST /api/admin/verify" "POST /api/jobs/manage" "GET /api/jobs/manage" "POST /api/licenses/verify" "GET /api/photos/x"; do
+for p in "GET /api/settings" "GET /api/admin/verify" "POST /api/admin/verify" "POST /api/jobs/manage" "GET /api/jobs/manage" "POST /api/licenses/verify" "GET /api/photos/x" "GET /api/licence/request" "GET /api/admin/licence-requests"; do
   set -- $p; api - $1 $2 '{}'
   case "$CODE" in 404|405) check "no route $p ($CODE)" 0;; *) check "no route $p (got $CODE)" 1;; esac
 done

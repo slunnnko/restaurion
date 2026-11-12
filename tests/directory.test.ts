@@ -7,7 +7,9 @@ import {
   normalizeFacebook,
   normalizeInstagram,
   normalizeWhatsapp,
+  formatBudgetNote,
   validateNewJob,
+  validateReward,
 } from '../functions/api/_lib/validate.ts';
 import { mapContact, mapPublicPerson } from '../functions/api/_shared.ts';
 import type { ProfileRow } from '../functions/api/_shared.ts';
@@ -91,7 +93,6 @@ const row: ProfileRow = {
   experience_text: '10 let',
   portfolio_url: 'https://novak.cz',
   licence_number: null,
-  licence_verified: 0,
   email_digest: 1,
   accepting_jobs: 1,
   directory_group: 'licensed',
@@ -142,4 +143,71 @@ test('plural: Czech 1 / 2–4 / 5+', async () => {
   assert.equal(plural(3, 'den', 'dny', 'dní'), 'dny');
   assert.equal(plural(0, 'den', 'dny', 'dní'), 'dní');
   assert.equal(plural(5, 'den', 'dny', 'dní'), 'dní');
+});
+
+test('reward: negotiable is the default and ignores amount, currency and scope', () => {
+  const errors: Record<string, string> = {};
+  const r = validateReward({ rewardAmount: 500, rewardCurrency: 'EUR', rewardScope: 'x'.repeat(30) }, errors);
+  assert.deepEqual(errors, {});
+  assert.deepEqual(r, { type: 'negotiable', amount: null, currency: null, scope: null });
+  assert.equal(formatBudgetNote(r), 'Dohodou');
+});
+
+test('reward: fixed without a scope is an error, with a scope it passes', () => {
+  const e1: Record<string, string> = {};
+  validateReward({ rewardType: 'fixed', rewardAmount: 25000 }, e1);
+  assert.notEqual(e1.rewardScope, undefined);
+  const e2: Record<string, string> = {};
+  validateReward({ rewardType: 'fixed', rewardAmount: 25000, rewardScope: 'Oprava fasády do 40 m2, materiál v ceně' }, e2);
+  assert.deepEqual(e2, {});
+});
+
+test('reward: hourly needs a positive whole amount and a known currency; scope is optional', () => {
+  for (const amount of [undefined, 0, -5, 1.5, '450', 10_000_001]) {
+    const e: Record<string, string> = {};
+    validateReward({ rewardType: 'hourly', rewardAmount: amount }, e);
+    assert.notEqual(e.rewardAmount, undefined, `amount ${String(amount)}`);
+  }
+  const e1: Record<string, string> = {};
+  validateReward({ rewardType: 'hourly', rewardAmount: 450, rewardCurrency: 'USD' }, e1);
+  assert.notEqual(e1.rewardCurrency, undefined);
+  const e2: Record<string, string> = {};
+  const r = validateReward({ rewardType: 'hourly', rewardAmount: 450 }, e2);
+  assert.deepEqual(e2, {});
+  assert.equal(r.currency, 'CZK');
+  const e3: Record<string, string> = {};
+  validateReward({ rewardType: 'bogus' }, e3);
+  assert.notEqual(e3.rewardType, undefined);
+});
+
+test('budget_note formatter: hourly, fixed, EUR, thousands grouping', () => {
+  assert.equal(formatBudgetNote({ type: 'hourly', amount: 450, currency: 'CZK', scope: null }), '450 Kč/hod');
+  assert.equal(formatBudgetNote({ type: 'fixed', amount: 25000, currency: 'CZK', scope: 'x' }), '25\u00a0000 Kč za celou práci');
+  assert.equal(formatBudgetNote({ type: 'fixed', amount: 1234567, currency: 'EUR', scope: 'x' }), '1\u00a0234\u00a0567 € za celou práci');
+});
+
+test('new job: a fixed reward without a scope is a field error; budgetNote is derived', () => {
+  const base = {
+    title: 'Oprava fasády',
+    jobType: 'subcontract_needed',
+    monumentStatus: 'cultural_monument',
+    crafts: ['kámen'],
+    region: 'Praha',
+    city: 'Praha',
+    dateFrom: '2099-01-01',
+    dateTo: '2099-01-10',
+  };
+  assert.notEqual(validateNewJob({ ...base, rewardType: 'fixed', rewardAmount: 1000 }).errors.rewardScope, undefined);
+  const ok = validateNewJob({ ...base, rewardType: 'hourly', rewardAmount: 450 });
+  assert.deepEqual(ok.errors, {});
+  assert.equal(ok.values.budgetNote, '450 Kč/hod');
+});
+
+test('rewardDisplay shares the server formatter and keeps the hourly scope', async () => {
+  const { rewardDisplay } = await import('../src/lib/format.ts');
+  const r = rewardDisplay({ budgetNote: 'x', reward: { type: 'hourly', amount: 1234567, currency: 'EUR', scope: 'Jen fasáda' } });
+  assert.equal(r.headline, '1\u00a0234\u00a0567 €/hod');
+  assert.equal(r.scope, 'Jen fasáda');
+  assert.equal(r.headline, formatBudgetNote({ type: 'hourly', amount: 1234567, currency: 'EUR', scope: null }));
+  assert.deepEqual(rewardDisplay({ budgetNote: 'Dle domluvy 500', reward: undefined }), { headline: 'Dle domluvy 500' });
 });

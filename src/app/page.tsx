@@ -13,17 +13,16 @@ import { RespondModal } from '@/components/RespondModal';
 import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { InterestedWorkersModal } from '@/components/InterestedWorkersModal';
-import { LicenceModal } from '@/components/LicenceModal';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
-import { ErrorBox, primaryBtn } from '@/components/ui';
+import { ErrorBox } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { CRAFT_CATEGORIES, jobMatchesCraft, normalizeText } from '@/lib/crafts';
-import { Briefcase, CheckCircle2, Plus, Scale, ChevronDown, UserCheck, BookUser } from 'lucide-react';
+import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
 const initialFilters: FilterState = {
   searchQuery: '',
@@ -69,7 +68,6 @@ export default function Home() {
   const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
   const [interestedJob, setInterestedJob] = useState<PublicJob | null>(null);
   const [editingJob, setEditingJob] = useState<PublicJob | null>(null);
-  const [isLicenceOpen, setIsLicenceOpen] = useState(false);
 
   // Akce, která čeká na přihlášení.
   const pendingAction = useRef<(() => void) | null>(null);
@@ -380,10 +378,8 @@ export default function Home() {
         unreadCount={unread}
         isDark={isDark}
         onToggleDark={handleToggleDark}
-        onOpenCreateJob={openCreate}
         onOpenNotifications={openNotifications}
         onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
-        onOpenLicence={() => requireLogin(() => setIsLicenceOpen(true))}
         onLogin={() => setIsLoginOpen(true)}
       />
 
@@ -475,20 +471,14 @@ export default function Home() {
                 })}
               </div>
 
-              <div className="hidden md:flex flex-wrap items-center gap-2.5">
+              <div className="hidden sm:flex items-center">
                 <button
                   onClick={openCreate}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] text-sm font-extrabold border-2 border-[#111111] shadow-[4px_4px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
+                  aria-label="Přidat inzerát"
+                  title="Přidat inzerát"
+                  className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] border-2 border-[#111111] shadow-[4px_4px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>+ Přidat</span>
-                </button>
-                <button
-                  onClick={() => setIsVopOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-[#1C1E26] hover:bg-stone-100 dark:hover:bg-[#262933] border-2 border-[#111111] dark:border-stone-500 shadow-[2px_2px_0px_#111111] text-xs text-[#111111] dark:text-stone-200 font-extrabold transition-all cursor-pointer"
-                >
-                  <Scale className="w-3.5 h-3.5 text-[#111111] dark:text-[#FEF08A]" />
-                  <span>Právní rámec & VOP</span>
+                  <Plus className="w-5 h-5 stroke-[3]" />
                 </button>
               </div>
             </div>
@@ -609,9 +599,6 @@ export default function Home() {
                       Resetovat filtry
                     </button>
                   )}
-                  <button onClick={openCreate} className={primaryBtn}>
-                    + Přidat
-                  </button>
                 </div>
               </div>
             )}
@@ -667,10 +654,6 @@ export default function Home() {
           onSaved={() => void loadJobs()}
           onNeedProfile={openProfileWithHint}
         />
-      )}
-
-      {isLicenceOpen && user && (
-        <LicenceModal user={user} onClose={() => setIsLicenceOpen(false)} onUserChange={setUser} />
       )}
 
       {respondingJob && (

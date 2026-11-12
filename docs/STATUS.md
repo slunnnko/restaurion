@@ -15,7 +15,7 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
 | Pages secrets | `TEST_LOGIN_ECHO=1` is set. `RESEND_API_KEY` and `RESEND_FROM` are not set. `[measured 2026-11-11]` |
 | Tests | `npm test` 45/45, `scripts/e2e-local.sh` all PASS, tsc and build clean after the owner-management commit. `[measured 2026-11-11]` |
-| Not deployed yet | Owner management (edit, "Moje inzeráty", `GET /api/jobs?mine=1`), header port from `main` (Administrace, Ověřit licenci MK ČR, profile button), `LicenceModal` (manual verification, D18–D20). Also not deployed: admin soft delete, `ADMIN_EMAILS`, licence documents in R2 with migration `0008` (D21–D24), block editing in the profile; the header no longer has Administrace. Needs: R2 bucket `restaurion-licence-docs` (production and preview share the same D1, so they share the bucket), `0008` (not yet applied anywhere; its `object_key` is nullable and status has `replaced`), `ADMIN_EMAILS` secret (see README). Production still runs `1810c32`. `[measured 2026-11-11]` |
+| Not deployed yet | Owner management (edit, "Moje inzeráty", `GET /api/jobs?mine=1`), admin soft delete, `ADMIN_EMAILS` (D21, D22), block editing in the profile, structured reward with migration `0009` (D26), one add button and the date overlay (D27); licence verification was dropped (D25, `0008` withdrawn, no R2 bucket needed). Needs: `0009` (see step 0 below), `ADMIN_EMAILS` secret (see README). Production still runs `1810c32`. `[measured 2026-11-11]` |
 | Directory content | 0 of 8 existing profiles are visible (pre-0007 profiles start hidden by design, D14). `[measured 2026-11-11: D1 query]` |
 
 D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-pre-mvp-2026-11-11-063902.sql` (before 0006), `~/Personal/workspace/restaurion/backups/backup-pre-0007-2026-11-11-093913.sql` (before 0007).
@@ -33,11 +33,12 @@ D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-
 
 | # | Step | Who | Expected result | Stop if |
 | :--- | :--- | :--- | :--- | :--- |
+| 0 | Before deploying: back up D1 (`npx wrangler d1 export restaurion-db --remote --output ~/Personal/workspace/restaurion/backups/backup-pre-0009-$(date +%F-%H%M%S).sql`), then run `npx wrangler d1 execute restaurion-db --remote --file=./migrations/0009_reward.sql` ONCE. If `0008` was applied earlier, `licence_requests` and the bucket `restaurion-licence-docs` can be dropped. | owner | four new nullable `reward_*` columns on `jobs`; row counts unchanged | any error – do not deploy |
 | 1 | Try the app on https://restaurion.pages.dev: log in with the shown test code, fill the profile, turn on "Zobrazit mě v Adresáři", post a job and an offer. | owner | own profile appears in Adresář; job and offer appear in their tabs | any 5xx – read `wrangler pages deployment tail` |
 | 2 | Merge PR [#1](https://github.com/slunnnko/restaurion/pull/1) in GitHub. | owner | `main` = `mvp-core`; the Actions run builds only, it does not deploy (ARCHITECTURE §10) | build fails on `main` |
 | 3 | Set up Resend (owner decided 2026-11-11: send from a `sunhaze.dev` subdomain, proposed `echo.sunhaze.dev`; Cloudflare Email Sending needs Workers Paid, Resend free tier does not): owner creates a Resend account and API key, the domain is added in Resend, its DNS records go into the `sunhaze.dev` zone, then `wrangler pages secret put RESEND_API_KEY` / `RESEND_FROM` and the same two with `wrangler secret put … -c workers/digest/wrangler.json`. Then delete `TEST_LOGIN_ECHO` (`wrangler pages secret delete TEST_LOGIN_ECHO --project-name restaurion`) and redeploy. | owner (needs a domain) | request-code sends an email; response has no `testCode` | email does not arrive – keep `TEST_LOGIN_ECHO` until it does |
 | 4 | Test on an iPhone (Safari): login, selects, modals, dark mode. | owner | no layout breaks | – |
-| 5 | Phase 2 candidates: directory pagination, transactional accept, admin view for `licence_verified`. | next session | a plan in `docs/`, agreed with the owner before code | – |
+| 5 | Phase 2 candidates: directory pagination, transactional accept, an admin view for reported listings. | next session | a plan in `docs/`, agreed with the owner before code | – |
 
 ## 4. How to resume in a new session
 

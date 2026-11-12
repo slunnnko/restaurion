@@ -86,7 +86,16 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
 
           <div>
             <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
-              3. Osobní údaje
+              3. Údaje uvádějí uživatelé sami
+            </h3>
+            <p>
+              Údaje v profilech a inzerátech, včetně čísla povolení MK ČR, uvádějí uživatelé sami. Restaurion je neověřuje a za jejich pravdivost neodpovídá. Ověření si každý udělá sám, například vyžádáním rozhodnutí MK ČR od protistrany.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
+              4. Osobní údaje
             </h3>
             <p>
               Tvé kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí každý přihlášený uživatel, nikdy anonymní návštěvník. Profil s tvým jménem, obory a zkušenostmi je zveřejněný v Adresáři, dokud to v profilu nevypneš. Termíny nedostupnosti a obsazené dny nevidí nikdo jiný. Smazání účtu zajistíme na vyžádání e-mailem.
@@ -95,7 +104,7 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
 
           <div>
             <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
-              4. Závěrečná ustanovení
+              5. Závěrečná ustanovení
             </h3>
             <p className="text-stone-600 dark:text-stone-400 text-xs">
               Tyto VOP se řídí právem České republiky. Využíváním platformy potvrzujete, že těmto srozumitelným pravidlům rozumíte a bez výhrad s nimi souhlasíte.

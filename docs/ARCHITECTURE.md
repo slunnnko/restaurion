@@ -93,7 +93,7 @@ stateDiagram-v2
 - Accept on an offer returns 409. Decline on an offer is allowed.
 - Closing a job (`PATCH /api/jobs/:id` with `status: 'closed'`, stored as `archived`) is one atomic batch. It sends `job_closed` to everyone with a pending or accepted engagement. A closed job no longer counts as busy.
 
-**Directory** (`GET /api/directory`): lists profiles with `directory_visible = 1`, `consent_at` set and a name of 3+ characters. Max 200 entries. Verified licence first, then by name. The `region` filter also matches `Celá ČR`.
+**Directory** (`GET /api/directory`): lists profiles with `directory_visible = 1`, `consent_at` set and a name of 3+ characters. Max 200 entries. Ordered by name. The `region` filter also matches `Celá ČR`.
 
 ## 5. Privacy invariants
 
@@ -113,7 +113,7 @@ Legacy tables from `0001`–`0005` (`profiles`, `jobs`, `auth_sessions`, `job_re
 
 | Table | Purpose | Key columns |
 | :--- | :--- | :--- |
-| `profiles` | user | `crafts` (JSON ids), `experience_text`, `portfolio_url`, `licence_number`, `licence_verified` (set by hand in D1), `email_digest`, `accepting_jobs`, `consent_at`, `directory_group`, `directory_visible`, `instagram`, `whatsapp`, `facebook` |
+| `profiles` | user | `crafts` (JSON ids), `experience_text`, `portfolio_url`, `licence_number`, `licence_verified` (unused since D25, column kept), `email_digest`, `accepting_jobs`, `consent_at`, `directory_group`, `directory_visible`, `instagram`, `whatsapp`, `facebook` |
 | `jobs` | job or offer | `job_type`, `date_from`, `date_to`, `visibility`, `expires_at`, `status` (`active` / `archived`) |
 | `unavailability_blocks` | private busy ranges | `profile_id`, `date_from`, `date_to` |
 | `engagements` | interest and acceptance | `job_id`, `worker_id`, `status`, `UNIQUE(job_id, worker_id)` |
@@ -165,4 +165,4 @@ Use `--registry https://registry.npmjs.org/` for every `npm`/`npx` install on th
 - Two posters who accept the same worker at the same moment can double-book them. The busy check and the update are not one transaction.
 - The directory returns at most 200 entries and has no pagination.
 - Any logged-in user can read all contacts (owner decision).
-- No photo upload, no admin UI, no reviews. Licence verification is set by hand in D1.
+- No photo upload, no admin UI, no reviews. Licences are self-declared and not verified (D25). Rewards are structured (`reward_type`, `reward_amount`, `reward_currency`, `reward_scope`, migration 0009; `budget_note` is derived).

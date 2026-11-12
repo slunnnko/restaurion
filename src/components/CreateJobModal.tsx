@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MvpJobType, MvpMonumentStatus, PublicJob } from '@/types/api';
+import { MvpJobType, MvpMonumentStatus, PublicJob, RewardCurrency, RewardType } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES, toCraftIds } from '@/lib/crafts';
 import { REGIONS } from '@/lib/regions';
@@ -13,7 +13,8 @@ import {
   SelectBox,
   Pill,
   inputCls,
-  dateInputCls,
+  DateInput,
+  textareaCls,
   labelCls,
   primaryBtn,
   secondaryBtn,
@@ -41,6 +42,12 @@ const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
   { id: 'craftsman_available', label: 'Nabízím se', hint: 'Mám volno a nabízím své služby' },
 ];
 
+const REWARD_TYPES: { id: RewardType; label: string }[] = [
+  { id: 'negotiable', label: 'Dohodou' },
+  { id: 'hourly', label: 'Hodinová sazba' },
+  { id: 'fixed', label: 'Za celou práci' },
+];
+
 const TYPE_STYLE: Record<MvpJobType, { icon: React.ComponentType<{ className?: string }>; tile: string }> = {
   subcontract_needed: { icon: HammerLogo, tile: 'bg-emerald-600' },
   guarantor_needed: { icon: ShieldCheck, tile: 'bg-[#FF5733]' },
@@ -66,12 +73,33 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [dateTo, setDateTo] = useState(editJob?.dateTo ?? '');
   const [monumentStatus, setMonumentStatus] = useState<MvpMonumentStatus>(editJob?.monumentStatus ?? 'cultural_monument');
   const [monumentName, setMonumentName] = useState(editJob?.monumentName ?? '');
-  const [budgetNote, setBudgetNote] = useState(editJob && editJob.budgetNote !== 'Dle dohody' ? editJob.budgetNote : '');
+  // Legacy row: free-text budgetNote, no structured reward. Nothing is selected until the user picks a type.
+  const legacyNote =
+    editJob && !editJob.reward && editJob.budgetNote.trim() !== '' && !['Dle dohody', 'Dohodou'].includes(editJob.budgetNote.trim())
+      ? editJob.budgetNote
+      : null;
+  const [rewardType, setRewardType] = useState<RewardType | null>(legacyNote ? null : (editJob?.reward?.type ?? 'negotiable'));
+  const [rewardAmount, setRewardAmount] = useState(editJob?.reward?.amount !== undefined ? String(editJob.reward.amount) : '');
+  const [rewardCurrency, setRewardCurrency] = useState<RewardCurrency>(editJob?.reward?.currency ?? 'CZK');
+  const [rewardScope, setRewardScope] = useState(editJob?.reward?.scope ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notified, setNotified] = useState<number | null>(null);
   const isOffer = jobType === 'craftsman_available';
+
+  /** Reward part of the request body; negotiable sends the type only. */
+  const rewardBody = (): Record<string, unknown> =>
+    rewardType === null
+      ? {}
+      : rewardType === 'negotiable'
+      ? { rewardType }
+      : {
+          rewardType,
+          rewardAmount: rewardAmount.trim() === '' ? undefined : Number(rewardAmount),
+          rewardCurrency,
+          rewardScope: rewardScope.trim(),
+        };
 
   const toggleCraft = (id: string) =>
     setCrafts((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
@@ -92,8 +120,16 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         if (city.trim() !== editJob.city) body.city = city.trim();
         if (dateFrom && dateFrom !== editJob.dateFrom) body.dateFrom = dateFrom;
         if (dateTo && dateTo !== editJob.dateTo) body.dateTo = dateTo;
-        const origBudget = editJob.budgetNote === 'Dle dohody' ? '' : editJob.budgetNote;
-        if (budgetNote.trim() !== origBudget) body.budgetNote = budgetNote.trim();
+        const orig = editJob.reward;
+        const rewardChanged =
+          rewardType !== null &&
+          (legacyNote !== null ||
+          rewardType !== (orig?.type ?? 'negotiable') ||
+          (rewardType !== 'negotiable' &&
+            (Number(rewardAmount) !== orig?.amount ||
+              rewardCurrency !== (orig?.currency ?? 'CZK') ||
+              rewardScope.trim() !== (orig?.scope ?? ''))));
+        if (rewardChanged) Object.assign(body, rewardBody());
         if (Object.keys(body).length > 0) {
           await api<{ job: PublicJob }>(`/api/jobs/${encodeURIComponent(editJob.id)}`, { method: 'PATCH', body });
           onSaved?.();
@@ -113,7 +149,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
           city: city.trim(),
           dateFrom,
           dateTo,
-          budgetNote: budgetNote.trim() || undefined,
+          ...rewardBody(),
         },
       });
       setNotified(data.notified);
@@ -265,9 +301,8 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <label htmlFor="job-from" className={labelCls}>
               {isOffer ? 'Volno od *' : 'Termín od *'}
             </label>
-            <input
+            <DateInput
               id="job-from"
-              type="date"
               required
               min={editJob && editJob.dateFrom < today ? editJob.dateFrom : today}
               value={dateFrom}
@@ -275,7 +310,6 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 setDateFrom(e.target.value);
                 if (dateTo && e.target.value > dateTo) setDateTo(e.target.value);
               }}
-              className={dateInputCls}
             />
             <FieldError message={fieldErrors.dateFrom} />
           </div>
@@ -283,14 +317,12 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <label htmlFor="job-to" className={labelCls}>
               {isOffer ? 'Volno do *' : 'Termín do *'}
             </label>
-            <input
+            <DateInput
               id="job-to"
-              type="date"
               required
               min={dateFrom || today}
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className={dateInputCls}
             />
             <FieldError message={fieldErrors.dateTo} />
           </div>
@@ -336,19 +368,73 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         )}
 
         <div>
-          <label htmlFor="job-budget" className={labelCls}>
-            {isOffer ? 'Sazba (nepovinné)' : 'Odměna (nepovinné)'}
-          </label>
-          <input
-            id="job-budget"
-            type="text"
-            maxLength={120}
-            placeholder="Dle dohody"
-            value={budgetNote}
-            onChange={(e) => setBudgetNote(e.target.value)}
-            className={inputCls}
-          />
-          <FieldError message={fieldErrors.budgetNote} />
+          <span className={labelCls}>{isOffer ? 'Moje sazba' : 'Odměna'}</span>
+          {legacyNote && rewardType === null && (
+            <p className="mb-2 text-xs font-semibold text-stone-600 dark:text-stone-300 break-words">Původní odměna: {legacyNote}</p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {REWARD_TYPES.map((t) => (
+              <Pill key={t.id} checked={rewardType === t.id} onChange={() => setRewardType(t.id)}>
+                {t.label}
+              </Pill>
+            ))}
+          </div>
+          <FieldError message={fieldErrors.rewardType} />
+          {rewardType !== null && rewardType !== 'negotiable' && (
+            <div className="mt-3 space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label htmlFor="job-reward-amount" className={labelCls}>
+                    {rewardType === 'hourly' ? 'Částka za hodinu *' : 'Částka za celou práci *'}
+                  </label>
+                  <input
+                    id="job-reward-amount"
+                    type="number"
+                    inputMode="numeric"
+                    required
+                    min={1}
+                    max={10000000}
+                    step={1}
+                    value={rewardAmount}
+                    onChange={(e) => setRewardAmount(e.target.value)}
+                    className={inputCls}
+                  />
+                  <FieldError message={fieldErrors.rewardAmount} />
+                </div>
+                <div>
+                  <label htmlFor="job-reward-currency" className={labelCls}>
+                    Měna
+                  </label>
+                  <SelectBox
+                    id="job-reward-currency"
+                    value={rewardCurrency}
+                    onChange={(e) => setRewardCurrency(e.target.value as RewardCurrency)}
+                  >
+                    <option value="CZK">Kč (CZK)</option>
+                    <option value="EUR">€ (EUR)</option>
+                  </SelectBox>
+                  <FieldError message={fieldErrors.rewardCurrency} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="job-reward-scope" className={labelCls}>
+                  {rewardType === 'fixed' ? 'Co se za odměnu očekává *' : 'Co se za odměnu očekává (nepovinné)'}
+                </label>
+                <textarea
+                  id="job-reward-scope"
+                  rows={3}
+                  required={rewardType === 'fixed'}
+                  minLength={rewardType === 'fixed' ? 20 : undefined}
+                  maxLength={1000}
+                  placeholder="rozsah, množství, výstup, materiál ano/ne"
+                  value={rewardScope}
+                  onChange={(e) => setRewardScope(e.target.value)}
+                  className={textareaCls}
+                />
+                <FieldError message={fieldErrors.rewardScope} />
+              </div>
+            </div>
+          )}
         </div>
 
         {error && <ErrorBox message={error} />}

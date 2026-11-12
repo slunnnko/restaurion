@@ -77,10 +77,6 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   if ('licenceNumber' in body) {
     const lic = str(body.licenceNumber);
     if (lic.length > 40) errors.licenceNumber = 'Nejvýše 40 znaků.';
-    // A changed number is unverified again until an admin re-checks it in D1. One UPDATE:
-    // every right-hand side sees the old row, so the CASE compares against the stored number.
-    sets.push(`licence_verified = CASE WHEN COALESCE(licence_number, '') <> ? THEN 0 ELSE licence_verified END`);
-    binds.push(lic);
     set('licence_number', lic || null);
   }
   if ('instagram' in body) {
@@ -110,7 +106,6 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     const licence = 'licenceNumber' in body ? str(body.licenceNumber) : stored?.licence_number;
     const problem = groupLicenceError(group, licence);
     if (problem && !errors.group && !errors.licenceNumber) errors.licenceNumber = problem;
-    // Changing the group never touches licence_verified.
     if (isDirectoryGroup(body.group)) set('directory_group', body.group);
   }
   for (const [key, col] of [

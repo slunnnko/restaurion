@@ -11,11 +11,21 @@ import {
   requireUser,
 } from '../_shared.ts';
 import type { JobRow, PagesContext } from '../_shared.ts';
-import { cityError, craftsError, regionError, str, validCraftIds, validateDateRange, validationResponse } from '../_lib/validate.ts';
+import {
+  cityError,
+  craftsError,
+  formatBudgetNote,
+  regionError,
+  str,
+  validCraftIds,
+  validateDateRange,
+  validateReward,
+  validationResponse,
+} from '../_lib/validate.ts';
 import type { FieldErrors } from '../_lib/validate.ts';
 
 /**
- * PATCH /api/jobs/:id (jen zadavatel): title, description, budgetNote, dateFrom, dateTo, crafts, region, city,
+ * PATCH /api/jobs/:id (jen zadavatel): title, description, rewardType/rewardAmount/rewardCurrency/rewardScope, dateFrom, dateTo, crafts, region, city,
  * status:'closed'. Typ (jobType) je neměnný; ukončený inzerát je jen ke čtení (409).
  * Úprava NEPOSÍLÁ nové párovací upozornění (job_match jen při vytvoření).
  */
@@ -63,10 +73,18 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
     sets.push('description = ?');
     binds.push(description);
   }
-  if ('budgetNote' in body) {
+  if (!('rewardType' in body) && ('rewardAmount' in body || 'rewardCurrency' in body || 'rewardScope' in body)) {
+    errors.rewardType = 'Vyber typ odměny.';
+  } else if ('rewardType' in body) {
+    // The four reward fields are always sent together; budget_note is derived from them.
+    const reward = validateReward(body, errors);
+    sets.push('budget_note = ?', 'reward_type = ?', 'reward_amount = ?', 'reward_currency = ?', 'reward_scope = ?');
+    binds.push(formatBudgetNote(reward), reward.type, reward.amount, reward.currency, reward.scope);
+  } else if ('budgetNote' in body) {
+    // Legacy clients: free text, reward columns reset so the text keeps showing.
     const budgetNote = str(body.budgetNote) || 'Dle dohody';
     if (budgetNote.length > 120) errors.budgetNote = 'Odměna může mít nejvýše 120 znaků.';
-    sets.push('budget_note = ?');
+    sets.push('budget_note = ?', 'reward_type = NULL', 'reward_amount = NULL', 'reward_currency = NULL', 'reward_scope = NULL');
     binds.push(budgetNote);
   }
   if ('crafts' in body) {

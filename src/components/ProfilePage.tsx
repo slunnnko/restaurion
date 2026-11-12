@@ -15,6 +15,7 @@ import {
   cardCls,
   inputCls,
   dateInputCls,
+  DateInput,
   textareaCls,
   labelCls,
   primaryBtn,
@@ -22,8 +23,7 @@ import {
   dangerBtn,
 } from './ui';
 import { MyListings } from './MyListings';
-import { LicenceAdmin } from './LicenceAdmin';
-import { ArrowLeft, Pencil, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
@@ -274,13 +274,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
         <MyListings onChanged={() => onListingsChanged?.()} />
       </section>
 
-      {user.isAdmin && (
-        <section className={`${cardCls} p-5 sm:p-6`}>
-          <h2 className={sectionTitle}>Ověření licencí</h2>
-          <LicenceAdmin />
-        </section>
-      )}
-
       <form onSubmit={save} className={`${cardCls} p-5 sm:p-6 space-y-4`}>
         <h2 className={sectionTitle}>Můj profil</h2>
 
@@ -389,7 +382,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
           </div>
           <div>
             <label htmlFor="pf-licence" className={labelCls}>
-              Číslo povolení MK ČR (samodeklarované)
+              Číslo povolení MK ČR (uvádíš sám, neověřujeme)
             </label>
             <input
               id="pf-licence"
@@ -398,12 +391,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
               onChange={(e) => setLicenceNumber(e.target.value)}
               className={inputCls}
             />
-            {user.licenceVerified && (
-              <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 text-[10px] font-extrabold">
-                <ShieldCheck className="w-3 h-3" />
-                Licence ověřena
-              </span>
-            )}
             <FieldError message={fieldErrors.licenceNumber} />
           </div>
         </div>
@@ -485,11 +472,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
                   rowRefs.current[b.id] = el;
                 }}
                 className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 transition-colors ${
-                  highlightId === b.id ? 'bg-[#FEF08A] dark:bg-[#FEF08A]/30' : 'bg-[#FFFDF7] dark:bg-[#121318]'
+                  highlightId === b.id ? 'bg-[#FEF08A] dark:bg-[#FEF08A]/30' : 'bg-red-100 dark:bg-red-950/40'
                 }`}
               >
                 <div className="min-w-0 text-xs font-bold text-[#111111] dark:text-stone-100">
-                  <div>{formatRange(b.dateFrom, b.dateTo)}</div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span>{formatRange(b.dateFrom, b.dateTo)}</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-600 text-white border border-[#111111] text-[10px] font-extrabold uppercase tracking-wide">
+                      <Ban className="w-3 h-3" />
+                      Blokováno
+                    </span>
+                  </div>
                   {b.note && <div className="font-medium text-stone-600 dark:text-stone-400 break-words">{b.note}</div>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -517,9 +510,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
             <label htmlFor="blk-from" className={labelCls}>
               Od
             </label>
-            <input
+            <DateInput
               id="blk-from"
-              type="date"
               required
               min={editingBlockId ? undefined : today}
               value={blockFrom}
@@ -535,9 +527,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
             <label htmlFor="blk-to" className={labelCls}>
               Do
             </label>
-            <input
+            <DateInput
               id="blk-to"
-              type="date"
               required
               min={blockFrom || today}
               value={blockTo}

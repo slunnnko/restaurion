@@ -28,7 +28,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
    - `guarantor_needed` (**Hledám zaštítění licencí MK ČR**): ikona štítu (`ShieldCheck`), korálová (`bg-[#FF5733]`).
    - `craftsman_available` (**Nabízím se**): ikona človíčka (`UserCheck`), elektrická modř (`bg-[#2563EB]`), tlačítko **„Poptat spolupráci“**; termín se zobrazuje jako „Volno“.
    - **Památkový odznak:** jen štítek **„Kulturní památka“** (nebo *Národní kulturní památka*) s ikonou `Church`; nikdy štítek *„Běžný objekt / bez licence“*.
-3. **Texty a rozložení:** Hero nadpis **„Najdi práci nebo parťáka“**, tlačítko **„+ Přidat“**, na kartě tlačítko **„Mám zájem“**. Odměna (`job.budgetNote`) se na kartě nikdy nezkracuje (`break-words`, žádné `truncate`). Texty jsou napevno v kódu (žádné CMS).
+3. **Texty a rozložení:** Hero nadpis **„Najdi práci nebo parťáka“**, jediné tlačítko přidání je v Hero (čtvercové „+“, `aria-label="Přidat inzerát"`, od `sm`) a na mobilu ve spodní liště; v hlavičce ani v prázdném stavu není. Na kartě tlačítko **„Mám zájem“**. Odměna (strukturovaná `job.reward`, u starých řádků `job.budgetNote`) se na kartě nikdy nezkracuje, včetně textu „Co se za odměnu očekává“ (`break-words`, žádné `truncate`). Texty jsou napevno v kódu (žádné CMS).
 4. **Safari `<select>`:** každý `<select>` má `appearance-none`, výšku `h-11`, `pl-10 pr-9` (s ikonou vlevo) a vlastní `<ChevronDown className="... pointer-events-none" />` vpravo.
 5. **Fonty v `src/app/layout.tsx`:** `Plus Jakarta Sans` (text) a `Space Grotesk` (nadpisy, `font-serif`) přes `<link>` v `<head>`, ne přes `next/font/google` (build musí projít i bez internetu).
 
@@ -41,7 +41,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
 - Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
-- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`). Dokumenty k ověření licence (R2 `LICENCE_DOCS`) a žádosti o ověření nejsou v žádné veřejné odpovědi; vidí je jen žadatel (stav) a správce (dokument)..
+- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Licence se neověřují (D25): číslo povolení uvádí uživatel sám.
 
 ## 3. Struktura projektu
 

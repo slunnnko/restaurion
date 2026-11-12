@@ -39,18 +39,16 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `POST /api/auth/verify-code` | kdokoli | ověří kód (max. 5 pokusů, 30/h na IP), vyžaduje `consent: true`, nastaví cookie |
 | `POST /api/auth/logout` | relace | smaže relaci |
 | `GET /api/jobs` | kdokoli | veřejná nástěnka (zakázky i nabídky `craftsman_available`); s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` (kontakty zadavatele pro každého přihlášeného) |
-| `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, ověřená licence první, potom jméno); `contact` jen s relací |
+| `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, podle jména); `contact` jen s relací |
 | `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky; nabídka `craftsman_available` nikoho neupozorní |
 | `GET /api/jobs?mine=1` | relace | vlastní inzeráty (aktivní i ukončené, všechny typy, max 100); 401 bez relace |
 | `PATCH /api/jobs/:id` | zadavatel | úprava (název, popis, odměna, termíny, obory, kraj, obec; typ je neměnný, ukončený inzerát 409, žádná nová párovací upozornění), `status: 'closed'` uvolní termíny a pošle `job_closed` |
 | `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
 | `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |
-| `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`); změna čísla licence nuluje `licence_verified`, změna skupiny ne; skupina `licensed` vyžaduje číslo povolení |
+| `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`); skupina `licensed` vyžaduje číslo povolení |
 | `DELETE /api/jobs/:id` | správce (`ADMIN_EMAILS`) | měkké smazání jakéhokoli inzerátu (`visibility = 'deleted'`, `status = 'archived'`, řádek zůstává v D1), zájemci dostanou `job_closed`; opakované volání 200; ostatním 403 |
 | `POST /api/availability`, `PUT`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (upravit a mazat smí jen vlastník; cizí id u PUT 404) |
-| `GET`, `POST /api/licence/request` | relace | vlastní stav žádosti; nahrání skenu rozhodnutí MK ČR (multipart `licenceNumber` + `file`, PDF/JPEG/PNG/HEIC do 10 MB podle prvních bajtů) do R2 `LICENCE_DOCS`; jedna čekající žádost na uživatele |
-| `GET /api/admin/licence-requests`, `GET …/:id/document`, `POST …/:id` | správce | čekající žádosti, dokument (inline, `no-store`), rozhodnutí `approve` / `reject` (smaže dokument z R2; `approve` nastaví `licence_verified = 1` a skupinu `licensed`) |
 | `GET /api/notifications`, `POST /api/notifications/read` | relace | upozornění a označení za přečtená |
 
 Kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) se vrací jen přihlášeným, vždy přes jednu funkci `mapContact` v `functions/api/_shared.ts`; odpověď bez relace je nikdy neobsahuje. Bloky nedostupnosti a obsazené dny nikdy neopouštějí vlastníka a v Adresáři nejsou.

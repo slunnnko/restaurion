@@ -1,6 +1,7 @@
 // Validace vstupů zakázek, profilu a dostupnosti. Chyby jdou po polích (fieldErrors).
 
 import { CRAFT_CATEGORIES } from '../../../src/lib/crafts.ts';
+import { formatRewardText } from '../../../src/lib/format.ts';
 import { daysInRange } from '../../../src/lib/matching.ts';
 import { isIsoDate, jsonResponse, todayUtc } from '../_shared.ts';
 
@@ -131,6 +132,54 @@ export function validateBlock(body: Record<string, unknown>): { errors: FieldErr
   return { errors, note };
 }
 
+export const REWARD_TYPES = ['negotiable', 'hourly', 'fixed'] as const;
+export const REWARD_CURRENCIES = ['CZK', 'EUR'] as const;
+export const MAX_REWARD_AMOUNT = 10_000_000;
+export type RewardType = (typeof REWARD_TYPES)[number];
+export type RewardCurrency = (typeof REWARD_CURRENCIES)[number];
+
+export interface RewardFields {
+  type: RewardType;
+  amount: number | null;
+  currency: RewardCurrency | null;
+  scope: string | null;
+}
+
+/** Human string stored in jobs.budget_note (digest, e-mails, old clients): "450 Kč/hod", "25 000 Kč za celou práci", "Dohodou". */
+export function formatBudgetNote(r: RewardFields): string {
+  return formatRewardText(r.type, r.amount, r.currency);
+}
+
+/**
+ * Structured reward of a job or offer (create and edit). Negotiable ignores amount, currency and scope.
+ * Hourly and fixed need a positive whole amount (max 10 000 000); fixed also needs a 20–1000 char scope.
+ */
+export function validateReward(body: Record<string, unknown>, errors: FieldErrors): RewardFields {
+  const rawType = body.rewardType === undefined || body.rewardType === null || body.rewardType === '' ? 'negotiable' : body.rewardType;
+  if (!REWARD_TYPES.includes(rawType as RewardType)) {
+    errors.rewardType = 'Vyberte typ odměny.';
+    return { type: 'negotiable', amount: null, currency: null, scope: null };
+  }
+  const type = rawType as RewardType;
+  if (type === 'negotiable') return { type, amount: null, currency: null, scope: null };
+
+  const amount = body.rewardAmount;
+  if (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 1 || amount > MAX_REWARD_AMOUNT) {
+    errors.rewardAmount = 'Zadejte celé kladné číslo (nejvýše 10 000 000).';
+  }
+  const rawCurrency = body.rewardCurrency === undefined || body.rewardCurrency === null || body.rewardCurrency === '' ? 'CZK' : body.rewardCurrency;
+  if (!REWARD_CURRENCIES.includes(rawCurrency as RewardCurrency)) errors.rewardCurrency = 'Vyberte měnu.';
+  const scope = str(body.rewardScope);
+  if (type === 'fixed' && scope.length < 20) errors.rewardScope = 'Popiš, co se za odměnu očekává (alespoň 20 znaků).';
+  else if (scope.length > 1000) errors.rewardScope = 'Popis může mít nejvýše 1000 znaků.';
+  return {
+    type,
+    amount: typeof amount === 'number' ? amount : null,
+    currency: rawCurrency as RewardCurrency,
+    scope: scope || null,
+  };
+}
+
 export interface JobFields {
   title: string;
   description: string;
@@ -143,6 +192,7 @@ export interface JobFields {
   dateFrom: string;
   dateTo: string;
   budgetNote: string;
+  reward: RewardFields;
 }
 
 export function validateNewJob(body: Record<string, unknown>): { errors: FieldErrors; values: JobFields } {
@@ -151,7 +201,6 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
   const description = str(body.description);
   const city = str(body.city);
   const region = str(body.region);
-  const budgetNote = str(body.budgetNote) || 'Dle dohody';
   const monumentName = str(body.monumentName);
   const crafts = validCraftIds(body.crafts) ?? [];
 
@@ -168,7 +217,8 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
   if (regionErr) errors.region = regionErr;
   const cityErr = cityError(city);
   if (cityErr) errors.city = cityErr;
-  if (budgetNote.length > 120) errors.budgetNote = 'Odměna může mít nejvýše 120 znaků.';
+  const reward = validateReward(body, errors);
+  const budgetNote = formatBudgetNote(reward);
   validateDateRange(body.dateFrom, body.dateTo, errors, { checkFrom: true });
 
   return {
@@ -185,6 +235,7 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
       dateFrom: str(body.dateFrom),
       dateTo: str(body.dateTo),
       budgetNote,
+      reward,
     },
   };
 }

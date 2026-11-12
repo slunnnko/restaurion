@@ -4,17 +4,15 @@ import React from 'react';
 import { HammerLogo } from './HammerLogo';
 import { OwnProfile } from '@/types/api';
 import { initials } from '@/lib/format';
-import { Moon, Sun, Bell, Plus, LogIn, ShieldCheck, Camera } from 'lucide-react';
+import { Moon, Sun, Bell, LogIn, Camera } from 'lucide-react';
 
 interface HeaderProps {
   user: OwnProfile | null;
   unreadCount: number;
   isDark: boolean;
   onToggleDark: () => void;
-  onOpenCreateJob: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
-  onOpenLicence: () => void;
   onLogin: () => void;
 }
 
@@ -26,10 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   unreadCount,
   isDark,
   onToggleDark,
-  onOpenCreateJob,
   onOpenNotifications,
   onOpenProfile,
-  onOpenLicence,
   onLogin,
 }) => (
   <header className="sticky top-0 z-30 bg-white dark:bg-[#181A20] border-b-2 border-[#111111] dark:border-[#E2E8F0]/30 transition-colors">
@@ -59,14 +55,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden md:inline">{isDark ? 'Světlý' : 'Tmavý'}</span>
           </button>
 
-          <button
-            onClick={onOpenLicence}
-            className={`${btnBase.replace('inline-flex ', '')} hidden sm:inline-flex bg-emerald-100 dark:bg-emerald-950/90 hover:bg-emerald-200 dark:hover:bg-emerald-900 text-emerald-950 dark:text-emerald-200 dark:!border-emerald-500/70`}
-          >
-            <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
-            <span>Ověřit licenci MK ČR</span>
-          </button>
-
           {user && (
             <button
               onClick={onOpenNotifications}
@@ -81,14 +69,6 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
           )}
-
-          <button
-            onClick={onOpenCreateJob}
-            className={`${btnBase} hidden md:inline-flex bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111]`}
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Přidat</span>
-          </button>
 
           {user ? (
             <button

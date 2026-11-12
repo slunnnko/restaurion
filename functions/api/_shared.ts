@@ -10,6 +10,7 @@ import type {
   OwnProfile,
   PublicJob,
   PublicPerson,
+  RewardType,
   UnavailabilityBlock,
 } from '../../src/types/api.ts';
 
@@ -25,25 +26,8 @@ export interface D1Database {
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<T[]>;
 }
 
-export interface R2ObjectBody {
-  body: ReadableStream;
-  httpMetadata?: { contentType?: string };
-}
-
-export interface R2Bucket {
-  put(
-    key: string,
-    value: ArrayBuffer | Uint8Array,
-    options?: { httpMetadata?: { contentType?: string } }
-  ): Promise<unknown>;
-  get(key: string): Promise<R2ObjectBody | null>;
-  delete(key: string): Promise<void>;
-}
-
 export interface Env {
   DB?: D1Database;
-  /** Private bucket for licence documents (scans of MK ČR decisions). Never public. */
-  LICENCE_DOCS?: R2Bucket;
   /** Comma-separated e-mails of administrators (case-insensitive). Secret, only the name is in git. */
   ADMIN_EMAILS?: string;
   RESEND_API_KEY?: string;
@@ -300,7 +284,6 @@ export interface ProfileRow {
   experience_text: string;
   portfolio_url: string | null;
   licence_number: string | null;
-  licence_verified: number;
   email_digest: number;
   accepting_jobs: number;
   directory_group: string;
@@ -311,7 +294,7 @@ export interface ProfileRow {
 }
 
 export const PROFILE_COLUMNS =
-  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, licence_verified, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook';
+  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook';
 
 export function mapGroup(value: string | null | undefined): DirectoryGroup {
   return value === 'firm' || value === 'licensed' ? value : 'unlicensed';
@@ -326,7 +309,6 @@ export function mapPublicPerson(row: ProfileRow): PublicPerson {
     crafts: safeJsonParse<string[]>(row.crafts, []),
     experienceText: row.experience_text ?? '',
     ...(row.licence_number ? { licenceNumber: row.licence_number } : {}),
-    licenceVerified: Boolean(row.licence_verified),
   };
 }
 
@@ -467,12 +449,15 @@ export interface JobRow {
   date_from: string;
   date_to: string;
   budget_note: string;
+  reward_type: string | null;
+  reward_amount: number | null;
+  reward_currency: string | null;
+  reward_scope: string | null;
   status: string;
   visibility: string;
   created_at: string;
   expires_at: string | null;
   a_name: string;
-  a_licence_verified: number;
   a_group: string;
   a_email: string;
   a_phone: string | null;
@@ -486,8 +471,9 @@ export interface JobRow {
 export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url, j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
+         j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.created_at, j.expires_at,
-         a.name AS a_name, a.licence_verified AS a_licence_verified, a.directory_group AS a_group,
+         a.name AS a_name, a.directory_group AS a_group,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count
@@ -514,12 +500,21 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
     dateFrom: row.date_from,
     dateTo: row.date_to,
     budgetNote: row.budget_note,
+    ...(row.reward_type
+      ? {
+          reward: {
+            type: row.reward_type as RewardType,
+            ...(row.reward_amount !== null ? { amount: Number(row.reward_amount) } : {}),
+            ...(row.reward_currency ? { currency: row.reward_currency as 'CZK' | 'EUR' } : {}),
+            ...(row.reward_scope ? { scope: row.reward_scope } : {}),
+          },
+        }
+      : {}),
     status: row.status === 'active' ? 'active' : 'closed',
     createdAt: row.created_at,
     poster: {
       id: row.author_id,
       name: row.a_name,
-      licenceVerified: Boolean(row.a_licence_verified),
       group: mapGroup(row.a_group),
     },
     interestedCount: Number(row.interested_count ?? 0),

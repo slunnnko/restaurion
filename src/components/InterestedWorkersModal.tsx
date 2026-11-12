@@ -5,7 +5,6 @@ import { ContactInfo, EngagementForPoster, EngagementStatus, PublicJob } from '@
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { ModalShell, ErrorBox, ContactLinks, primaryBtn, dangerBtn } from './ui';
-import { ShieldCheck } from 'lucide-react';
 
 interface InterestedWorkersModalProps {
   job: PublicJob;
@@ -141,15 +140,8 @@ export const InterestedWorkersModal: React.FC<InterestedWorkersModalProps> = ({ 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-[#111111] dark:text-stone-200">
                   {x.worker.licenceNumber && (
                     <span className="inline-flex items-center gap-1.5">
-                      Licence: {x.worker.licenceNumber}
-                      {x.worker.licenceVerified ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 text-[10px] font-extrabold">
-                          <ShieldCheck className="w-3 h-3" />
-                          ověřeno
-                        </span>
-                      ) : (
-                        <span className="text-stone-500 dark:text-stone-400 font-semibold">(samodeklarované)</span>
-                      )}
+                      Číslo povolení MK ČR: {x.worker.licenceNumber}
+                      <span className="text-stone-500 dark:text-stone-400 font-semibold">(uvádí sám)</span>
                     </span>
                   )}
                 </div>

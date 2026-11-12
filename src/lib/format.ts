@@ -1,5 +1,7 @@
 // Formátování dat a české skloňování.
 
+import type { PublicJob } from '@/types/api';
+
 const dateFmt = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric' });
 const dateYearFmt = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
 
@@ -46,4 +48,26 @@ export function initials(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+}
+
+const amountFmt = new Intl.NumberFormat('cs-CZ');
+
+/** Jediná implementace textu odměny (karta i budget_note na serveru): „25 000 Kč za celou práci“, „450 €/hod“, „Dohodou“. */
+export function formatRewardText(
+  type: 'negotiable' | 'hourly' | 'fixed',
+  amount: number | null | undefined,
+  currency: 'CZK' | 'EUR' | null | undefined,
+): string {
+  if (type === 'negotiable' || amount === null || amount === undefined) return 'Dohodou';
+  const unit = currency === 'EUR' ? '€' : 'Kč';
+  return `${amountFmt.format(amount)} ${unit}${type === 'hourly' ? '/hod' : ' za celou práci'}`;
+}
+
+/** Odměna pro kartu: řádek se sumou a případný rozsah. Staré řádky bez `reward` ukážou budgetNote. */
+export function rewardDisplay(job: { budgetNote: string; reward?: PublicJob['reward'] }): { headline: string; scope?: string } {
+  const r = job.reward;
+  if (!r) return { headline: job.budgetNote || 'Dohodou' };
+  const headline = formatRewardText(r.type, r.amount, r.currency);
+  if (headline === 'Dohodou') return { headline };
+  return { headline, scope: r.scope };
 }

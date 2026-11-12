@@ -15,7 +15,7 @@ Restaurion propojuje licencované restaurátory (držitele povolení MK ČR) a u
 7. U zakázky zadavatel zájemce **přijme** nebo odmítne. Přijetí je signál: termín je pro řemeslníka obsazený a dostane upozornění. Řemeslník může **odstoupit**, termín se uvolní. U nabídky se nepřijímá a nic se neobsazuje.
 8. Ukončení zakázky uvolní termíny a upozorní řemeslníky se zájmem nebo přijetím (`job_closed`).
 
-**Adresář:** profil je vidět, pokud má jméno (3+ znaky), souhlas a zapnutý přepínač „Zobrazit mě v Adresáři“ (výchozí zapnuto, jde vypnout při přihlášení i v profilu). Skupiny: Firmy, Licencovaní restaurátoři (odznak „Licence ověřena“ jen po ručním ověření v D1), Bez licence. Bloky nedostupnosti a obsazené dny jsou soukromé a v Adresáři nejsou. Pravidlo párování je jen v `src/lib/matching.ts`.
+**Adresář:** profil je vidět, pokud má jméno (3+ znaky), souhlas a zapnutý přepínač „Zobrazit mě v Adresáři“ (výchozí zapnuto, jde vypnout při přihlášení i v profilu). Skupiny: Firmy, Licencovaní restaurátoři (číslo povolení uvádí uživatel sám, Restaurion ho neověřuje), Bez licence. Bloky nedostupnosti a obsazené dny jsou soukromé a v Adresáři nejsou. Pravidlo párování je jen v `src/lib/matching.ts`.
 
 ## 2. Lokální vývoj
 
@@ -39,7 +39,7 @@ npx wrangler d1 execute restaurion-db --remote --file=./migrations/0006_mvp_matc
 npx wrangler d1 execute restaurion-db --remote --file=./migrations/0007_directory.sql
 ```
 
-Migrace 0006 a 0007 se pouští **jen jednou** (`ALTER TABLE ADD COLUMN` není idempotentní). Migrace 0007 přidává `profiles.directory_group`, `directory_visible`, `instagram`, `whatsapp`, `facebook` a z existujících dat nastaví skupinu `licensed` (je vyplněné číslo povolení) nebo `firm` (role `atelier_firm`); nic nemaže a `licence_verified` se nemění. Přidává sloupce profilů a zakázek a tabulky `unavailability_blocks`, `engagements`, `notifications`, `login_codes`, `rate_limit_events`, `email_log`. Nic nemaže. Pole `licence_verified` se ze starých dat nepřebírá.
+Migrace 0006, 0007 a 0009 se pouští **jen jednou** (`ALTER TABLE ADD COLUMN` není idempotentní). Migrace 0007 přidává `profiles.directory_group`, `directory_visible`, `instagram`, `whatsapp`, `facebook` a z existujících dat nastaví skupinu `licensed` (je vyplněné číslo povolení) nebo `firm` (role `atelier_firm`); nic nemaže a `licence_verified` se nemění. Přidává sloupce profilů a zakázek a tabulky `unavailability_blocks`, `engagements`, `notifications`, `login_codes`, `rate_limit_events`, `email_log`. Nic nemaže. Pole `licence_verified` se ze starých dat nepřebírá. Migrace 0009 přidává `jobs.reward_type`, `reward_amount`, `reward_currency`, `reward_scope` (strukturovaná odměna; staré řádky zůstanou s `budget_note`).
 
 ## 4. Nasazení
 
@@ -53,8 +53,7 @@ Migrace 0006 a 0007 se pouští **jen jednou** (`ALTER TABLE ADD COLUMN` není i
 | `RESEND_API_KEY` | Pages + digest worker | bez něj se e-maily neposílají |
 | `RESEND_FROM` | Pages + digest worker | adresa odesílatele na ověřené doméně v Resendu |
 | `APP_URL` | volitelné | odkazy v e-mailech, výchozí `https://restaurion.pages.dev` |
-| `ADMIN_EMAILS` | Pages (secret) | e-maily správců oddělené čárkou, bez ohledu na velikost písmen. Správce smí smazat jakýkoli inzerát a rozhoduje o ověření licencí. |
-| `LICENCE_DOCS` | Pages (R2 binding, `wrangler.json`) | soukromý bucket `restaurion-licence-docs` se scany rozhodnutí MK ČR; musí se vytvořit (`npx wrangler r2 bucket create restaurion-licence-docs`), dokument se po rozhodnutí smaže |
+| `ADMIN_EMAILS` | Pages (secret) | e-maily správců oddělené čárkou, bez ohledu na velikost písmen. Správce smí smazat jakýkoli inzerát. |
 | `TEST_LOGIN_ECHO` | **jen test** | `1` a zároveň nenastavený Resend: `request-code` vrátí kód v odpovědi (`testCode`). Před ostrým spuštěním smazat. |
 
 Secret se nastavuje příkazem `npx wrangler pages secret put <NÁZEV> --project-name restaurion` (digest worker: `npx wrangler secret put <NÁZEV> -c workers/digest/wrangler.json`).
@@ -63,7 +62,7 @@ Limity e-mailů: 100 za den celkem, přihlašovací kódy na adresy bez profilu 
 
 ## 5. Moderace
 
-Bez admin rozhraní. Data se spravují v Cloudflare Dashboardu: **Workers & Pages → D1 → `restaurion-db` → Tables**. Odznak ověřené licence se nastaví ručně (`profiles.licence_verified = 1`); změna čísla licence v profilu ho sama vrátí na 0. Zakázku lze skrýt změnou `jobs.visibility` nebo `jobs.status`.
+Bez admin rozhraní. Data se spravují v Cloudflare Dashboardu: **Workers & Pages → D1 → `restaurion-db` → Tables**. Licence se neověřují: číslo povolení uvádí uživatel sám (sloupec `profiles.licence_verified` zůstává v D1, ale nic ho nepoužívá). Zakázku lze skrýt změnou `jobs.visibility` nebo `jobs.status`.
 
 ## 6. Mimo rozsah MVP a fáze 2
 

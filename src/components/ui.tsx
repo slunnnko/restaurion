@@ -8,6 +8,41 @@ import { ContactInfo } from '@/types/api';
 export const inputCls =
   'w-full h-11 px-3.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold text-[#111111] dark:text-white placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:bg-[#FEF08A]/25 dark:focus:border-[#FEF08A] outline-hidden transition-all';
 export const dateInputCls = `${inputCls} block min-w-0`;
+
+/** Drops text colour classes (text-[#…], text-white, text-stone-…, dark: variants) but keeps sizes such as text-sm. */
+const stripTextColour = (cls: string): string =>
+  cls
+    .split(/\s+/)
+    .filter((c) => !/^(dark:)?text-(\[#?[0-9a-fA-F]+\]|white|black|transparent|(stone|gray|slate|zinc|neutral|red|emerald|blue|yellow)-\d+)$/.test(c))
+    .join(' ');
+
+/**
+ * Date input that never looks prefilled: Safari shows an empty date as today's date in grey, so while the
+ * value is empty the native text is made transparent and "Nevyplněno" is overlaid. No default value is set.
+ */
+export const DateInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { value: string }> = ({
+  className,
+  value,
+  ...rest
+}) => (
+  <div className="relative">
+    <input
+      {...rest}
+      type="date"
+      value={value}
+      className={value ? (className ?? dateInputCls) : `${stripTextColour(className ?? dateInputCls)} text-transparent`}
+    />
+    {!value && (
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-500 dark:text-stone-400"
+      >
+        Nevyplněno
+      </span>
+    )}
+  </div>
+);
+
 export const textareaCls =
   'w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold text-[#111111] dark:text-white placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:bg-[#FEF08A]/25 dark:focus:border-[#FEF08A] outline-hidden transition-all';
 export const labelCls = 'block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1';
