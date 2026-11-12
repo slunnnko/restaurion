@@ -1,5 +1,6 @@
 'use client';
 
+import { phoneDigits } from '@/lib/phone';
 import React, { useEffect, useRef, useState } from 'react';
 import { DirectoryGroup, OwnProfile, ThemePreference, UnavailabilityBlock } from '@/types/api';
 import { applyTheme } from '@/lib/theme';
@@ -66,8 +67,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   unreadCount,
   onOpenNotifications,
 }) => {
-  const [name, setName] = useState(user.name);
+  const [firstName, setFirstName] = useState(user.firstName ?? '');
+  const [lastName, setLastName] = useState(user.lastName ?? '');
   const [phone, setPhone] = useState(user.phone ?? '');
+  const [waSame, setWaSame] = useState(
+    !!user.whatsapp && !user.whatsapp.startsWith('@') && !!user.phone && user.whatsapp.replace(/\D/g, '') === phoneDigits(user.phone)
+  );
   const [region, setRegion] = useState(user.region || 'Celá ČR');
   const [crafts, setCrafts] = useState<string[]>(user.crafts);
   const [experienceText, setExperienceText] = useState(user.experienceText);
@@ -210,7 +215,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const data = await api<{ profile: OwnProfile }>('/api/profile', {
         method: 'PUT',
         body: {
-          name: name.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
           phone: phone.trim(),
           region,
           crafts,
@@ -221,7 +227,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           emailDigest,
           group,
           instagram: instagram.trim(),
-          whatsapp: whatsapp.trim(),
+          whatsapp: waSame && phone.trim() ? phone.trim() : whatsapp.trim(),
           facebook: facebook.trim(),
           directoryVisible,
         },
@@ -369,11 +375,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <label htmlFor="pf-name" className={labelCls}>
-              Jméno
+            <label htmlFor="pf-first-name" className={labelCls}>
+              {group === 'firm' ? 'Název firmy' : 'Jméno'}
             </label>
-            <input id="pf-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-            <FieldError message={fieldErrors.name} />
+            <input
+              id="pf-first-name"
+              type="text"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={fieldErrors.firstName ?? fieldErrors.name} />
+          </div>
+          <div>
+            <label htmlFor="pf-last-name" className={labelCls}>
+              {group === 'firm' ? 'Příjmení kontaktní osoby (nepovinné)' : 'Příjmení'}
+            </label>
+            <input
+              id="pf-last-name"
+              type="text"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={fieldErrors.lastName} />
           </div>
           <div>
             <label htmlFor="pf-email" className={labelCls}>
@@ -395,11 +422,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               id="pf-phone"
               type="tel"
               autoComplete="tel"
+              placeholder="+420 777 123 456"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className={inputCls}
             />
+            <p className="mt-1 text-xs font-medium text-stone-600 dark:text-stone-400">Bez předvolby doplníme +420.</p>
             <FieldError message={fieldErrors.phone} />
+            <div className={`mt-2 ${phone.trim() === '' ? 'opacity-50' : ''}`}>
+              <label className="flex items-center gap-3 text-sm font-bold text-[#111111] dark:text-stone-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={waSame && phone.trim() !== ''}
+                  disabled={phone.trim() === ''}
+                  onChange={(e) => setWaSame(e.target.checked)}
+                  className="w-5 h-5 shrink-0 accent-[#111111] dark:accent-[#FEF08A] cursor-pointer"
+                />
+                <span>Na tomto čísle mám i WhatsApp</span>
+              </label>
+            </div>
           </div>
           <div>
             <label htmlFor="pf-region" className={labelCls}>
@@ -501,17 +542,24 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             <FieldError message={fieldErrors.instagram} />
           </div>
           <div>
-            <label htmlFor="pf-whatsapp" className={labelCls}>
-              WhatsApp
-            </label>
-            <input
-              id="pf-whatsapp"
-              type="tel"
-              placeholder="+420 …"
-              value={whatsapp}
-              onChange={(e) => setWhatsapp(e.target.value)}
-              className={inputCls}
-            />
+            {waSame && phone.trim() !== '' ? (
+              <p className="text-sm font-bold text-[#111111] dark:text-stone-100 sm:pt-7">WhatsApp: stejné číslo jako telefon</p>
+            ) : (
+              <>
+                <label htmlFor="pf-whatsapp" className={labelCls}>
+                  WhatsApp (jiné číslo nebo @uživatel)
+                </label>
+                <input
+                  id="pf-whatsapp"
+                  type="text"
+                  inputMode="text"
+                  placeholder="+420 … nebo @jmeno"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  className={inputCls}
+                />
+              </>
+            )}
             <FieldError message={fieldErrors.whatsapp} />
           </div>
           <div>

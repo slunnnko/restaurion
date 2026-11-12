@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -85,6 +85,16 @@ put w3 '{"name":"Worker Tri","crafts":["kámen"]}'
 put w4 '{"name":"Worker Ctyri","crafts":["dřevo","kámen"]}'
 put w5 '{"name":"Worker Pet","crafts":["kámen"],"acceptingJobs":false}'
 put w6 '{"name":"Worker Sest","crafts":["kov"]}'
+put w6 '{"firstName":"Karel","lastName":"Novák","phone":"777333444","whatsapp":"@Karel.N"}'
+api w6 GET /api/profile
+eq "firstName/lastName stored, name derived" "$(echo "$BODY" | jq -r '[.profile.firstName,.profile.lastName,.profile.name,.profile.phone,.profile.whatsapp]|join("|")')" "Karel|Novák|Karel Novák|+420 777 333 444|@karel.n"
+api w6 PUT /api/profile '{"group":"unlicensed","lastName":""}'
+eq "person without lastName -> 400 fieldErrors.lastName" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.lastName != null')" "400/true"
+put w6 '{"name":"Worker Sest","phone":"","whatsapp":""}'
+put w6 '{"group":"firm","firstName":"Sest Firma","lastName":""}'
+api w6 PUT /api/profile '{"group":"unlicensed"}'
+eq "group-only PUT firm -> person without lastName -> 400 lastName" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.lastName != null')" "400/true"
+put w6 '{"group":"unlicensed","firstName":"Worker","lastName":"Sest"}'
 api w1 PUT /api/profile '{"crafts":["neexistuje"]}'
 eq "invalid craft -> 400 with fieldErrors" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.crafts != null')" "400/true"
 api w1 PUT /api/profile '{"portfolioUrl":"javascript:alert(1)"}'
@@ -285,7 +295,7 @@ api w4 PUT /api/profile '{"instagram":"bad handle!"}'
 eq "invalid instagram -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.instagram != null')" "400/true"
 api w4 PUT /api/profile '{"facebook":"javascript:alert(1)"}'
 eq "facebook javascript: rejected" "$CODE" 400
-api w4 PUT /api/profile '{"whatsapp":"abc"}'
+api w4 PUT /api/profile '{"whatsapp":"123"}'
 eq "invalid whatsapp -> 400" "$CODE" 400
 api w2 GET /api/directory
 eq "w4 contact carries instagram, whatsapp, facebook" "$(echo "$BODY" | jq -r '.entries[] | select(.name == "Worker Ctyri") | [.contact.instagram, .contact.whatsapp, .contact.facebook] | join("|")')" "w4.dreva|420777444555|https://facebook.com/w4"

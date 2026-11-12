@@ -6,7 +6,9 @@ import {
   isHttpUrl,
   normalizeFacebook,
   normalizeInstagram,
+  normalizePhone,
   normalizeWhatsapp,
+  validateNameParts,
   formatBudgetNote,
   validateNewJob,
   validateReward,
@@ -51,12 +53,38 @@ test('facebook: http(s) on facebook.com / fb.com hosts only', () => {
 test('whatsapp: digits only, 9 digits get 420, 11–15 digits required', () => {
   assert.equal(normalizeWhatsapp('+420 777 111 222'), '420777111222');
   assert.equal(normalizeWhatsapp('777 111 222'), '420777111222');
-  assert.equal(normalizeWhatsapp('00420777111222'), '00420777111222');
+  assert.equal(normalizeWhatsapp('00420777111222'), '420777111222');
   assert.equal(normalizeWhatsapp(''), '');
-  assert.equal(normalizeWhatsapp('abc'), null);
+  assert.equal(normalizeWhatsapp('@Jan.Novak'), '@jan.novak');
+  assert.equal(normalizeWhatsapp('jan_n'), '@jan_n');
+  assert.equal(normalizeWhatsapp('12345'), null);
+  assert.equal(normalizeWhatsapp('.jan'), null);
+  assert.equal(normalizeWhatsapp('ab'), null);
+  assert.equal(normalizeWhatsapp('777111222x'), null);
+  assert.equal(normalizeWhatsapp('jan.novak'), '@jan.novak');
+  assert.equal(normalizeWhatsapp('@777abc'), '@777abc');
   assert.equal(normalizeWhatsapp('123'), null);
   assert.equal(normalizeWhatsapp('1234567890'), null);
   assert.equal(normalizeWhatsapp('+1234567890123456'), null);
+});
+
+test('phone: normalised to display form, country code required', () => {
+  assert.equal(normalizePhone(''), '');
+  assert.equal(normalizePhone('777111222'), '+420 777 111 222');
+  assert.equal(normalizePhone('+421 905 123 456'), '+421 905 123 456');
+  assert.equal(normalizePhone('0049 151 1234 5678'), '+4915112345678');
+  assert.equal(normalizePhone('123'), null);
+  assert.equal(normalizePhone('abc'), null);
+});
+
+test('name parts: person needs a last name, firm does not', () => {
+  assert.deepEqual(validateNameParts('Jan', 'Novák', 'unlicensed'), {});
+  assert.equal(validateNameParts('Jan', '', 'licensed').lastName, 'Vyplň příjmení.');
+  assert.equal(validateNameParts('', 'Novák', 'unlicensed').firstName, 'Vyplň jméno.');
+  assert.deepEqual(validateNameParts('Kámen s.r.o.', '', 'firm'), {});
+  assert.equal(validateNameParts('AB', '', 'firm').firstName, 'Název firmy musí mít aspoň 3 znaky.');
+  assert.equal(validateNameParts('x'.repeat(41), 'Novák', 'unlicensed').firstName, 'Nejvýše 40 znaků.');
+  assert.equal(validateNameParts('x'.repeat(40), 'y'.repeat(39), 'unlicensed').name, undefined);
 });
 
 test('facebook / web: only http(s) URLs up to 300 chars', () => {

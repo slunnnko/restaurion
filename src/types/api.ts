@@ -36,7 +36,7 @@ export interface ContactInfo {
   phone?: string;
   website?: string; // profile portfolio_url, http(s) URL
   instagram?: string; // handle without @
-  whatsapp?: string; // phone number
+  whatsapp?: string; // digits (wa.me) or @username
   facebook?: string; // http(s) URL
 }
 
@@ -92,6 +92,9 @@ export interface BookedJob {
 export type ThemePreference = 'system' | 'light' | 'dark';
 
 export interface OwnProfile extends PublicPerson {
+  /** Name parts (own profile only); `name` is derived: `${firstName} ${lastName}`. For a firm, firstName is the company name. */
+  firstName: string;
+  lastName: string;
   email: string;
   /** True for e-mails listed in the ADMIN_EMAILS env var. Gates the admin UI; the API re-checks on every call. */
   isAdmin: boolean;
@@ -172,8 +175,8 @@ export interface NotificationItem {
 //                                           → { engagement: { id, status }, contact?: ContactInfo }
 //   Accepting books the worker's dates (busy days) and notifies; contacts do not depend on it.
 // GET  /api/profile                         → { profile: OwnProfile } (session only, own profile)
-// PUT  /api/profile {name?, phone?, region?, crafts?, experienceText?, portfolioUrl?, licenceNumber?,
-//                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp?, facebook?,
+// PUT  /api/profile {firstName?, lastName?, phone? (normalized to '+420 777 111 222', else 400; legacy `name` is split at the first space), region?, crafts?, experienceText?, portfolioUrl?, licenceNumber?,
+//                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp? (digits or '@username', stored normalized), facebook?,
 //                    themePreference? ('system'|'light'|'dark', else 400 fieldErrors.themePreference)}
 //                                           → { profile: OwnProfile }
 //   group 'licensed' requires a licence number.

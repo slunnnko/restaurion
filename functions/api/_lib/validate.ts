@@ -2,6 +2,7 @@
 
 import { CRAFT_CATEGORIES } from '../../../src/lib/crafts.ts';
 import { formatRewardText } from '../../../src/lib/format.ts';
+import { phoneDigits } from '../../../src/lib/phone.ts';
 import { daysInRange } from '../../../src/lib/matching.ts';
 import { isIsoDate, jsonResponse, todayUtc } from '../_shared.ts';
 
@@ -14,7 +15,6 @@ export function validationResponse(fieldErrors: FieldErrors): Response {
 export const JOB_TYPES = ['subcontract_needed', 'guarantor_needed', 'craftsman_available'];
 export const DIRECTORY_GROUPS = ['firm', 'licensed', 'unlicensed'];
 export const MONUMENT_STATUSES = ['cultural_monument', 'national_monument', 'historic_unregistered', 'craft_work'];
-export const PHONE_RE = /^[+()\d\s.-]{7,25}$/;
 
 export function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -79,16 +79,57 @@ export function normalizeFacebook(value: string): string | null {
 }
 
 /**
- * WhatsApp number → digits only (wa.me format). '' stays ''. 9 digits without country code get 420.
- * Returns null when invalid (phone-field characters only, 11–15 digits after normalisation).
+ * Phone → display form `+420 777 111 222` (3-3-3 for 420/421 with 9 more digits, else `+<digits>`).
+ * '' stays ''. Returns null without a country code or when invalid.
+ */
+export function normalizePhone(value: string): string | null {
+  if (value.trim() === '') return '';
+  const digits = phoneDigits(value);
+  if (!digits) return null;
+  const m = /^(42[01])(\d{3})(\d{3})(\d{3})$/.exec(digits);
+  return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]}` : `+${digits}`;
+}
+
+/**
+ * WhatsApp: a `@username` (3–35 chars [A-Za-z0-9._], a letter, no leading/trailing dot; lower-cased)
+ * or a number → digits only (wa.me format). '' stays ''. null when invalid.
  */
 export function normalizeWhatsapp(value: string): string | null {
   const v = value.trim();
   if (v === '') return '';
-  if (!PHONE_RE.test(v)) return null;
-  let digits = v.replace(/\D/g, '');
-  if (digits.length === 9 && !v.startsWith('+')) digits = `420${digits}`;
-  return digits.length >= 11 && digits.length <= 15 ? digits : null;
+  const user = v.replace(/^@/, '');
+  // Without a leading @ the username must start with a letter, so a mistyped number is not taken for one.
+  const startOk = v.startsWith('@') || /^[A-Za-z]/.test(user);
+  if (startOk && /^[A-Za-z0-9._]{3,35}$/.test(user) && /[A-Za-z]/.test(user) && !user.startsWith('.') && !user.endsWith('.')) {
+    return `@${user.toLowerCase()}`;
+  }
+  return phoneDigits(v);
+}
+
+/** First / last name rules. Group 'firm': first = company name, last optional. Errors keyed firstName / lastName / name. */
+export function validateNameParts(first: string, last: string, group: string): FieldErrors {
+  const errors: FieldErrors = {};
+  if (first.length < 1) errors.firstName = 'Vyplň jméno.';
+  else if (first.length > 40) errors.firstName = 'Nejvýše 40 znaků.';
+  if (group === 'firm') {
+    if (last.length > 40) errors.lastName = 'Nejvýše 40 znaků.';
+  } else if (last.length < 2) errors.lastName = 'Vyplň příjmení.';
+  else if (last.length > 40) errors.lastName = 'Nejvýše 40 znaků.';
+  if (!errors.firstName && !errors.lastName) {
+    const name = `${first} ${last}`.trim();
+    if (name.length < 3) {
+      if (group === 'firm') errors.firstName = 'Název firmy musí mít aspoň 3 znaky.';
+      else errors.name = 'Jméno musí mít 3 až 80 znaků.';
+    } else if (name.length > 80) errors.name = 'Jméno musí mít 3 až 80 znaků.';
+  }
+  return errors;
+}
+
+/** Splits a legacy single `name` like migration 0012: a firm keeps the whole name as first, others split at the first space. */
+export function splitName(name: string, group = 'unlicensed'): { first: string; last: string } {
+  const t = name.trim();
+  const i = t.indexOf(' ');
+  return group === 'firm' || i < 0 ? { first: t, last: '' } : { first: t.slice(0, i), last: t.slice(i + 1).trim() };
 }
 
 export function validCraftIds(value: unknown): string[] | null {

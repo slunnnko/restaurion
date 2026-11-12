@@ -1,15 +1,17 @@
 import { badJson, jsonResponse, loadOwnProfile, noDb, readJson, requireUser } from './_shared.ts';
 import type { PagesContext } from './_shared.ts';
 import {
-  PHONE_RE,
   groupLicenceError,
   isDirectoryGroup,
   isHttpUrl,
   isThemePreference,
   normalizeFacebook,
   normalizeInstagram,
+  normalizePhone,
   normalizeWhatsapp,
+  splitName,
   str,
+  validateNameParts,
   validCraftIds,
   validationResponse,
 } from './_lib/validate.ts';
@@ -45,15 +47,37 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     binds.push(value);
   };
 
-  if ('name' in body) {
-    const name = str(body.name);
-    if (name.length < 3 || name.length > 80) errors.name = 'Jméno musí mít 3 až 80 znaků.';
-    set('name', name);
+  if ('firstName' in body || 'lastName' in body || 'name' in body || 'group' in body) {
+    const stored = await db
+      .prepare(`SELECT first_name, last_name, directory_group FROM profiles WHERE id = ?`)
+      .bind(auth.userId)
+      .first<{ first_name: string; last_name: string; directory_group: string }>();
+    // Judge the group this request leaves behind.
+    const group = isDirectoryGroup(body.group) ? body.group : stored?.directory_group ?? 'unlicensed';
+    const nameKeys = 'firstName' in body || 'lastName' in body || 'name' in body;
+    let first = stored?.first_name ?? '';
+    let last = stored?.last_name ?? '';
+    if ('firstName' in body || 'lastName' in body) {
+      if ('firstName' in body) first = str(body.firstName);
+      if ('lastName' in body) last = str(body.lastName);
+    } else if ('name' in body) {
+      ({ first, last } = splitName(str(body.name), group));
+    }
+    Object.assign(errors, validateNameParts(first, last, group));
+    if (nameKeys) {
+      set('first_name', first);
+      set('last_name', last);
+      set('name', `${first} ${last}`.trim());
+    }
   }
   if ('phone' in body) {
-    const phone = str(body.phone);
-    if (phone && !PHONE_RE.test(phone)) errors.phone = 'Zadejte platné telefonní číslo.';
-    set('phone', phone || null);
+    const raw = str(body.phone);
+    const phone = normalizePhone(raw);
+    if (phone === null) {
+      // A legacy stored value sent back unchanged must not block unrelated saves.
+      const stored = await db.prepare(`SELECT phone FROM profiles WHERE id = ?`).bind(auth.userId).first<{ phone: string | null }>();
+      if (raw !== (stored?.phone ?? '')) errors.phone = 'Zadej číslo s předvolbou, např. +420 777 123 456.';
+    } else set('phone', phone || null);
   }
   if ('region' in body) {
     const region = str(body.region);
@@ -87,7 +111,7 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   }
   if ('whatsapp' in body) {
     const wa = normalizeWhatsapp(str(body.whatsapp));
-    if (wa === null) errors.whatsapp = 'Zadejte platné telefonní číslo.';
+    if (wa === null) errors.whatsapp = 'Zadej číslo s předvolbou, nebo uživatelské jméno WhatsApp (např. @jan.novak).';
     set('whatsapp', wa || null);
   }
   if ('facebook' in body) {

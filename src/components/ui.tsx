@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock } from 'lucide-react';
 import { ContactInfo } from '@/types/api';
 
@@ -157,7 +157,9 @@ const contactLinkCls =
 export const ContactLinks: React.FC<{ contact: ContactInfo }> = ({ contact }) => {
   const website = contact.website ? safeHttpUrl(contact.website) : null;
   const facebook = contact.facebook ? safeHttpUrl(contact.facebook) : null;
-  const waDigits = contact.whatsapp ? contact.whatsapp.replace(/\D/g, '') : '';
+  const [copied, setCopied] = useState(false);
+  const waHandle = !!contact.whatsapp && contact.whatsapp.startsWith('@');
+  const waDigits = contact.whatsapp && !waHandle ? contact.whatsapp.replace(/\D/g, '') : '';
   return (
     <div className="flex flex-wrap gap-1.5">
       {contact.phone && (
@@ -186,6 +188,25 @@ export const ContactLinks: React.FC<{ contact: ContactInfo }> = ({ contact }) =>
           <AtSign className="w-3.5 h-3.5 shrink-0" />
           <span>Instagram</span>
         </a>
+      )}
+      {waHandle && (
+        <button
+          type="button"
+          title="Zkopírovat uživatelské jméno"
+          className={contactLinkCls}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(contact.whatsapp ?? '');
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            } catch {
+              /* clipboard unavailable: ignore */
+            }
+          }}
+        >
+          <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{copied ? 'Zkopírováno' : `WhatsApp ${contact.whatsapp}`}</span>
+        </button>
       )}
       {waDigits && (
         <a href={`https://wa.me/${waDigits}`} target="_blank" rel="noopener noreferrer" className={contactLinkCls}>
