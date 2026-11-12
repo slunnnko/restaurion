@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -489,6 +489,56 @@ api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
 TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
 api echo POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"directoryVisible\":false}"
 eq "login with the checkbox off hides an existing profile" "$CODE/$(echo "$BODY" | jq -r '.user.directoryVisible')" "200/false"
+
+echo "== password login (echo server, TEST_LOGIN_ECHO=1)"
+d1 --command "DELETE FROM rate_limit_events" >/dev/null
+PW1="first-password-123"; PW2="second-password-456"
+api echo GET /api/auth/me
+eq "me.hasPassword is false before setting one" "$(echo "$BODY" | jq -r '.user.hasPassword')" "false"
+api echo POST /api/auth/password "{\"newPassword\":\"short\"}"
+eq "too short new password -> 400 fieldErrors.newPassword" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.newPassword != null')" "400/true"
+api echo POST /api/auth/password "{\"newPassword\":\"$PW1\"}"
+eq "set a first password (no current needed)" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
+api echo GET /api/auth/me
+eq "me.hasPassword is true" "$(echo "$BODY" | jq -r '.user.hasPassword')" "true"
+eq "no response leaks password_hash" "$(echo "$BODY" | grep -c 'password_hash\|pbkdf2')" "0"
+api echo POST /api/auth/logout
+api echo GET /api/auth/me
+eq "logged out" "$(echo "$BODY" | jq -c '.user')" "null"
+api pw POST /api/auth/login-password "{\"email\":\"echo@e2e.test\",\"password\":\"$PW1\"}"
+eq "login-password ok" "$CODE/$(echo "$BODY" | jq -r '.user.email')" "200/echo@e2e.test"
+api pw GET /api/auth/me
+eq "password login sets a working session" "$(echo "$BODY" | jq -r '.user.email')" "echo@e2e.test"
+api - POST /api/auth/login-password "{\"email\":\"echo@e2e.test\",\"password\":\"wrong-password-000\"}"
+eq "wrong password -> 401" "$CODE" 401
+MSG_WRONG=$(echo "$BODY" | jq -r '.error')
+api - POST /api/auth/login-password "{\"email\":\"nobody@e2e.test\",\"password\":\"$PW1\"}"
+eq "unknown e-mail -> 401 with the same message" "$CODE/$(echo "$BODY" | jq -r '.error')" "401/$MSG_WRONG"
+api - POST /api/auth/login-password "{\"email\":\"w6@e2e.test\",\"password\":\"$PW1\"}"
+eq "account without a password -> 401 with the same message" "$CODE/$(echo "$BODY" | jq -r '.error')" "401/$MSG_WRONG"
+api pw POST /api/auth/password "{\"newPassword\":\"$PW2\"}"
+eq "change without currentPassword -> 400 fieldErrors.currentPassword" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.currentPassword != null')" "400/true"
+api pw POST /api/auth/password "{\"currentPassword\":\"nope-nope-nope\",\"newPassword\":\"$PW2\"}"
+eq "change with a wrong currentPassword -> 400" "$CODE" 400
+echo "-- reset via e-mail code + newPassword"
+api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'
+TESTCODE=$(echo "$BODY" | jq -r '.testCode // "none"')
+api pwreset POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"newPassword\":\"short\"}"
+eq "reset with a short password -> 400 and the code is not consumed" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.newPassword != null')" "400/true"
+api pwreset POST /api/auth/verify-code "{\"email\":\"echo@e2e.test\",\"code\":\"$TESTCODE\",\"consent\":true,\"newPassword\":\"$PW2\"}"
+eq "reset: code + newPassword" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
+api pw GET /api/auth/me
+eq "the session from before the reset is invalid" "$(echo "$BODY" | jq -c '.user')" "null"
+api pwreset GET /api/auth/me
+eq "the session created by the reset works" "$(echo "$BODY" | jq -r '.user.email')" "echo@e2e.test"
+api - POST /api/auth/login-password "{\"email\":\"echo@e2e.test\",\"password\":\"$PW1\"}"
+eq "old password -> 401 after reset" "$CODE" 401
+api - POST /api/auth/login-password "{\"email\":\"echo@e2e.test\",\"password\":\"$PW2\"}"
+eq "new password -> 200" "$CODE" 200
+api pwreset POST /api/auth/password "{\"currentPassword\":\"$PW2\",\"newPassword\":\"$PW1\"}"
+eq "change with the correct currentPassword" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
+api pwreset GET /api/auth/me
+eq "the current session survives a password change" "$(echo "$BODY" | jq -r '.user.email')" "echo@e2e.test"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

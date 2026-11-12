@@ -93,6 +93,8 @@ export interface OwnProfile extends PublicPerson {
   email: string;
   /** True for e-mails listed in the ADMIN_EMAILS env var. Gates the admin UI; the API re-checks on every call. */
   isAdmin: boolean;
+  /** True when a password is set (login-password works). The hash itself never leaves the server. */
+  hasPassword: boolean;
   phone?: string;
   region: string;
   emailDigest: boolean;
@@ -132,8 +134,13 @@ export interface NotificationItem {
 // GET  /api/auth/me                         → { user: OwnProfile | null }
 // POST /api/auth/request-code  {email}      → { ok: true, testCode?: string } | 429 | 502 { error }
 //   testCode only when Resend is NOT configured AND the TEST_LOGIN_ECHO=1 env var is set (testing only).
-// POST /api/auth/verify-code   {email, code, consent: true, directoryVisible?: boolean} → { user: OwnProfile } + Set-Cookie
+// POST /api/auth/verify-code   {email, code, consent: true, directoryVisible?: boolean, newPassword?: string} → { user: OwnProfile } + Set-Cookie
 //   directoryVisible is applied only when the profile is created (default true).
+//   newPassword (10..200 chars, else 400 fieldErrors.newPassword) sets/resets the password and logs out all older sessions.
+// POST /api/auth/login-password {email, password} → { user: OwnProfile } + Set-Cookie | 401 (one message for every failure) | 429
+// POST /api/auth/password      {currentPassword?, newPassword} → { user: OwnProfile } (needs a session; currentPassword is
+//                                required when a password exists; 400 fieldErrors.newPassword / currentPassword; 429;
+//                                all other sessions of the user are deleted)
 // POST /api/auth/logout                     → { ok: true } (clears cookie, deletes session)
 // GET  /api/jobs                            → { jobs: PublicJob[] } active, not expired, with dates; jobs AND
 //                                             offers (jobType 'craftsman_available'); posterContact only when logged in

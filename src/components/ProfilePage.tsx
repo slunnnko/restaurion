@@ -94,6 +94,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [blockError, setBlockError] = useState('');
   const [blockFieldErrors, setBlockFieldErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSaved, setPwSaved] = useState(false);
+  const [pwFieldErrors, setPwFieldErrors] = useState<Record<string, string>>({});
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockSavedMsg, setBlockSavedMsg] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -101,6 +107,34 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const blockFormRef = useRef<HTMLFormElement | null>(null);
 
   const today = todayIso();
+
+  const savePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwBusy) return;
+    setPwError('');
+    setPwSaved(false);
+    setPwFieldErrors({});
+    setPwBusy(true);
+    try {
+      const data = await api<{ user: OwnProfile }>('/api/auth/password', {
+        method: 'POST',
+        body: user.hasPassword ? { currentPassword, newPassword } : { newPassword },
+      });
+      setCurrentPassword('');
+      setNewPassword('');
+      setPwSaved(true);
+      onUserChange(data.user);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setPwError(err.message);
+        setPwFieldErrors(err.fieldErrors ?? {});
+      } else {
+        setPwError('Heslo se nepodařilo uložit.');
+      }
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const refresh = async () => {
     setLoadError('');
@@ -604,6 +638,59 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
         </form>
       </section>
+
+      <form onSubmit={savePassword} className={`${cardCls} p-5 sm:p-6 space-y-3.5`}>
+        <h2 className={sectionTitle}>Heslo</h2>
+        <p className="text-xs font-bold text-stone-600 dark:text-stone-400">
+          {user.hasPassword
+            ? 'Heslo máš nastavené. Kód z e-mailu funguje dál.'
+            : 'Nastav si heslo, ať se příště přihlásíš bez kódu z e-mailu.'}
+        </p>
+        {user.hasPassword && (
+          <div>
+            <label htmlFor="pw-current" className={labelCls}>
+              Současné heslo
+            </label>
+            <input
+              id="pw-current"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className={inputCls}
+            />
+            <FieldError message={pwFieldErrors.currentPassword} />
+          </div>
+        )}
+        <div>
+          <label htmlFor="pw-new" className={labelCls}>
+            Nové heslo
+          </label>
+          <input
+            id="pw-new"
+            type="password"
+            required
+            minLength={10}
+            maxLength={200}
+            autoComplete="new-password"
+            placeholder="Alespoň 10 znaků"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className={inputCls}
+          />
+          <FieldError message={pwFieldErrors.newPassword} />
+        </div>
+        {pwError && Object.keys(pwFieldErrors).length === 0 && <ErrorBox message={pwError} />}
+        {pwSaved && (
+          <div role="status" className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
+            Heslo je uložené.
+          </div>
+        )}
+        <button type="submit" disabled={pwBusy || newPassword.length < 10} className={primaryBtn}>
+          {pwBusy ? 'Ukládám…' : user.hasPassword ? 'Změnit heslo' : 'Nastavit heslo'}
+        </button>
+      </form>
 
       <section className={`${cardCls} p-5 sm:p-6`}>
         <h2 className={sectionTitle}>Moje domluvené zakázky</h2>

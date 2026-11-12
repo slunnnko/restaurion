@@ -100,6 +100,18 @@ export async function getAuthenticatedUserId(request: Request, db?: D1Database):
   return session?.user_id ?? null;
 }
 
+/** Creates a 30-day session for the user and returns the Set-Cookie value. */
+export async function createSession(db: D1Database, userId: string): Promise<string> {
+  const rawToken = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  const tokenHash = await sha256Hex(rawToken);
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  await db
+    .prepare(`INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`)
+    .bind(tokenHash, userId, expiresAt)
+    .run();
+  return `restaurion_session=${encodeURIComponent(rawToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+}
+
 /** True when the e-mail is listed in the ADMIN_EMAILS env var (comma-separated, case-insensitive). */
 export function isAdmin(env: Pick<Env, 'ADMIN_EMAILS'>, email: string | null | undefined): boolean {
   if (!email || !env.ADMIN_EMAILS) return false;
@@ -380,9 +392,9 @@ export interface BookedRow {
 /** Full own profile including blocks and accepted jobs. Only for the profile's owner. */
 export async function loadOwnProfile(db: D1Database, userId: string, env?: Env): Promise<OwnProfile | null> {
   const row = await db
-    .prepare(`SELECT ${PROFILE_COLUMNS} FROM profiles WHERE id = ? LIMIT 1`)
+    .prepare(`SELECT ${PROFILE_COLUMNS}, (password_hash IS NOT NULL) AS has_password FROM profiles WHERE id = ? LIMIT 1`)
     .bind(userId)
-    .first<ProfileRow>();
+    .first<ProfileRow & { has_password: number }>();
   if (!row) return null;
   const today = todayUtc();
   const [blocks, booked] = await Promise.all([
@@ -420,6 +432,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
     ...mapPublicPerson(row),
     email: row.email,
     isAdmin: env ? isAdmin(env, row.email) : false,
+    hasPassword: Boolean(row.has_password),
     ...(row.phone ? { phone: row.phone } : {}),
     region: row.region,
     emailDigest: Boolean(row.email_digest),

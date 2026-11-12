@@ -50,7 +50,8 @@ Code under `functions/` and `workers/` imports with explicit `.ts` extensions. `
 1. `POST /api/auth/request-code` stores a SHA-256 hash of a 6-digit code in `login_codes` (valid 10 min) and sends it by email.
 2. `POST /api/auth/verify-code` consumes one attempt atomically on the latest code (`UPDATE … RETURNING`, max 5). Then it accepts the guess against any unexpired code of that email.
 3. On success it creates the profile if missing (`consent_at` set, name empty), stores a hashed session token in `auth_sessions`, and sets the `restaurion_session` cookie (HttpOnly, Secure, SameSite=Lax, 30 days).
-4. Every endpoint resolves the user with `getAuthenticatedUserId` / `requireUser` in `_shared.ts`.
+4. Every endpoint resolves the user with `getAuthenticatedUserId` / `requireUser` in `_shared.ts`. Sessions are created by `createSession` (`_shared.ts`).
+5. Optional password (D31): `POST /api/auth/password` sets or changes it (the current one is required when set; other sessions are deleted). `POST /api/auth/login-password` logs in with e-mail and password (one 401 message for every failure). Reset = `verify-code` with `newPassword` (deletes all sessions). Hashing is in `functions/api/_lib/password.ts` (PBKDF2-SHA256, 100 000 iterations, stored with the iteration count in `profiles.password_hash`, migration `0010`). `OwnProfile.hasPassword` is the only trace in responses.
 
 Rate limits (`rateLimit` in `_shared.ts`, table `rate_limit_events`): the event is inserted first and then counted, and a rejected request deletes its own row.
 
@@ -60,6 +61,9 @@ Rate limits (`rateLimit` in `_shared.ts`, table `rate_limit_events`): the event 
 | request-code per IP | 20 / h |
 | verify-code per IP | 30 / h |
 | verify-code per email | 10 / h |
+| login-password per IP | 30 / h |
+| login-password per email | 10 / h |
+| password change per user | 10 / h |
 
 Test mode: when Resend is not configured and `TEST_LOGIN_ECHO=1`, request-code returns `testCode` in the response. The UI prefills it.
 
@@ -142,7 +146,7 @@ Dates are `YYYY-MM-DD` calendar days without a time zone. Timestamps are SQLite 
 | Command | What |
 | :--- | :--- |
 | `npm test` | unit tests in `tests/*.test.ts` with Node's native TypeScript stripping (Node 25) |
-| `bash scripts/e2e-local.sh` | resets local D1, applies `0001`–`0007`, starts `wrangler pages dev` on `:8788` with a stub page, drives the API with curl. Prints PASS/FAIL per check. |
+| `bash scripts/e2e-local.sh` | resets local D1, applies `0001`–`0007`, `0009`, `0010`, starts `wrangler pages dev` on `:8788` with a stub page, drives the API with curl. Prints PASS/FAIL per check. |
 | `npx tsc --noEmit -p .`, `npx eslint src`, `npm run build` | type check, lint, static export |
 
 A change to an endpoint changes `src/types/api.ts`, the tests and `scripts/e2e-local.sh` together.

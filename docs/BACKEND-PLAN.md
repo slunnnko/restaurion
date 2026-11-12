@@ -36,7 +36,9 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | :--- | :--- | :--- |
 | `GET /api/auth/me` | kdokoli | vlastní profil nebo `null` |
 | `POST /api/auth/request-code` | kdokoli | pošle 6místný kód (platí 10 min); limity 5/h na e-mail, 20/h na IP |
-| `POST /api/auth/verify-code` | kdokoli | ověří kód (max. 5 pokusů, 30/h na IP), vyžaduje `consent: true`, nastaví cookie |
+| `POST /api/auth/verify-code` | kdokoli | ověří kód (max. 5 pokusů, 30/h na IP), vyžaduje `consent: true`, nastaví cookie; volitelné `newPassword` = obnova hesla (smaže všechny relace) |
+| `POST /api/auth/login-password` | kdokoli | přihlášení e-mailem a heslem (30/h na IP, 10/h na e-mail), jedna chyba 401 pro všechny případy |
+| `POST /api/auth/password` | relace | nastaví/změní heslo (změna vyžaduje současné; smaže ostatní relace) |
 | `POST /api/auth/logout` | relace | smaže relaci |
 | `GET /api/jobs` | kdokoli | veřejná nástěnka (zakázky i nabídky `craftsman_available`); s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` (kontakty zadavatele pro každého přihlášeného) |
 | `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, podle jména); `contact` jen s relací |

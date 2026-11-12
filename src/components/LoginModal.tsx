@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { OwnProfile } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { ModalShell, ErrorBox, FieldError, inputCls, labelCls, primaryBtn, secondaryBtn } from './ui';
-import { Mail, KeyRound } from 'lucide-react';
+import { Mail, KeyRound, Lock } from 'lucide-react';
 
 interface LoginModalProps {
   onClose: () => void;
@@ -15,6 +15,9 @@ interface LoginModalProps {
 export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onOpenVop }) => {
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
+  const [mode, setMode] = useState<'code' | 'password' | 'reset'>('code');
+  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [code, setCode] = useState('');
   const [testCode, setTestCode] = useState('');
   const [consent, setConsent] = useState(false);
@@ -23,8 +26,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const requestCode = async (e: React.FormEvent) => {
+  const loginWithPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    setError('');
+    setFieldErrors({});
+    setBusy(true);
+    try {
+      const data = await api<{ user: OwnProfile }>('/api/auth/login-password', {
+        method: 'POST',
+        body: { email: email.trim(), password },
+      });
+      onLoggedIn(data.user);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Přihlášení se nepodařilo.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestCode = async (e: React.FormEvent | null, forReset = false) => {
+    e?.preventDefault();
     if (busy) return;
     setError('');
     setFieldErrors({});
@@ -36,6 +58,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
       });
       setTestCode(res.testCode ?? '');
       if (res.testCode) setCode(res.testCode);
+      if (forReset) setMode('reset');
       setStep('code');
     } catch (err) {
       if (err instanceof ApiError) {
@@ -62,7 +85,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
     try {
       const data = await api<{ user: OwnProfile }>('/api/auth/verify-code', {
         method: 'POST',
-        body: { email: email.trim(), code: code.trim(), consent: true, directoryVisible },
+        body: {
+          email: email.trim(),
+          code: code.trim(),
+          consent: true,
+          directoryVisible,
+          ...(mode === 'reset' ? { newPassword } : {}),
+        },
       });
       onLoggedIn(data.user);
     } catch (err) {
@@ -84,17 +113,51 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
           Přihlášení
         </span>
         <h2 id="login-title" className="font-serif text-xl font-bold text-[#111111] dark:text-white">
-          {step === 'email' ? 'Přihlas se e-mailem' : 'Zadej kód z e-mailu'}
+          {step === 'email'
+            ? mode === 'password'
+              ? 'Přihlas se heslem'
+              : 'Přihlas se e-mailem'
+            : mode === 'reset'
+              ? 'Obnova hesla'
+              : 'Zadej kód z e-mailu'}
         </h2>
         <p className="text-xs font-medium text-stone-700 dark:text-stone-300 mt-1">
           {step === 'email'
-            ? 'Pošleme ti 6místný kód. Heslo nepotřebuješ, účet se vytvoří automaticky.'
+            ? mode === 'password'
+              ? 'Heslo si nastavíš v profilu po prvním přihlášení kódem.'
+              : 'Pošleme ti 6místný kód. Heslo nepotřebuješ, účet se vytvoří automaticky.'
             : `Poslali jsme ho na ${email.trim()}.`}
         </p>
       </div>
 
       {step === 'email' ? (
-        <form onSubmit={requestCode} className="space-y-3.5">
+        <form onSubmit={mode === 'password' ? loginWithPassword : (e) => void requestCode(e)} className="space-y-3.5">
+          <div role="group" aria-label="Způsob přihlášení" className="grid grid-cols-2 gap-1.5 p-1 rounded-xl border-2 border-[#111111] dark:border-stone-500">
+            {(
+              [
+                ['code', 'Kód e-mailem'],
+                ['password', 'Heslo'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={mode === value}
+                onClick={() => {
+                  setMode(value);
+                  setError('');
+                  setFieldErrors({});
+                }}
+                className={`h-9 rounded-lg text-xs font-extrabold cursor-pointer ${
+                  mode === value
+                    ? 'bg-[#FEF08A] text-[#111111] border-2 border-[#111111]'
+                    : 'text-[#111111] dark:text-stone-200'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <div>
             <label htmlFor="login-email" className={labelCls}>
               E-mail
@@ -115,14 +178,51 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
             </div>
             <FieldError message={fieldErrors.email} />
           </div>
+          {mode === 'password' && (
+            <div>
+              <label htmlFor="login-password" className={labelCls}>
+                Heslo
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#111111] dark:text-stone-300 pointer-events-none" />
+                <input
+                  id="login-password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`${inputCls} pl-10`}
+                />
+              </div>
+            </div>
+          )}
           {error && <ErrorBox message={error} />}
-          <div className="flex justify-end gap-2.5 pt-1">
-            <button type="button" onClick={onClose} className={secondaryBtn}>
-              Zrušit
-            </button>
-            <button type="submit" disabled={busy || !email.trim()} className={primaryBtn}>
-              {busy ? 'Odesílám…' : 'Poslat kód'}
-            </button>
+          <div className="flex flex-wrap justify-between items-center gap-2.5 pt-1">
+            {mode === 'password' ? (
+              <button
+                type="button"
+                disabled={busy || !email.trim()}
+                onClick={() => void requestCode(null, true)}
+                className="text-xs font-extrabold underline underline-offset-2 text-[#111111] dark:text-stone-200 cursor-pointer disabled:opacity-50"
+              >
+                Zapomenuté heslo?
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2.5">
+              <button type="button" onClick={onClose} className={secondaryBtn}>
+                Zrušit
+              </button>
+              <button
+                type="submit"
+                disabled={busy || !email.trim() || (mode === 'password' && !password)}
+                className={primaryBtn}
+              >
+                {mode === 'password' ? (busy ? 'Přihlašuji…' : 'Přihlásit') : busy ? 'Odesílám…' : 'Poslat kód'}
+              </button>
+            </div>
           </div>
         </form>
       ) : (
@@ -155,6 +255,30 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
             </div>
             <FieldError message={fieldErrors.code} />
           </div>
+
+          {mode === 'reset' && (
+            <div>
+              <label htmlFor="login-new-password" className={labelCls}>
+                Nové heslo
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#111111] dark:text-stone-300 pointer-events-none" />
+                <input
+                  id="login-new-password"
+                  type="password"
+                  required
+                  minLength={10}
+                  maxLength={200}
+                  autoComplete="new-password"
+                  placeholder="Alespoň 10 znaků"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className={`${inputCls} pl-10`}
+                />
+              </div>
+              <FieldError message={fieldErrors.newPassword} />
+            </div>
+          )}
 
           <label className="flex items-start gap-2.5 text-xs font-bold text-[#111111] dark:text-stone-200 cursor-pointer">
             <input
@@ -193,6 +317,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
               type="button"
               onClick={() => {
                 setStep('email');
+                setMode(mode === 'reset' ? 'password' : mode);
+                setNewPassword('');
                 setCode('');
                 setTestCode('');
                 setError('');
@@ -202,7 +328,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose, onLoggedIn, onO
             >
               Jiný e-mail
             </button>
-            <button type="submit" disabled={busy || code.length !== 6} className={primaryBtn}>
+            <button type="submit" disabled={busy || code.length !== 6 || (mode === 'reset' && newPassword.length < 10)} className={primaryBtn}>
               {busy ? 'Ověřuji…' : 'Přihlásit'}
             </button>
           </div>

@@ -1,10 +1,12 @@
-import { badJson, jsonResponse, loadOwnProfile, noDb, rateLimit, readJson, sha256Hex } from '../_shared.ts';
+import { badJson, createSession, jsonResponse, loadOwnProfile, noDb, rateLimit, readJson, sha256Hex } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
+import { hashPassword, validateNewPassword } from '../_lib/password.ts';
 
 const MAX_ATTEMPTS = 5;
 
 /**
- * POST /api/auth/verify-code {email, code, consent: true, directoryVisible?: boolean}
+ * POST /api/auth/verify-code {email, code, consent: true, directoryVisible?: boolean, newPassword?: string}
+ * S newPassword (reset hesla) se heslo nastaví a smažou se všechny dosavadní relace uživatele.
  * Max. 5 pokusů na nejnovější kód e-mailu, 30/h na IP. directoryVisible=false skryje i existující profil (true nikdy nezapne zpět). Vytvoří profil, nastaví consent_at a cookie `restaurion_session` na 30 dní.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
@@ -12,7 +14,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   if (!env.DB) return noDb();
   const db = env.DB;
 
-  const body = await readJson<{ email?: unknown; code?: unknown; consent?: unknown; directoryVisible?: unknown }>(request);
+  const body = await readJson<{ email?: unknown; code?: unknown; consent?: unknown; directoryVisible?: unknown; newPassword?: unknown }>(request);
   if (!body) return badJson();
 
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -25,6 +27,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       { error: 'Pro přihlášení je nutný souhlas se zpracováním údajů.', fieldErrors: { consent: 'Souhlas je povinný.' } },
       400
     );
+  }
+
+  // Validated before any code attempt is consumed.
+  let newPassword: string | null = null;
+  if (body.newPassword !== undefined && body.newPassword !== null) {
+    const pwError = validateNewPassword(body.newPassword);
+    if (pwError) return jsonResponse({ error: pwError, fieldErrors: { newPassword: pwError } }, 400);
+    newPassword = body.newPassword as string;
   }
 
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
@@ -96,15 +106,16 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       }
     }
 
-    const rawToken = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
-    const tokenHash = await sha256Hex(rawToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
-    await db
-      .prepare(`INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)`)
-      .bind(tokenHash, profile.id, expiresAt)
-      .run();
+    if (newPassword !== null) {
+      await db
+        .prepare(`UPDATE profiles SET password_hash = ?, password_set_at = datetime('now') WHERE id = ?`)
+        .bind(await hashPassword(newPassword), profile.id)
+        .run();
+      // A reset logs the user out everywhere.
+      await db.prepare(`DELETE FROM auth_sessions WHERE user_id = ?`).bind(profile.id).run();
+    }
 
-    const cookie = `restaurion_session=${encodeURIComponent(rawToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`;
+    const cookie = await createSession(db, profile.id);
     const user = await loadOwnProfile(db, profile.id, env);
     return jsonResponse({ user }, 200, { 'Set-Cookie': cookie });
   } catch (err) {
