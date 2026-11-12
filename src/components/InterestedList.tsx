@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { EngagementForPoster, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
-import { initials } from '@/lib/format';
+import { formatShortDay, initials } from '@/lib/format';
 import { ErrorBox } from './ui';
 import { EngagementDetailModal } from './EngagementDetailModal';
 import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
@@ -24,8 +24,12 @@ export const PersonChip: React.FC<{
   name: string;
   status?: EngagementStatus;
   muted?: boolean;
+  /** Přepíše text stavového štítku (pozvánky: „Čeká na potvrzení“, „Nepotvrzeno“). */
+  label?: string;
+  /** Doplňující řádek pod štítkem v čipu (např. „do 15. 11.“). */
+  note?: string;
   onClick?: () => void;
-}> = ({ name, status, muted = false, onClick }) => {
+}> = ({ name, status, muted = false, label, note, onClick }) => {
   const cls = `${chipBase} ${muted ? 'opacity-60' : ''}`;
   const content = (
     <>
@@ -37,9 +41,10 @@ export const PersonChip: React.FC<{
         <span
           className={`px-2 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[10px] font-extrabold ${STATUS_CLS[status]}`}
         >
-          {STATUS_LABEL[status]}
+          {label ?? STATUS_LABEL[status]}
         </span>
       )}
+      {note && <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400">{note}</span>}
     </>
   );
   return onClick ? (
@@ -55,6 +60,18 @@ export const PersonChip: React.FC<{
     <span className={cls}>{content}</span>
   );
 };
+
+/** D40: stav pozvánky („Poptat spolupráci“) pro zadavatele; ostatní zájmy mají běžné štítky. */
+export function invitationChip(x: EngagementForPoster): { label?: string; note?: string } {
+  if (x.initiatedBy !== 'poster') return {};
+  if (x.status === 'accepted') return { label: 'Přijat' };
+  if (x.status === 'pending') {
+    return x.unconfirmed
+      ? { label: 'Nepotvrzeno' }
+      : { label: 'Čeká na potvrzení', ...(x.respondBy ? { note: `do ${formatShortDay(x.respondBy)}` } : {}) };
+  }
+  return {};
+}
 
 const mutedCls = 'text-xs font-semibold text-stone-600 dark:text-stone-400';
 
@@ -105,6 +122,7 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
               <PersonChip
                 name={x.worker.name}
                 status={isOffer ? undefined : x.status}
+                {...(isOffer ? {} : invitationChip(x))}
                 muted={x.status === 'declined' || x.status === 'withdrawn'}
                 onClick={() => setSelected(x)}
               />
@@ -119,8 +137,10 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
           engagement={selected}
           onClose={() => setSelected(null)}
           onDecided={(e) => {
-            setItems((prev) => (prev ? prev.map((x) => (x.id === e.id ? e : x)) : prev));
-            setSelected(e);
+            // Odmítnutý / zrušený zájem zmizí ze seznamu (D40); přijatý zůstane.
+            const gone = e.status === 'declined' || e.status === 'withdrawn';
+            setItems((prev) => (prev ? (gone ? prev.filter((x) => x.id !== e.id) : prev.map((x) => (x.id === e.id ? e : x))) : prev));
+            setSelected(gone ? null : e);
             onChanged();
           }}
         />

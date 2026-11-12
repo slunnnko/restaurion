@@ -13,7 +13,11 @@ interface NotificationsPanelProps {
   onUnreadChange: (unread: number) => void;
   /** Kliknutí na upozornění s jobId; panel se předtím zavře. */
   onOpenJob: (jobId: string) => void;
+  /** D40: upozornění na poptávky (přímé inzeráty nejsou na nástěnce) otevře profil. */
+  onOpenProfile: () => void;
 }
+
+const INVITE_TYPES: NotificationItem['type'][] = ['invited', 'invite_accepted', 'invite_declined', 'invite_cancelled'];
 
 export function notificationText(n: NotificationItem): string {
   const title = n.jobTitle ?? 'zakázka';
@@ -30,12 +34,20 @@ export function notificationText(n: NotificationItem): string {
       return `Řemeslník odstoupil od zakázky ${title}`;
     case 'job_closed':
       return `Zakázka ${title} byla ukončena`;
+    case 'invited':
+      return n.posterName ? `${n.posterName} ti poslal poptávku: ${title}` : `Nová poptávka pro tebe: ${title}`;
+    case 'invite_accepted':
+      return `Poptávku ${title} potvrdil řemeslník`;
+    case 'invite_declined':
+      return `Poptávku ${title} řemeslník odmítl`;
+    case 'invite_cancelled':
+      return `Poptávka ${title} byla zrušena`;
     default:
       return title;
   }
 }
 
-export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ onClose, onUnreadChange, onOpenJob }) => {
+export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ onClose, onUnreadChange, onOpenJob, onOpenProfile }) => {
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [error, setError] = useState('');
 
@@ -89,11 +101,11 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ onClose,
             <li key={n.id}>
               <button
                 type="button"
-                disabled={!n.jobId}
-                onClick={() => n.jobId && onOpenJob(n.jobId)}
+                disabled={!n.jobId && !INVITE_TYPES.includes(n.type)}
+                onClick={() => (INVITE_TYPES.includes(n.type) ? onOpenProfile() : n.jobId && onOpenJob(n.jobId))}
                 className={`w-full text-left p-3 rounded-xl border-2 border-[#111111] dark:border-stone-500 text-xs font-bold text-[#111111] dark:text-stone-100 transition-all ${
                   n.read ? 'bg-[#FFFDF7] dark:bg-[#121318]' : 'bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15'
-                } ${n.jobId ? 'hover:bg-[#FEF08A] dark:hover:bg-[#323644] cursor-pointer' : 'cursor-default'}`}
+                } ${n.jobId || INVITE_TYPES.includes(n.type) ? 'hover:bg-[#FEF08A] dark:hover:bg-[#323644] cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="break-words">{notificationText(n)}</div>
                 {n.type === 'job_match' && n.busyDays !== undefined && n.busyDays > 0 && (

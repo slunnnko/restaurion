@@ -7,6 +7,7 @@ import { ModalShell, ErrorBox, ContactLinks, primaryBtn, secondaryBtn, dangerBtn
 import { iconBtn } from './ActionMenu';
 import { DirectoryCard } from './DirectoryCard';
 import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
+import { invitationChip } from './InterestedList';
 import { ArrowLeft, UserRound } from 'lucide-react';
 
 interface EngagementDetailModalProps {
@@ -23,6 +24,7 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
   const [actionError, setActionError] = useState('');
   const isOffer = job.jobType === 'craftsman_available';
   const x = engagement;
+  const isInvite = x.initiatedBy === 'poster';
 
   const decide = async (action: 'accept' | 'decline') => {
     setBusy(true);
@@ -79,7 +81,7 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
               <span
                 className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${STATUS_CLS[x.status]}`}
               >
-                {STATUS_LABEL[x.status]}
+                {invitationChip(x).label ?? STATUS_LABEL[x.status]}
               </span>
             </div>
           )}
@@ -90,7 +92,15 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
             </blockquote>
           )}
 
-          {x.status === 'pending' && (
+          {isInvite && x.status === 'pending' && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="button" disabled={busy} onClick={() => void decide('decline')} className={dangerBtn}>
+                Zrušit poptávku
+              </button>
+            </div>
+          )}
+
+          {!isInvite && x.status === 'pending' && (
             <div className="flex flex-wrap gap-2 pt-1">
               {!isOffer && (
                 <button type="button" disabled={busy} onClick={() => void decide('accept')} className={primaryBtn}>

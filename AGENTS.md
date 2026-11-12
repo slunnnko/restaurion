@@ -36,8 +36,8 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 
 - **Kontakty** (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí **každý přihlášený** uživatel (u inzerátů, v Adresáři, u zájemců). **Anonymní návštěvník je nikdy nedostane**: odpověď bez relace neobsahuje e-mail, telefon ani odkazy (UI ukáže „Kontakty uvidíš po přihlášení“). Mapování řádku na kontakt je jen v `mapContact` (`functions/api/_shared.ts`); každý endpoint ho volá jen pro přihlášeného. Pravidlo „kontakt až po přijetí“ neplatí.
 - **Adresář** (`GET /api/directory`) je veřejný. Vypisuje profily s `directory_visible = 1`, souhlasem (`consent_at`) a jménem o 3+ znacích; zveřejnění je opt-out (přepínač v profilu, zaškrtávátko při přihlášení).
-- **Bloky nedostupnosti a obsazené dny** vidí jen jejich vlastník; nikdy nejsou v Adresáři ani v jiné veřejné odpovědi. Zadavatel vidí zájemce jen u vlastního inzerátu.
-- **Nabídky „Nabízím se“** nespouštějí párovací upozornění, nemají přijetí/odmítnutí (409) a nikdy neobsazují dny. Zájem o nabídku upozorní nabízejícího (`interest`).
+- **Bloky nedostupnosti a obsazené dny** vidí jen jejich vlastník; nikdy nejsou v Adresáři ani v jiné veřejné odpovědi. Zadavatel vidí zájemce jen u vlastního inzerátu. **Přímý inzerát** (`visibility = 'direct'`, D40) vidí jen jeho autor a pozvaná osoba (`direct_to`); není na nástěnce ani v cizím `mine=1` a nikdo jiný ho nenačte.
+- **Nabídky „Nabízím se“** nespouštějí párovací upozornění, nemají přijetí/odmítnutí (409) a nikdy neobsazují dny. `Poptat spolupráci` na nabídce je pozvánka od zadavatele (D40, `/api/jobs/:id/invite`); `respond` na nabídku je 409.
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
 - Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
@@ -46,14 +46,14 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 ## 3. Struktura projektu
 
 - `src/app/page.tsx` – hlavní stránka (nástěnka, filtry, modály, přepnutí na profil); `src/app/globals.css`, `src/app/layout.tsx`.
-- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `EngagementDetailModal`, `ActionMenu`, `InterestedList`, `WithdrawModal`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
+- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `EngagementDetailModal`, `ActionMenu`, `InterestedList`, `WithdrawModal`, `InviteModal`, `InvitationsList`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
 - `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
 - `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
 - `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, login-password, password, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
 - `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`, `photo.ts`).
 - Fotka inzerátu (D34): `functions/api/jobs/[id]/photo.ts` (POST/DELETE, vlastník), `functions/api/photos/[[path]].ts` (veřejné čtení z R2, binding `JOB_PHOTOS`), `src/lib/image.ts` (zmenšení v prohlížeči). Binding je jen na nejvyšší úrovni `wrangler.json`; produkční se přidá po zapnutí R2.
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
-- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0013` (0006, 0007, 0009–0013 se pouští jednou; 0013 = `notifications.reason`, musí běžet na vzdálené D1 před nasazením Pages).
+- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0014` (0006, 0007, 0009–0014 se pouští jednou; 0013 = `notifications.reason`, 0014 = pozvánky D40 včetně přestavby `notifications`; obě musí běžet na vzdálené D1 před nasazením Pages).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
 - `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (endpointy a migrace).
 - **Nová session začíná v [`docs/STATUS.md`](docs/STATUS.md)** (co je nasazené, rizika, další kroky), pak [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a [`docs/DECISIONS.md`](docs/DECISIONS.md). Při změně stavu aktualizuj `STATUS.md`, při novém rozhodnutí přidej řádek do `DECISIONS.md`.

@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -314,7 +314,7 @@ eq "text filter matches the name case-insensitively" "$(echo "$BODY" | jq -r '[.
 api - GET "/api/directory?group=bogus"
 eq "unknown group filter -> empty list" "$(echo "$BODY" | jq -r '.total')" 0
 
-echo "== offers (Nabízím se): no matching, interest notifies the offerer, no accept"
+echo "== offers (Nabízím se): no matching, respond is 409 (D40 invitation flow), legacy engagement keeps working"
 api poster2 POST /api/jobs "{\"title\":\"Volny kamenik\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
 eq "offer created" "$CODE/$(echo "$BODY" | jq -r '.job.jobType')" "201/craftsman_available"
 eq "offer notifies nobody (notified 0)" "$(echo "$BODY" | jq -r '.notified')" 0
@@ -327,20 +327,183 @@ echo "$BODY" | grep -q '@'; eq "no '@' in anonymous /api/jobs with an offer" "$?
 api w1 GET /api/jobs
 eq "logged-in viewer sees the offerer's contact" "$(echo "$BODY" | jq -r --arg j "$OFFER" '.jobs[] | select(.id==$j) | .posterContact.email')" "poster2@e2e.test"
 api w1 POST /api/jobs/$OFFER/respond '{"message":"Zajem o spolupraci"}'
-eq "w1 asks the offerer" "$CODE" 201
-EO=$(echo "$BODY" | jq -r '.engagement.id')
-api poster2 GET /api/notifications
-eq "offerer got an 'interest' notification" "$(echo "$BODY" | jq -r --arg j "$OFFER" '[.items[] | select(.type=="interest" and .jobId==$j)] | length')" 1
+eq "respond on an offer -> 409 'Použij Poptat spolupráci.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Použij Poptat spolupráci."
+# A legacy worker-initiated engagement on an offer (created before D40) is seeded directly.
+EO=e-legacy1
+d1 --command "INSERT INTO engagements (id, job_id, worker_id, message) VALUES ('$EO', '$OFFER', (SELECT id FROM profiles WHERE email='w1@e2e.test'), 'Zajem o spolupraci')" > /dev/null
 api poster2 GET /api/jobs/$OFFER/engagements
-eq "offerer sees the interested user with contact" "$(echo "$BODY" | jq -r '.engagements[0].workerContact.email')" "w1@e2e.test"
+eq "offerer sees the legacy interested user with contact" "$(echo "$BODY" | jq -r '.engagements[0].workerContact.email')" "w1@e2e.test"
 api poster2 POST /api/engagements/$EO '{"action":"accept"}'
 eq "accept on an offer -> 409" "$CODE" 409
 api poster2 POST /api/engagements/$EO '{"action":"decline"}'
 eq "decline on an offer -> 200" "$CODE" 200
+api poster2 GET /api/jobs/$OFFER/engagements
+eq "declined interest is hidden from the offerer's list" "$(echo "$BODY" | jq -r '.engagements | length')" 0
 api w1 GET /api/profile
 eq "an offer never books or busies anyone" "$(echo "$BODY" | jq -r '.profile.booked | length')" 0
 api w1 GET /api/jobs
 eq "offers carry no busy-day note" "$(echo "$BODY" | jq -r --arg j "$OFFER" '.jobs[] | select(.id==$j) | .myBusyDays // "none"')" "none"
+
+echo "== D40 invitations: Poptat spolupráci (poster2 = offerer O, poster = viewer V)"
+YEST=$(date -u -v-1d +%F 2>/dev/null || date -u -d 'yesterday' +%F)
+mk_inv_job() { # title from to crafts-json -> JOBID
+  api poster POST /api/jobs "{\"title\":\"$1\",\"jobType\":\"subcontract_needed\",\"monumentStatus\":\"craft_work\",\"crafts\":$4,\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$2\",\"dateTo\":\"$3\",\"rewardType\":\"negotiable\"}"; JOBID=$(echo "$BODY" | jq -r '.job.id')
+}
+mk_inv_job "Zakazka pro nabidku" "$R_FROM" "$R_TO" '["kámen"]'; VJ=$JOBID
+mk_inv_job "Jiny obor nehodi se" "$R_FROM" "$R_TO" '["dřevo"]'; VJX=$JOBID
+api poster GET /api/jobs/$OFFER/invite-options
+eq "invite-options lists the fitting job, not the other-craft one" "$CODE/$(echo "$BODY" | jq -r --arg a "$VJ" --arg b "$VJX" '[.jobs[].id] as $ids | [($ids | any(. == $a)), ($ids | any(. == $b) | not)] | map(tostring) | join(",")')/$(echo "$BODY" | jq -r '.offer.id')" "200/true,true/$OFFER"
+api poster2 GET /api/jobs/$OFFER/invite-options
+eq "invite-options on my own offer -> 403" "$CODE" 403
+api - GET /api/jobs/$OFFER/invite-options
+eq "invite-options without a session -> 401" "$CODE" 401
+api poster POST /api/jobs/$VJX/invite "{\"offerId\":\"$OFFER\"}"
+eq "invite with a non-fitting job -> 409" "$CODE" 409
+api w5 POST /api/jobs/$VJ/invite "{\"offerId\":\"$OFFER\"}"
+eq "invite from a job that is not mine -> 403" "$CODE" 403
+api poster POST /api/jobs/$VJ/invite "{\"offerId\":\"$J1\"}"
+eq "invite to something that is not an offer -> 404" "$CODE" 404
+LONG_MSG=$(printf 'x%.0s' $(seq 1 501))
+api poster POST /api/jobs/$VJ/invite "{\"offerId\":\"$OFFER\",\"message\":\"$LONG_MSG\"}"
+eq "invite message over 500 chars -> 400" "$CODE" 400
+api poster POST /api/jobs/$VJ/invite "{\"offerId\":\"$OFFER\",\"message\":\"Mam zajem\"}"
+eq "invite to the offer -> 201, deadline today + 3" "$CODE/$(echo "$BODY" | jq -r '.engagement.status + "/" + .engagement.respondBy')" "201/pending/$(fdate 3)"
+VE=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/jobs/$VJ/invite "{\"offerId\":\"$OFFER\"}"
+eq "second invite while pending -> 409" "$CODE" 409
+api poster2 GET /api/notifications
+eq "O got an 'invited' notification with the poster name and job title" "$(echo "$BODY" | jq -r --arg j "$VJ" '[.items[] | select(.type=="invited" and .jobId==$j and .jobTitle=="Zakazka pro nabidku" and (.posterName | length) > 0)] | length')" 1
+api poster GET /api/jobs/$OFFER/invite-options
+eq "invite-options shows the pending invite" "$(echo "$BODY" | jq -r --arg j "$VJ" '.jobs[] | select(.id==$j) | .invite.status + "/" + (.invite.unconfirmed | tostring)')" "pending/false"
+api poster GET /api/jobs
+eq "V's offer card carries myInvites" "$(echo "$BODY" | jq -r --arg j "$OFFER" '.jobs[] | select(.id==$j) | .myInvites[0].jobId + "/" + .myInvites[0].status')" "$VJ/pending"
+api poster2 GET /api/invitations
+eq "O sees the invitation with the poster contact" "$(echo "$BODY" | jq -r --arg j "$VJ" '.invitations[] | select(.job.id==$j) | [.status, (.unconfirmed | tostring), .job.posterContact.email, .respondBy] | join("|")')" "pending|false|poster@e2e.test|$(fdate 3)"
+api poster GET /api/invitations
+eq "V has no invitations as a worker" "$(echo "$BODY" | jq -r '.invitations | length')" 0
+api - GET /api/invitations
+eq "invitations without a session -> 401" "$CODE" 401
+api poster POST /api/engagements/$VE '{"action":"accept"}'
+eq "poster cannot accept his own invitation -> 409" "$CODE" 409
+api w5 POST /api/engagements/$VE '{"action":"accept"}'
+eq "a third user cannot decide on the invitation -> 403" "$CODE" 403
+api poster2 POST /api/engagements/$VE '{"action":"accept"}'
+eq "O accepts the invitation" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/accepted"
+api poster2 GET /api/profile
+eq "accepted invitation books O's days" "$(echo "$BODY" | jq -r --arg j "$VJ" '[.profile.booked[] | select(.jobId==$j)] | length')" 1
+api poster GET /api/notifications
+eq "V got 'invite_accepted'" "$(echo "$BODY" | jq -r --arg e "$VE" '[.items[] | select(.type=="invite_accepted" and .engagementId==$e)] | length')" 1
+api poster POST /api/jobs/$VJ/invite "{\"offerId\":\"$OFFER\"}"
+eq "invite after accept -> 409" "$CODE" 409
+
+echo "== D40 direct listing (directOfferId): not on the board, only author and invited see it"
+DFROM=$(dd 4); DTO=$(dd 8)
+direct_body() { echo "{\"title\":\"$1\",\"jobType\":\"subcontract_needed\",\"monumentStatus\":\"craft_work\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$2\",\"dateTo\":\"$3\",\"directOfferId\":\"$OFFER\"}"; }
+api poster POST /api/jobs "$(direct_body 'Prima poptavka' "$DFROM" "$DTO")"
+eq "direct listing created: 201, notified 0, visibility direct, directTo = O" "$CODE/$(echo "$BODY" | jq -r '[(.notified | tostring), .job.visibility, .job.directTo.name] | join("|")')" "201/0|direct|$(echo "$BODY" | jq -r '.job.directTo.name')"
+DJ=$(echo "$BODY" | jq -r '.job.id')
+eq "directTo names O" "$(echo "$BODY" | jq -r '.job.directTo.id | length > 0')" true
+eq "no job_match rows for the direct listing" "$(d1 --json --command "SELECT COUNT(*) AS n FROM notifications WHERE job_id='$DJ' AND type='job_match'" | jq -r '.[0].results[0].n')" 0
+api - GET /api/jobs
+eq "direct listing is not on the anonymous board" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.jobs[] | select(.id==$j)] | length')" 0
+api w5 GET /api/jobs
+eq "direct listing is not on a third user's board" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.jobs[] | select(.id==$j)] | length')" 0
+api w5 GET "/api/jobs?mine=1"
+eq "direct listing is not in a third user's mine=1" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.jobs[] | select(.id==$j)] | length')" 0
+api poster GET "/api/jobs?mine=1"
+eq "direct listing is in V's mine=1 with visibility direct" "$(echo "$BODY" | jq -r --arg j "$DJ" '.jobs[] | select(.id==$j) | .visibility')" "direct"
+api poster2 GET /api/invitations
+eq "O sees the direct listing in invitations" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.invitations[] | select(.job.id==$j)] | length')" 1
+api w5 POST /api/jobs/$DJ/respond '{}'
+eq "a third user cannot respond to a direct listing -> 404" "$CODE" 404
+api w5 GET /api/jobs/$DJ/engagements
+eq "a third user cannot read its engagements -> 404/403" "$([ "$CODE" = 404 ] || [ "$CODE" = 403 ] && echo ok || echo "$CODE")" ok
+api w5 PATCH /api/jobs/$DJ '{"visibility":"public"}'
+eq "a third user cannot publish it -> 403" "$CODE" 403
+api w5 GET /api/notifications
+eq "a third user has no notification for it" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.items[] | select(.jobId==$j)] | length')" 0
+api poster2 GET /api/notifications
+eq "O sees the direct listing's title in the notification" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.items[] | select(.type=="invited" and .jobId==$j and .jobTitle=="Prima poptavka")] | length')" 1
+api poster GET /api/jobs/$DJ/engagements
+eq "V sees O as the single interested person (poster-initiated, pending)" "$(echo "$BODY" | jq -r '[(.engagements | length | tostring), .engagements[0].initiatedBy, .engagements[0].status, .engagements[0].workerContact.email] | join("|")')" "1|poster|pending|poster2@e2e.test"
+DE=$(echo "$BODY" | jq -r '.engagements[0].id')
+api poster POST /api/jobs "$(direct_body 'Vlastni nabidka' "$DFROM" "$DTO" | sed "s/$OFFER/$VJ/")"
+eq "directOfferId that is not an offer -> 404" "$CODE" 404
+api poster2 POST /api/jobs "$(direct_body 'Do vlastni nabidky' "$DFROM" "$DTO")"
+eq "directOfferId on my own offer -> 403" "$CODE" 403
+api poster POST /api/jobs "$(direct_body 'Mimo termin' "$(dd 100)" "$(dd 101)")"
+eq "direct listing outside the offer's dates -> 409" "$CODE" 409
+
+echo "== D40 declined interest is hidden, re-invite stays 409"
+api poster2 POST /api/engagements/$DE '{"action":"decline"}'
+eq "O declines the invitation" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/declined"
+api poster GET /api/jobs/$DJ/engagements
+eq "declined engagement is hidden from V's list" "$(echo "$BODY" | jq -r '.engagements | length')" 0
+api poster2 GET /api/invitations
+eq "declined invitation is hidden from O's list" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.invitations[] | select(.job.id==$j)] | length')" 0
+api poster GET /api/notifications
+eq "V got 'invite_declined'" "$(echo "$BODY" | jq -r --arg e "$DE" '[.items[] | select(.type=="invite_declined" and .engagementId==$e)] | length')" 1
+api poster POST /api/jobs/$DJ/invite "{\"offerId\":\"$OFFER\"}"
+eq "re-invite after decline -> 409 'Tuhle poptávku už odmítl.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Tuhle poptávku už odmítl."
+api poster POST /api/jobs "$(direct_body 'Nova poptavka po odmitnuti' "$DFROM" "$DTO")"
+eq "a NEW direct listing for the same offerer stays allowed" "$CODE" 201
+api poster GET /api/jobs/$OFFER/invite-options
+eq "invite-options marks the declined listing as declined" "$(echo "$BODY" | jq -r --arg j "$DJ" '.jobs[] | select(.id==$j) | .invite.status')" "declined"
+
+echo "== D40 deadline: unconfirmed keeps contacts and notification, re-invite resets, publish notifies"
+api poster POST /api/jobs "$(direct_body 'Poptavka s lhutou' "$(dd 5)" "$(dd 7)")"
+eq "second direct listing created" "$CODE" 201
+DJ2=$(echo "$BODY" | jq -r '.job.id')
+d1 --command "UPDATE engagements SET respond_by = '$YEST' WHERE job_id = '$DJ2'" > /dev/null
+api poster2 POST /api/engagements/$(d1 --json --command "SELECT id FROM engagements WHERE job_id='$DJ2'" | jq -r '.[0].results[0].id') '{"action":"accept"}'
+eq "accept after the deadline -> 409 with the deadline message" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Lhůta na potvrzení vypršela. Ozvi se zadavateli."
+api poster2 GET /api/invitations
+eq "unconfirmed invitation is still listed with the poster contact" "$(echo "$BODY" | jq -r --arg j "$DJ2" '.invitations[] | select(.job.id==$j) | [(.unconfirmed | tostring), .job.posterContact.email] | join("|")')" "true|poster@e2e.test"
+api poster2 GET /api/notifications
+eq "the 'invited' notification survives the deadline" "$(echo "$BODY" | jq -r --arg j "$DJ2" '[.items[] | select(.type=="invited" and .jobId==$j)] | length')" 1
+api poster GET /api/jobs/$DJ2/engagements
+eq "V sees the engagement as unconfirmed" "$(echo "$BODY" | jq -r '.engagements[0].unconfirmed')" "true"
+api poster POST /api/jobs/$DJ2/invite '{}'
+eq "re-send of an unconfirmed direct listing without offerId -> 201, new deadline" "$CODE/$(echo "$BODY" | jq -r '.engagement.respondBy')" "201/$(fdate 3)"
+api poster2 GET /api/invitations
+eq "after re-invite the invitation is confirmable again" "$(echo "$BODY" | jq -r --arg j "$DJ2" '.invitations[] | select(.job.id==$j) | .unconfirmed | tostring')" "false"
+d1 --command "UPDATE engagements SET respond_by = '$YEST' WHERE job_id = '$DJ2'" > /dev/null
+api poster PATCH /api/jobs/$DJ2 '{"visibility":"public"}'
+eq "publish an unconfirmed direct listing" "$CODE/$(echo "$BODY" | jq -r '.job.visibility')" "200/public"
+api - GET /api/jobs
+eq "published listing is on the board" "$(echo "$BODY" | jq -r --arg j "$DJ2" '[.jobs[] | select(.id==$j)] | length')" 1
+eq "publishing sent job_match notifications" "$([ "$(d1 --json --command "SELECT COUNT(*) AS n FROM notifications WHERE job_id='$DJ2' AND type='job_match'" | jq -r '.[0].results[0].n')" -ge 1 ] && echo yes || echo no)" yes
+api poster PATCH /api/jobs/$DJ2 '{"visibility":"public"}'
+eq "publishing a public listing again -> 409" "$CODE" 409
+api poster PATCH /api/jobs/$VJ '{"visibility":"direct"}'
+eq "visibility other than public -> 400" "$CODE" 400
+
+echo "== D40 poster cancels a pending invitation"
+api poster POST /api/jobs "$(direct_body 'Poptavka ke zruseni' "$(dd 6)" "$(dd 6)")"
+DJ3=$(echo "$BODY" | jq -r '.job.id')
+api poster GET /api/jobs/$DJ3/engagements
+CE=$(echo "$BODY" | jq -r '.engagements[0].id')
+api poster POST /api/engagements/$CE '{"action":"decline"}'
+eq "poster cancels his pending invitation" "$CODE" 200
+api poster2 GET /api/invitations
+eq "cancelled invitation is gone from O's list" "$(echo "$BODY" | jq -r --arg j "$DJ3" '[.invitations[] | select(.job.id==$j)] | length')" 0
+api poster2 GET /api/notifications
+eq "O got 'invite_cancelled'" "$(echo "$BODY" | jq -r --arg e "$CE" '[.items[] | select(.type=="invite_cancelled" and .engagementId==$e)] | length')" 1
+api poster POST /api/jobs/$DJ3/invite "{\"offerId\":\"$OFFER\"}"
+eq "re-invite after a cancel -> 201 (engagement re-opened)" "$CODE" 201
+api poster2 GET /api/invitations
+eq "re-opened invitation is listed for O again" "$(echo "$BODY" | jq -r --arg j "$DJ3" '[.invitations[] | select(.job.id==$j)] | length')" 1
+
+echo "== D40 worker declined on a regular listing: re-respond -> 409 'Zadavatel už vybral jinak.'"
+mk_inv_job "Zakazka k odmitnuti" "$R_FROM" "$R_TO" '["kámen"]'; RJ=$JOBID
+api w6 POST /api/jobs/$RJ/respond '{}'
+RE=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/engagements/$RE '{"action":"decline"}'
+eq "poster declines w6" "$CODE" 200
+api w6 POST /api/jobs/$RJ/respond '{}'
+eq "w6 re-respond after decline -> 409 with the text" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Zadavatel už vybral jinak."
+api w6 GET /api/jobs
+eq "w6 board shows the declined engagement (card text, no button)" "$(echo "$BODY" | jq -r --arg j "$RJ" '.jobs[] | select(.id==$j) | .myEngagement.status')" "declined"
 
 echo "== login code brute force and second code request"
 SQL="INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('bf@e2e.test', '$(sha "bf@e2e.test:654321")', datetime('now','+1 hour'));"
@@ -620,7 +783,7 @@ api pwreset PUT /api/profile '{"themePreference":"purple"}'
 eq "invalid themePreference -> 400 fieldErrors.themePreference" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.themePreference != null')" "400/true"
 
 echo "== withdraw reason (D38)"
-api poster POST /api/jobs "{\"title\":\"Nabidka pro duvod\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+api poster POST /api/jobs "{\"title\":\"Zakazka pro duvod\",\"jobType\":\"subcontract_needed\",\"monumentStatus\":\"craft_work\",\"crafts\":[\"dřevo\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
 WJ=$(echo "$BODY" | jq -r '.job.id')
 api w2 POST /api/jobs/$WJ/respond '{}'
 WE=$(echo "$BODY" | jq -r '.engagement.id')

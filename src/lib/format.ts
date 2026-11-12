@@ -19,6 +19,12 @@ export function formatRange(from: string, to: string): string {
   return `${dateYearFmt.format(a)} – ${dateYearFmt.format(b)}`;
 }
 
+/** „15. 11.“ pro lhůtu na potvrzení pozvánky (D40). */
+export function formatShortDay(iso: string): string {
+  const d = parse(iso);
+  return `${d.getDate()}. ${d.getMonth() + 1}.`;
+}
+
 /** Dnešní datum jako 'YYYY-MM-DD' (UTC, shodně se serverem). */
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);

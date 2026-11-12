@@ -9,6 +9,7 @@ import {
   readJson,
   requireAdmin,
   requireUser,
+  todayUtc,
 } from '../_shared.ts';
 import type { JobRow, PagesContext } from '../_shared.ts';
 import {
@@ -23,11 +24,12 @@ import {
   validationResponse,
 } from '../_lib/validate.ts';
 import type { FieldErrors } from '../_lib/validate.ts';
+import { notifyJobMatches } from '../_lib/data.ts';
 
 /**
  * PATCH /api/jobs/:id (jen zadavatel): title, description, rewardType/rewardAmount/rewardCurrency/rewardScope, dateFrom, dateTo, crafts, region, city,
- * status:'closed'. Typ (jobType) je neměnný; ukončený inzerát je jen ke čtení (409).
- * Úprava NEPOSÍLÁ nové párovací upozornění (job_match jen při vytvoření).
+ * status:'closed', visibility:'public' (jen z 'direct': zveřejní na nástěnce a pošle párovací upozornění). Typ (jobType) je neměnný; ukončený inzerát je jen ke čtení (409).
+ * Úprava NEPOSÍLÁ nové párovací upozornění (job_match jen při vytvoření a při zveřejnění přímého inzerátu).
  */
 export async function onRequestPatch(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
@@ -127,6 +129,16 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
       binds.push(dateFrom, dateFrom, dateTo, addDays(dateTo as string, 14));
     }
   }
+  let publishing = false;
+  if ('visibility' in body) {
+    if (body.visibility !== 'public') errors.visibility = 'Povolená hodnota je pouze „public“.';
+    else if (existing.visibility !== 'direct') {
+      return jsonResponse({ error: 'Inzerát už je na nástěnce.' }, 409);
+    } else {
+      publishing = true;
+      sets.push(`visibility = 'public'`);
+    }
+  }
   if ('status' in body) {
     if (body.status !== 'closed') errors.status = 'Povolená hodnota je pouze „closed“.';
     else {
@@ -149,6 +161,21 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
     }
     if (statements.length > 0) await db.batch(statements);
     const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
+    // Publishing a direct listing sends the same matching notifications as creating a job.
+    if (publishing && !closing && row) {
+      await notifyJobMatches(
+        db,
+        {
+          id: jobId,
+          posterId: auth.userId,
+          dateFrom: row.date_from,
+          dateTo: row.date_to,
+          crafts: mapJobRow(row).crafts,
+          expiresAt: row.expires_at ?? addDays(row.date_to, 14),
+        },
+        todayUtc()
+      );
+    }
     return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }) });
   } catch (err) {
     console.error('Chyba při PATCH /api/jobs/:id:', err);

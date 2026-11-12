@@ -17,7 +17,11 @@ export type NotificationType =
   | 'accepted' // poster accepted the worker (to worker)
   | 'declined' // poster declined the worker (to worker)
   | 'withdrawn' // worker withdrew (to poster)
-  | 'job_closed'; // poster closed the job (to workers with a pending or accepted engagement)
+  | 'job_closed' // poster closed the job (to workers with a pending or accepted engagement)
+  | 'invited' // poster sent an invitation ("Poptat spolupráci") to the offerer (to offerer)
+  | 'invite_accepted' // offerer confirmed the invitation (to poster)
+  | 'invite_declined' // offerer declined the invitation (to poster)
+  | 'invite_cancelled'; // poster cancelled the invitation (to offerer)
 
 /** Public summary of a person. Never contains contacts or availability. */
 export interface PublicPerson {
@@ -43,6 +47,27 @@ export interface ContactInfo {
 /** One directory listing. `contact` only for logged-in viewers. */
 export type DirectoryEntry = PublicPerson & { contact?: ContactInfo };
 
+/** The viewer's own engagement on a job (D40: `initiatedBy` 'poster' = an invitation sent to the viewer). */
+export interface MyEngagement {
+  id: string;
+  status: EngagementStatus;
+  initiatedBy: 'worker' | 'poster';
+  /** Invitations only: last day to confirm ('YYYY-MM-DD'). */
+  respondBy?: string;
+  /** Invitation still 'pending' after `respondBy` (derived, no extra status). */
+  unconfirmed?: boolean;
+}
+
+/** On an offer card: the viewer's invitation (job of the viewer sent to this offer's author). */
+export interface MyInvite {
+  engagementId: string;
+  jobId: string;
+  jobTitle: string;
+  status: EngagementStatus;
+  unconfirmed: boolean;
+  respondBy?: string;
+}
+
 export interface PublicJob {
   id: string;
   title: string;
@@ -60,12 +85,17 @@ export interface PublicJob {
   /** Structured reward; absent on legacy rows (then show budgetNote). amount/currency/scope are absent for 'negotiable'. */
   reward?: { type: RewardType; amount?: number; currency?: RewardCurrency; scope?: string };
   status: 'active' | 'closed';
+  /** 'direct' = invitation-only listing (not on the board), visible to its author and `directTo`. */
+  visibility: 'public' | 'direct';
+  directTo?: { id: string; name: string };
   createdAt: string;
   poster: { id: string; name: string; group: DirectoryGroup };
   interestedCount: number; // pending + accepted engagements
   // Viewer-specific fields (present only when a session exists):
   isMine?: boolean;
-  myEngagement?: { id: string; status: EngagementStatus };
+  myEngagement?: MyEngagement;
+  /** Offers only: invitations the VIEWER sent to this offer's author (pending/accepted, D40). */
+  myInvites?: MyInvite[];
   /** Days of this job's range that the VIEWER has busy (blocks + accepted jobs). Only for the viewer. */
   myBusyDays?: number;
   /** Contacts of the poster, for ANY logged-in viewer. */
@@ -122,8 +152,33 @@ export interface EngagementForPoster {
   status: EngagementStatus;
   message?: string;
   createdAt: string;
+  initiatedBy: 'worker' | 'poster';
+  /** Invitations only (D40). */
+  respondBy?: string;
+  unconfirmed?: boolean;
   worker: PublicPerson;
   workerContact: ContactInfo;
+}
+
+/** One invitation as the invited offerer sees it (GET /api/invitations). Contacts: job.posterContact. */
+export interface Invitation {
+  engagementId: string;
+  status: 'pending' | 'accepted';
+  message?: string;
+  createdAt: string;
+  respondBy: string;
+  unconfirmed: boolean;
+  job: PublicJob;
+}
+
+export interface InviteOptionJob {
+  id: string;
+  title: string;
+  dateFrom: string;
+  dateTo: string;
+  crafts: string[];
+  visibility: 'public' | 'direct';
+  invite?: { engagementId: string; status: EngagementStatus; unconfirmed: boolean };
 }
 
 export interface NotificationItem {
@@ -138,6 +193,8 @@ export interface NotificationItem {
   busyDays?: number;
   /** For withdrawn: the worker's optional reason (D38). */
   reason?: string;
+  /** For invited: name of the poster who sent the invitation. */
+  posterName?: string;
 }
 
 // ---- Endpoints ----
@@ -154,10 +211,14 @@ export interface NotificationItem {
 // POST /api/auth/logout                     → { ok: true } (clears cookie, deletes session)
 // GET  /api/jobs                            → { jobs: PublicJob[] } active, not expired, with dates; jobs AND
 //                                             offers (jobType 'craftsman_available'); posterContact only when logged in
-// GET  /api/jobs?mine=1                    → { jobs: PublicJob[] } the caller's own jobs and offers, status 'active' and
+// GET  /api/jobs?mine=1                    → { jobs: PublicJob[] } the caller's own jobs (public AND direct) and offers, status 'active' and
 //                                             'closed', regardless of dates, newest first, max 100; 401 without a session
 // POST /api/jobs  {title, description?, jobType, monumentStatus?, monumentName?, crafts[], region, city,
-//                  dateFrom, dateTo, rewardType?, rewardAmount?, rewardCurrency?, rewardScope?}  → 201 { job: PublicJob, notified: number }
+//                  dateFrom, dateTo, rewardType?, rewardAmount?, rewardCurrency?, rewardScope?, directOfferId?}  → 201 { job: PublicJob, notified: number }
+//   directOfferId (D40): the job is created with visibility 'direct' (not on the board), direct_to = the offer's author, NO
+//   matching notifications, and an invitation (engagement initiated_by 'poster', respond_by = today + 3) plus an 'invited'
+//   notification are created in the same db.batch. Only jobs (not offers); the offer must be active, not mine, and
+//   `offerFitsJob` must hold (else 409). Response: notified 0.
 //   Reward: rewardType 'negotiable' (default) | 'hourly' | 'fixed'. hourly/fixed need rewardAmount (integer
 //   1..10 000 000) and rewardCurrency 'CZK' (default) | 'EUR'; fixed needs rewardScope (20..1000 chars), optional
 //   for hourly. negotiable ignores the rest. budgetNote is derived server-side ("450 Kč/hod", "Dohodou").
@@ -168,15 +229,29 @@ export interface NotificationItem {
 //   contact only for a logged-in viewer. region also matches profiles with region 'Celá ČR'.
 // PATCH /api/jobs/:id {title?, description?, rewardType?+rewardAmount?+rewardCurrency?+rewardScope? (sent together), dateFrom?, dateTo?, crafts?, region?, city?,
 //                      status?: 'closed'} (owner) → { job }
+//   visibility: 'public' (owner, direct → public only, else 409) publishes a direct listing on the board and sends the same
+//   matching notifications as creating a job.
 //   jobType is immutable (400 if sent and different). A closed job is read-only (409). Editing sends NO new
 //   match notifications (job_match only on create). Closing notifies workers with a pending/accepted engagement.
-// POST /api/jobs/:id/respond {message?}     → 201 { engagement: { id, status } }  (not own job; on an offer
-//                                             the offerer gets an 'interest' notification)
-// GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts)
+// POST /api/jobs/:id/respond {message?}     → 201 { engagement: { id, status } }  (not own job; 409 on an offer: use the invitation flow, D40)
+// GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts; pending and
+//                                             accepted only, declined and withdrawn are hidden)
+// GET  /api/jobs/:id/invite-options         → { offer: { id, authorName }, jobs: InviteOptionJob[] } (D40; :id = an active offer that
+//                                             is not mine; jobs = my active public/direct listings that fit it; `invite` = O's existing engagement)
+// POST /api/jobs/:id/invite {offerId, message? (≤ 500)} → 201 { engagement: { id, status, respondBy } } (D40; :id = my active job;
+//                                             offer active, not mine, offerFitsJob else 409; a direct job only to its direct_to.
+//                                             Existing engagement: pending (not unconfirmed) / accepted / declined → 409;
+//                                             withdrawn or unconfirmed → re-opened with a new deadline). Notification 'invited'.
+// GET  /api/invitations                     → { invitations: Invitation[] } (session; poster-initiated engagements where I am the
+//                                             worker, pending/accepted incl. unconfirmed, newest first; job.posterContact = contacts)
 // POST /api/engagements/:id {action: 'accept'|'decline'} (poster, jobs only; 409 on an offer)
+//                                           | {action: 'accept'|'decline'} (the INVITED worker of a poster-initiated engagement, pending,
+//                                             not unconfirmed; after respond_by → 409 'Lhůta na potvrzení vypršela. Ozvi se zadavateli.')
+//                                           | {action: 'decline'} (the poster cancels his own pending invitation → status 'withdrawn')
 //                                           | {action: 'withdraw', reason?: string (≤ 500)} (interested user)
 //                                           → { engagement: { id, status }, contact?: ContactInfo }
 //   Accepting books the worker's dates (busy days) and notifies; contacts do not depend on it.
+//   Invitation notifications: 'invite_accepted' / 'invite_declined' (to the poster), 'invite_cancelled' (to the worker).
 // GET  /api/profile                         → { profile: OwnProfile } (session only, own profile)
 // PUT  /api/profile {firstName?, lastName?, companyName? (optional, shown instead of the name), phone? (normalized to '+420 777 111 222', else 400; legacy `name` is split at the first space), region?, crafts?, experienceText?, portfolioUrl?, licenceNumber?,
 //                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp? (digits or '@username', stored normalized), facebook?,

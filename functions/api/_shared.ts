@@ -6,7 +6,8 @@ import type {
   BookedJob,
   ContactInfo,
   DirectoryGroup,
-  EngagementStatus,
+  MyEngagement,
+  MyInvite,
   OwnProfile,
   PublicJob,
   PublicPerson,
@@ -433,7 +434,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
          FROM engagements e
          JOIN jobs j ON j.id = e.job_id
          JOIN profiles p ON p.id = j.author_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ?
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility IN ('public', 'direct') AND j.date_to >= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')
          ORDER BY j.date_from`
       )
@@ -493,6 +494,8 @@ export interface JobRow {
   reward_scope: string | null;
   status: string;
   visibility: string;
+  direct_to: string | null;
+  direct_to_name: string | null;
   created_at: string;
   expires_at: string | null;
   a_name: string;
@@ -510,17 +513,19 @@ export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url, j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
-         j.status, j.visibility, j.created_at, j.expires_at,
+         j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
          a.name AS a_name, a.directory_group AS a_group,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count
-  FROM jobs j JOIN profiles a ON a.id = j.author_id`;
+  FROM jobs j JOIN profiles a ON a.id = j.author_id LEFT JOIN profiles dt ON dt.id = j.direct_to`;
 
 export interface JobViewer {
   userId: string;
-  engagement?: { id: string; status: EngagementStatus };
+  engagement?: MyEngagement;
   busyDays?: number;
+  /** Offers only: the viewer's own poster-initiated invitations to this offer's author. */
+  invites?: MyInvite[];
 }
 
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
@@ -549,6 +554,8 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
         }
       : {}),
     status: row.status === 'active' ? 'active' : 'closed',
+    visibility: row.visibility === 'direct' ? 'direct' : 'public',
+    ...(row.visibility === 'direct' && row.direct_to ? { directTo: { id: row.direct_to, name: row.direct_to_name ?? '' } } : {}),
     createdAt: row.created_at,
     poster: {
       id: row.author_id,
@@ -560,6 +567,7 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
       ? {
           isMine: row.author_id === viewer.userId,
           ...(viewer.engagement ? { myEngagement: viewer.engagement } : {}),
+          ...(viewer.invites && viewer.invites.length > 0 ? { myInvites: viewer.invites } : {}),
           ...(viewer.busyDays !== undefined ? { myBusyDays: viewer.busyDays } : {}),
           // Any logged-in viewer sees the poster's contacts; anonymous callers pass no viewer.
           posterContact: mapContactPrefixed(row, 'a'),

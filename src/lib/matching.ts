@@ -77,3 +77,36 @@ export function evaluateMatch(job: MatchJob, worker: MatchWorker, today: string)
   if (busyDays >= totalDays) return fail('fully_busy');
   return { matches: true, busyDays, totalDays };
 }
+
+/** Poptat spolupráci: zadavatel má 3 dny na potvrzení pozvánky (API i UI berou číslo odsud). */
+export const INVITE_RESPOND_DAYS = 3;
+
+export interface OfferForFit extends DateRange {
+  authorId: string;
+  crafts: string[];
+}
+
+export interface JobForFit extends DateRange {
+  authorId: string;
+  jobType: string;
+  status: string;
+  expiresAt: string | null;
+  crafts: string[];
+}
+
+export interface OfferFitResult {
+  fits: boolean;
+  reason?: 'not_a_job' | 'inactive' | 'expired' | 'own' | 'craft_mismatch' | 'no_overlap';
+}
+
+/** Hodí se zakázka zadavatele k nabídce „Nabízím se“ (obor, termín, aktivní, ne vlastní)? */
+export function offerFitsJob(offer: OfferForFit, job: JobForFit, today: string): OfferFitResult {
+  const fail = (reason: OfferFitResult['reason']): OfferFitResult => ({ fits: false, reason });
+  if (job.jobType === 'craftsman_available') return fail('not_a_job');
+  if (job.status !== 'active') return fail('inactive');
+  if (!job.expiresAt || job.expiresAt < today) return fail('expired');
+  if (job.authorId === offer.authorId) return fail('own');
+  if (!job.crafts.some((c) => offer.crafts.includes(c))) return fail('craft_mismatch');
+  if (job.dateFrom > offer.dateTo || job.dateTo < offer.dateFrom) return fail('no_overlap');
+  return { fits: true };
+}

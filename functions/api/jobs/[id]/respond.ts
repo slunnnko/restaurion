@@ -24,13 +24,15 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
     const job = await db
       .prepare(
-        `SELECT id, author_id FROM jobs WHERE id = ? AND status = 'active' AND visibility = 'public'
+        `SELECT id, author_id, job_type FROM jobs WHERE id = ? AND status = 'active' AND visibility = 'public'
            AND date_from IS NOT NULL AND expires_at >= date('now')`
       )
       .bind(jobId)
-      .first<{ id: string; author_id: string }>();
+      .first<{ id: string; author_id: string; job_type: string }>();
     if (!job) return jsonResponse({ error: 'Zakázka není dostupná.' }, 404);
     if (job.author_id === auth.userId) return jsonResponse({ error: 'Na vlastní zakázku nelze reagovat.' }, 403);
+    // D40: "Poptat spolupráci" on an offer is an invitation from the poster (POST /api/jobs/:id/invite).
+    if (job.job_type === 'craftsman_available') return jsonResponse({ error: 'Použij Poptat spolupráci.' }, 409);
 
     const existing = await db
       .prepare(`SELECT id, status FROM engagements WHERE job_id = ? AND worker_id = ?`)

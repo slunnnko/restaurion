@@ -21,6 +21,7 @@ import {
   secondaryBtn,
   dangerBtn,
 } from './ui';
+import { INVITE_RESPOND_DAYS } from '@/lib/matching';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, CheckCircle2, UserCheck } from 'lucide-react';
 
@@ -36,6 +37,8 @@ interface CreateJobModalProps {
   editJob?: PublicJob;
   /** Po úspěšném uložení úprav (seznam i nástěnka se znovu načtou). */
   onSaved?: () => void;
+  /** D40: poptávka jen pro autora této nabídky (přímý inzerát mimo nástěnku); předvyplní obory, termín a kraj z nabídky. */
+  directOffer?: PublicJob;
 }
 
 const JOB_TYPES: { id: MvpJobType; label: string; hint: string }[] = [
@@ -63,16 +66,18 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   initialType,
   editJob,
   onSaved,
+  directOffer,
 }) => {
   const today = todayIso();
   const isEdit = Boolean(editJob);
-  const [jobType, setJobType] = useState<MvpJobType>(editJob?.jobType ?? initialType ?? 'subcontract_needed');
+  const prefill = editJob ?? directOffer;
+  const [jobType, setJobType] = useState<MvpJobType>(editJob?.jobType ?? (directOffer ? 'subcontract_needed' : (initialType ?? 'subcontract_needed')));
   const [title, setTitle] = useState(editJob?.title ?? '');
-  const [crafts, setCrafts] = useState<string[]>(editJob ? toCraftIds(editJob.crafts) : []);
-  const [region, setRegion] = useState(editJob?.region ?? REGIONS[0]);
-  const [city, setCity] = useState(editJob?.city ?? '');
-  const [dateFrom, setDateFrom] = useState(editJob?.dateFrom ?? '');
-  const [dateTo, setDateTo] = useState(editJob?.dateTo ?? '');
+  const [crafts, setCrafts] = useState<string[]>(prefill ? toCraftIds(prefill.crafts) : []);
+  const [region, setRegion] = useState(prefill?.region ?? REGIONS[0]);
+  const [city, setCity] = useState(prefill?.city ?? '');
+  const [dateFrom, setDateFrom] = useState(editJob ? editJob.dateFrom : directOffer ? (directOffer.dateFrom < today ? today : directOffer.dateFrom) : '');
+  const [dateTo, setDateTo] = useState(prefill?.dateTo ?? '');
   const [monumentStatus, setMonumentStatus] = useState<MvpMonumentStatus>(editJob?.monumentStatus ?? 'cultural_monument');
   const [monumentName, setMonumentName] = useState(editJob?.monumentName ?? '');
   // Legacy row: free-text budgetNote, no structured reward. Nothing is selected until the user picks a type.
@@ -204,6 +209,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
           dateFrom,
           dateTo,
           ...rewardBody(),
+          ...(directOffer ? { directOfferId: directOffer.id } : {}),
         },
       });
       if (photo) setPhotoWarning(await syncPhoto(data.job.id, false));
@@ -233,7 +239,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <CheckCircle2 className="w-7 h-7" />
           </div>
           <h3 className="font-serif text-xl font-bold text-[#111111] dark:text-white mb-1">
-            {isEdit ? (photoWarning ? 'Změny jsou uložené, fotka ne.' : 'Změny jsou uložené.') : isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
+            {isEdit ? (photoWarning ? 'Změny jsou uložené, fotka ne.' : 'Změny jsou uložené.') : directOffer ? `Poptávka je odeslaná: ${directOffer.poster.name}.` : isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
           </h3>
           {photoWarning && (
             <div className="mt-3 text-left">
@@ -254,18 +260,24 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     <ModalShell onClose={onClose} maxWidth="max-w-2xl" labelledBy="create-title">
       <div className="mb-4 pr-10">
         <span className="inline-block px-2.5 py-0.5 rounded-md bg-[#FEF08A] border border-[#111111] text-xs font-extrabold uppercase tracking-wider text-[#111111] mb-1.5">
-          {isEdit ? 'Úprava' : 'Nový inzerát'}
+          {isEdit ? 'Úprava' : directOffer ? 'Poptat spolupráci' : 'Nový inzerát'}
         </span>
         <h2 id="create-title" className="font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
-          {isEdit ? 'Upravit inzerát' : isOffer ? 'Přidat nabídku' : 'Přidat zakázku'}
+          {isEdit ? 'Upravit inzerát' : directOffer ? `Poptávka pro ${directOffer.poster.name}` : isOffer ? 'Přidat nabídku' : 'Přidat zakázku'}
         </h2>
       </div>
+
+      {directOffer && (
+        <div className="mb-4 p-3 rounded-xl bg-[#FEF08A]/70 dark:bg-[#FEF08A]/15 border-2 border-[#111111] dark:border-[#FEF08A]/50 text-xs font-extrabold text-[#111111] dark:text-[#FEF08A]">
+          Poptávka se pošle jen {directOffer.poster.name} a na nástěnce nebude. Na potvrzení má {INVITE_RESPOND_DAYS} dny.
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <span className={labelCls}>Typ inzerátu</span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {JOB_TYPES.filter((t) => !isEdit || t.id === jobType).map((t) => {
+            {JOB_TYPES.filter((t) => (!isEdit || t.id === jobType) && !(directOffer && t.id === 'craftsman_available')).map((t) => {
               const selected = jobType === t.id;
               const { icon: Icon, tile } = TYPE_STYLE[t.id];
               return (
@@ -531,7 +543,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             Zrušit
           </button>
           <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? 'Ukládám…' : isEdit ? 'Uložit změny' : 'Zveřejnit inzerát'}
+            {busy ? 'Ukládám…' : isEdit ? 'Uložit změny' : directOffer ? 'Poslat poptávku' : 'Zveřejnit inzerát'}
           </button>
         </div>
       </form>

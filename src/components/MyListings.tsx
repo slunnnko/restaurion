@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { MvpJobType, PublicJob } from '@/types/api';
+import { EngagementForPoster, MvpJobType, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { formatRange } from '@/lib/format';
-import { ErrorBox } from './ui';
+import { ErrorBox, secondaryBtn } from './ui';
 import { CreateJobModal } from './CreateJobModal';
 import { ActionMenu } from './ActionMenu';
 import { InterestedList } from './InterestedList';
@@ -23,6 +23,67 @@ const TYPE_INFO: Record<MvpJobType, { label: string; icon: React.ComponentType<{
   subcontract_needed: { label: 'Hledám subdodavatele', icon: HammerLogo, tile: 'bg-emerald-600' },
   guarantor_needed: { label: 'Hledám zaštítění licencí MK ČR', icon: ShieldCheck, tile: 'bg-[#FF5733]' },
   craftsman_available: { label: 'Nabízím se', icon: UserCheck, tile: 'bg-[#2563EB]' },
+};
+
+/** D40: nepotvrzená přímá poptávka se dá zveřejnit na nástěnce nebo poslat znovu (nové 3 dny); Ukončit je v menu. */
+const DirectActions: React.FC<{ job: PublicJob; onChanged: () => void }> = ({ job, onChanged }) => {
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api<{ engagements: EngagementForPoster[] }>(`/api/jobs/${encodeURIComponent(job.id)}/engagements`);
+        if (!cancelled) setUnconfirmed(data.engagements.some((e) => e.initiatedBy === 'poster' && e.unconfirmed === true));
+      } catch {
+        // bez tlačítek; seznam zájemců ukáže chybu sám
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, job.interestedCount]);
+
+  if (!unconfirmed) return null;
+
+  const run = async (fn: () => Promise<unknown>, fallback: string) => {
+    setBusy(true);
+    setError('');
+    try {
+      await fn();
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : fallback);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const publish = () => {
+    if (!window.confirm('Zveřejnit inzerát na nástěnce? Dostanou ho všichni odpovídající řemeslníci.')) return;
+    void run(
+      () => api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', body: { visibility: 'public' } }),
+      'Inzerát se nepodařilo zveřejnit.'
+    );
+  };
+  const resend = () =>
+    void run(() => api(`/api/jobs/${encodeURIComponent(job.id)}/invite`, { method: 'POST', body: {} }), 'Poptávku se nepodařilo poslat znovu.');
+
+  return (
+    <div className="mt-3">
+      {error && <ErrorBox message={error} />}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={publish} className={secondaryBtn}>
+          Zveřejnit na nástěnce
+        </button>
+        <button type="button" disabled={busy} onClick={resend} className={secondaryBtn}>
+          Poslat znovu
+        </button>
+      </div>
+    </div>
+  );
 };
 
 const Row: React.FC<{
@@ -65,6 +126,11 @@ const Row: React.FC<{
           <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400">
             {info.label}
           </div>
+          {job.visibility === 'direct' && job.directTo && (
+            <span className="inline-flex items-center mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-[#DBEAFE] dark:bg-[#172554] text-[#1E3A8A] dark:text-[#93C5FD] border-2 border-[#111111] dark:border-[#2563EB]/70">
+              Jen pro {job.directTo.name}
+            </span>
+          )}
           <h4 className="font-serif font-bold text-base text-[#111111] dark:text-white leading-snug break-words">{job.title}</h4>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-stone-800 dark:text-stone-300">
             <span className="inline-flex items-center gap-1.5">
@@ -85,6 +151,7 @@ const Row: React.FC<{
       {active && (
         <div className="mt-3">
           <InterestedList job={job} onChanged={onChanged} />
+          {job.visibility === 'direct' && <DirectActions job={job} onChanged={onChanged} />}
         </div>
       )}
     </li>

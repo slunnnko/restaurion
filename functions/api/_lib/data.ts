@@ -1,6 +1,7 @@
 // Načítání dat pro párování (nikdy nevrací e-mail ani telefon).
 
 import { toCraftIds } from '../../../src/lib/crafts.ts';
+import { evaluateMatch } from '../../../src/lib/matching.ts';
 import type { DateRange, EngagementSlot, MatchWorker } from '../../../src/lib/matching.ts';
 import { safeJsonParse } from '../_shared.ts';
 import type { D1Database } from '../_shared.ts';
@@ -19,7 +20,7 @@ export async function loadBusySlots(
     db
       .prepare(
         `SELECT e.job_id, e.status, j.date_from, j.date_to FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ?
+         WHERE e.worker_id = ? AND e.status = 'accepted' AND j.status = 'active' AND j.visibility IN ('public', 'direct') AND j.date_to >= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')`
       )
       .bind(userId, today)
@@ -57,7 +58,7 @@ export async function loadMatchCandidates(
       .prepare(
         `SELECT e.worker_id, e.job_id, e.status, j.date_from, j.date_to
          FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.status = 'accepted' AND j.status = 'active' AND j.visibility = 'public' AND j.date_to >= ? AND j.date_from <= ?
+         WHERE e.status = 'accepted' AND j.status = 'active' AND j.visibility IN ('public', 'direct') AND j.date_to >= ? AND j.date_from <= ?
            AND j.job_type IN ('subcontract_needed', 'guarantor_needed')`
       )
       .bind(range.dateFrom, range.dateTo)
@@ -83,4 +84,25 @@ export async function loadMatchCandidates(
     blocks: blocksBy.get(w.id) ?? [],
     engagements: engBy.get(w.id) ?? [],
   }));
+}
+
+/**
+ * Sends `job_match` to every worker the job matches (not the poster). Shared by creating a job and by
+ * publishing a direct listing on the board. Returns the number of notified workers.
+ */
+export async function notifyJobMatches(
+  db: D1Database,
+  job: { id: string; posterId: string; dateFrom: string; dateTo: string; crafts: string[]; expiresAt: string },
+  today: string
+): Promise<number> {
+  const candidates = await loadMatchCandidates(db, job.posterId, job);
+  const matchJob = { ...job, status: 'active' };
+  const matched = candidates.filter((w) => evaluateMatch(matchJob, w, today).matches);
+  const inserts = matched.map((w) =>
+    db
+      .prepare(`INSERT INTO notifications (id, profile_id, type, job_id) VALUES (?, ?, 'job_match', ?)`)
+      .bind(`n-${crypto.randomUUID()}`, w.id, job.id)
+  );
+  for (let i = 0; i < inserts.length; i += 50) await db.batch(inserts.slice(i, i + 50));
+  return matched.length;
 }

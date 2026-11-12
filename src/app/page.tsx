@@ -10,6 +10,7 @@ import { DirectoryFilters, initialDirectoryFilters } from '@/components/Director
 import type { DirectoryFilterState } from '@/components/DirectoryFilters';
 import { CreateJobModal } from '@/components/CreateJobModal';
 import { RespondModal } from '@/components/RespondModal';
+import { InviteModal } from '@/components/InviteModal';
 import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { ProfilePage } from '@/components/ProfilePage';
@@ -64,6 +65,9 @@ export default function Home() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isVopOpen, setIsVopOpen] = useState(false);
   const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
+  // D40: Poptat spolupráci = pozvánka (nabídka) a přímá poptávka jen pro autora nabídky.
+  const [invitingOffer, setInvitingOffer] = useState<PublicJob | null>(null);
+  const [directOffer, setDirectOffer] = useState<PublicJob | null>(null);
   const [editingJob, setEditingJob] = useState<PublicJob | null>(null);
 
   // Akce, která čeká na přihlášení.
@@ -310,6 +314,8 @@ export default function Home() {
     setIsCreateOpen(false);
     setEditingJob(null);
     setRespondingJob(null);
+    setInvitingOffer(null);
+    setDirectOffer(null);
     setProfileHint(PROFILE_HINT);
     setView('profile');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -559,7 +565,9 @@ export default function Home() {
                       key={job.id}
                       job={job}
                       highlighted={highlightId === job.id}
-                      onRespond={(j) => requireLogin(() => setRespondingJob(j))}
+                      onRespond={(j) =>
+                        requireLogin(() => (j.jobType === 'craftsman_available' ? setInvitingOffer(j) : setRespondingJob(j)))
+                      }
                       onWithdraw={handleWithdraw}
                       onCloseJob={handleCloseJob}
                       onChanged={() => void loadJobs()}
@@ -667,11 +675,39 @@ export default function Home() {
         />
       )}
 
+      {invitingOffer && (
+        <InviteModal
+          offer={invitingOffer}
+          onClose={() => setInvitingOffer(null)}
+          onSent={() => void loadJobs()}
+          onNeedProfile={openProfileWithHint}
+          onCreateDirect={(o) => {
+            setInvitingOffer(null);
+            setDirectOffer(o);
+          }}
+        />
+      )}
+
+      {directOffer && (
+        <CreateJobModal
+          directOffer={directOffer}
+          onClose={() => setDirectOffer(null)}
+          onCreated={() => void loadJobs()}
+          onNeedProfile={openProfileWithHint}
+        />
+      )}
+
       {isNotifOpen && user && (
         <NotificationsPanel
           onClose={() => setIsNotifOpen(false)}
           onUnreadChange={setUnread}
           onOpenJob={handleOpenJobFromNotification}
+          onOpenProfile={() => {
+            setIsNotifOpen(false);
+            setProfileHint('');
+            setView('profile');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
       )}
 

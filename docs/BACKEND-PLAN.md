@@ -42,12 +42,15 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `POST /api/auth/logout` | relace | smaže relaci |
 | `GET /api/jobs` | kdokoli | veřejná nástěnka (zakázky i nabídky `craftsman_available`); s relací přidá `isMine`, `myEngagement`, `myBusyDays`, `posterContact` (kontakty zadavatele pro každého přihlášeného) |
 | `GET /api/directory?group=&craft=&region=&q=` | kdokoli | Adresář (max. 200, podle jména); `contact` jen s relací |
-| `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky; nabídka `craftsman_available` nikoho neupozorní |
-| `GET /api/jobs?mine=1` | relace | vlastní inzeráty (aktivní i ukončené, všechny typy, max 100); 401 bez relace |
-| `PATCH /api/jobs/:id` | zadavatel | úprava (název, popis, odměna, termíny, obory, kraj, obec; typ je neměnný, ukončený inzerát 409, žádná nová párovací upozornění), `status: 'closed'` uvolní termíny a pošle `job_closed` |
-| `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
-| `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
-| `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce, volitelně `reason` ≤ 500 code pointů, uloží se do `notifications.reason`, migrace 0013) |
+| `POST /api/jobs` | relace, jméno v profilu | vloží zakázku a upozorní odpovídající řemeslníky; nabídka `craftsman_available` nikoho neupozorní; `directOfferId` (D40) vytvoří přímý inzerát (`visibility 'direct'`, `direct_to`) bez párovacích upozornění a s pozvánkou v jednom `db.batch` |
+| `GET /api/jobs?mine=1` | relace | vlastní inzeráty (veřejné i přímé, aktivní i ukončené, všechny typy, max 100); 401 bez relace |
+| `PATCH /api/jobs/:id` | zadavatel | úprava (název, popis, odměna, termíny, obory, kraj, obec; typ je neměnný, ukončený inzerát 409, žádná nová párovací upozornění), `visibility: 'public'` (jen z `direct`) zveřejní na nástěnce a pošle párovací upozornění, `status: 'closed'` uvolní termíny a pošle `job_closed` |
+| `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ (engagement `pending`, upozornění `interest`); u nabídky 409 `Použij Poptat spolupráci.` (D40) |
+| `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů (jen `pending` a `accepted`; u pozvánky `initiatedBy`, `respondBy`, `unconfirmed`) |
+| `GET /api/jobs/:id/invite-options` | relace | D40: `:id` = cizí aktivní nabídka; moje aktivní inzeráty (veřejné i přímé), které se hodí (`offerFitsJob`), s `invite` (stav pozvánky) |
+| `POST /api/jobs/:id/invite` | zadavatel | D40: `{offerId, message?}`; engagement `initiated_by 'poster'`, `respond_by` dnes + 3 dny, upozornění `invited`; neodpovídá-li → 409, pending/accepted → 409, `declined` → 409 `Tuhle poptávku už odmítl.`, `withdrawn` nebo nepotvrzená se znovu otevře; u přímého inzerátu jde `offerId` vynechat (znovu poslat) |
+| `GET /api/invitations` | relace | D40: pozvánky pro mě (pending a accepted, i nepotvrzené po lhůtě), `job.posterContact` = kontakty zadavatele |
+| `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), u pozvánky (D40) `accept` / `decline` pozvaný řemeslník do `respond_by` (po lhůtě 409), zadavatel jen `decline` = zrušení (`withdrawn`, upozornění `invite_cancelled`), `withdraw` (zájemce, volitelně `reason` ≤ 500 code pointů, uloží se do `notifications.reason`, migrace 0013) |
 | `GET`, `PUT /api/profile` | relace | vlastní profil (`firstName`, `lastName`, `companyName` nepovinný (migrace 0012; `name` se odvozuje: firma, jinak jméno + příjmení), `phone` (normalizuje se na `+420 777 111 222`), `group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`, `themePreference` = `system`/`light`/`dark`, migrace 0011); skupina `licensed` vyžaduje číslo povolení |
 | `POST`, `DELETE /api/jobs/:id/photo` | zadavatel | jedna volitelná fotka (D34): `POST` surové bajty (JPEG/PNG/WebP podle prvních bajtů, max 5 MB → 413, jiný typ 400, ukončený inzerát 409, 30/h), uloží do R2 `JOB_PHOTOS` a pak `jobs.image_url`; `DELETE` fotku odebere. Bez bindingu 503. Ukončení a smazání správcem fotku nechá. |
 | `GET /api/photos/jobs/...` | kdokoli | veřejná fotka z R2 (`nosniff`, `CSP: sandbox`, neměnná cache) |

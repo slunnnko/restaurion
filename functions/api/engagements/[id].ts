@@ -12,11 +12,13 @@ import {
 import type { PagesContext } from '../_shared.ts';
 import { str } from '../_lib/validate.ts';
 import { loadBusySlots } from '../_lib/data.ts';
+import { isUnconfirmed } from '../_lib/invitations.ts';
 import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
 
 /**
  * POST /api/engagements/:id {action}
- * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. withdraw: jen zájemce, z `pending`/`accepted`,
+ * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. U pozvánky (initiated_by 'poster', D40) rozhoduje
+ * pozvaný řemeslník (accept|decline, do respond_by), zadavatel ji může jen zrušit (decline → 'withdrawn'). withdraw: jen zájemce, z `pending`/`accepted`,
  * volitelně s `reason` (max 500 znaků, D38).
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
@@ -50,7 +52,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     const eng = await db
       .prepare(
         `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
-                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type,
+                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type, e.initiated_by, e.respond_by,
                 ${contactSelect('w', 'w')}
          FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles w ON w.id = e.worker_id
          WHERE e.id = ?`
@@ -67,6 +69,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         j_from: string | null;
         j_to: string | null;
         j_type: string;
+        initiated_by: string;
+        respond_by: string | null;
         w_name: string;
         w_email: string;
         w_phone: string | null;
@@ -89,6 +93,42 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         reason: withdrawReason,
       });
       return jsonResponse({ engagement: { id, status: 'withdrawn' } });
+    }
+
+    if (eng.initiated_by === 'poster') {
+      const today = todayUtc();
+      if (eng.author_id === auth.userId) {
+        // The poster cancels his own pending invitation: hidden for both, re-invite stays possible.
+        if (action !== 'decline') return jsonResponse({ error: 'Pozvánku přijímá pozvaný řemeslník.' }, 409);
+        if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
+        await db.prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now') WHERE id = ?`).bind(id).run();
+        await insertNotification(db, { profileId: eng.worker_id, type: 'invite_cancelled', jobId: eng.job_id, engagementId: id });
+        return jsonResponse({ engagement: { id, status: 'withdrawn' } });
+      }
+      if (eng.worker_id !== auth.userId) return jsonResponse({ error: 'Rozhodnout může jen pozvaný řemeslník.' }, 403);
+      if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
+      if (isUnconfirmed(eng, today)) {
+        return jsonResponse({ error: 'Lhůta na potvrzení vypršela. Ozvi se zadavateli.' }, 409);
+      }
+      if (action === 'accept') {
+        if (eng.j_status !== 'active' || !eng.j_from || !eng.j_to || !eng.j_expires || eng.j_expires < today) {
+          return jsonResponse({ error: 'Zakázka už není aktivní.' }, 409);
+        }
+        const busy = await loadBusySlots(db, eng.worker_id, today);
+        const range = { dateFrom: eng.j_from, dateTo: eng.j_to };
+        if (countBusyDays(range, busy.blocks, busy.engagements, eng.job_id) >= daysInRange(eng.j_from, eng.j_to)) {
+          return jsonResponse({ error: 'V tomto termínu máš už vše obsazeno.' }, 409);
+        }
+      }
+      const result = action === 'accept' ? 'accepted' : 'declined';
+      await db.prepare(`UPDATE engagements SET status = ?, responded_at = datetime('now') WHERE id = ?`).bind(result, id).run();
+      await insertNotification(db, {
+        profileId: eng.author_id,
+        type: action === 'accept' ? 'invite_accepted' : 'invite_declined',
+        jobId: eng.job_id,
+        engagementId: id,
+      });
+      return jsonResponse({ engagement: { id, status: result } });
     }
 
     if (eng.author_id !== auth.userId) return jsonResponse({ error: 'Rozhodnout může jen zadavatel zakázky.' }, 403);

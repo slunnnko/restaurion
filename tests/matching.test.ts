@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { countBusyDays, daysInRange, evaluateMatch } from '../src/lib/matching.ts';
+import { countBusyDays, daysInRange, evaluateMatch, offerFitsJob } from '../src/lib/matching.ts';
 import type { MatchJob, MatchWorker } from '../src/lib/matching.ts';
 
 const TODAY = '2026-06-01';
@@ -136,4 +136,30 @@ test('job own engagement is not counted as busy for that job', () => {
     TODAY
   );
   assert.equal(r.busyDays, 0);
+});
+
+const offer = { authorId: 'O', dateFrom: '2026-06-08', dateTo: '2026-06-12', crafts: ['kámen'] };
+const fitJob = { authorId: 'V', jobType: 'subcontract_needed', status: 'active', expiresAt: '2026-07-30', dateFrom: '2026-06-10', dateTo: '2026-06-14', crafts: ['kámen', 'dřevo'] };
+
+test('offerFitsJob: fitting job', () => {
+  assert.deepEqual(offerFitsJob(offer, fitJob, TODAY), { fits: true });
+});
+
+test('offerFitsJob: craft mismatch', () => {
+  assert.equal(offerFitsJob(offer, { ...fitJob, crafts: ['dřevo'] }, TODAY).reason, 'craft_mismatch');
+});
+
+test('offerFitsJob: no date overlap, touching edge still overlaps', () => {
+  assert.equal(offerFitsJob(offer, { ...fitJob, dateFrom: '2026-06-13', dateTo: '2026-06-20' }, TODAY).reason, 'no_overlap');
+  assert.equal(offerFitsJob(offer, { ...fitJob, dateFrom: '2026-06-12', dateTo: '2026-06-20' }, TODAY).fits, true);
+});
+
+test('offerFitsJob: expired or inactive job', () => {
+  assert.equal(offerFitsJob(offer, { ...fitJob, expiresAt: '2026-05-31' }, TODAY).reason, 'expired');
+  assert.equal(offerFitsJob(offer, { ...fitJob, status: 'archived' }, TODAY).reason, 'inactive');
+});
+
+test('offerFitsJob: an offer is not a job, own job does not fit', () => {
+  assert.equal(offerFitsJob(offer, { ...fitJob, jobType: 'craftsman_available' }, TODAY).reason, 'not_a_job');
+  assert.equal(offerFitsJob(offer, { ...fitJob, authorId: 'O' }, TODAY).reason, 'own');
 });

@@ -14,6 +14,7 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | D37 | Deployed 2026-11-12 (`aa03d38c`). `[decided by owner 2026-11-12]` |
 | D38 | Deployed 2026-11-12 (`a974766a`), migration 0013 applied on remote D1. `[decided by owner 2026-11-12]` |
 | D39 | Deployed 2026-11-12 (`56ac4992`). `[decided by owner 2026-11-12]` |
+| D40 | Committed, not deployed; migration 0014 on remote D1 BEFORE the Pages deploy (backup first; it rebuilds `notifications`). `[decided by owner 2026-11-12]` |
 | Digest worker | `restaurion-digest` version `23038dda`, cron `0 6 * * *`; `RESEND_API_KEY` and `RESEND_FROM` set 2026-11-12, so the daily digest now sends mail. `[measured 2026-11-12]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
 | Mail | Resend domain `echo.sunhaze.dev` (eu-west-1) verified; DNS records (DKIM, SPF TXT, MX, CNAME) in the `sunhaze.dev` zone, cf-scan baseline updated. Sender `Restaurion <noreply@echo.sunhaze.dev>`. Test mail and a real login-code mail reached `delivered`. Secrets: `RESEND_API_KEY` (sending-only key), `RESEND_FROM`, `ADMIN_EMAILS`, plus an unused legacy `ADMIN_PASSWORD` (no code reads it). `TEST_LOGIN_ECHO` deleted 2026-11-12. `[measured 2026-11-12: wrangler pages secret list]` |

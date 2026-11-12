@@ -25,6 +25,7 @@ import {
   dangerBtn,
 } from './ui';
 import { MyListings } from './MyListings';
+import { InvitationsList } from './InvitationsList';
 import { ArrowLeft, Ban, Bell, BookUser, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
@@ -97,6 +98,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const [blocks, setBlocks] = useState<UnavailabilityBlock[]>(user.blocks);
   const [booked, setBooked] = useState(user.booked);
+  // D40: počet pozvánek; null = ještě se načítá (sekce se renderuje a načte sama, prázdná zmizí).
+  const [invitationCount, setInvitationCount] = useState<number | null>(null);
   const [blockFrom, setBlockFrom] = useState('');
   const [blockTo, setBlockTo] = useState('');
   const [blockNote, setBlockNote] = useState('');
@@ -381,6 +384,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       </div>
 
       {loadError && <ErrorBox message={loadError} onRetry={() => void refresh()} />}
+
+      {invitationCount !== 0 && (
+        <section className={`${cardCls} p-5 sm:p-6`} id="poptavky-pro-me">
+          <h2 className={sectionTitle}>Poptávky pro mě</h2>
+          <InvitationsList onChanged={() => onListingsChanged?.()} onLoaded={setInvitationCount} />
+        </section>
+      )}
 
       <section className={`${cardCls} p-5 sm:p-6`}>
         <h2 className={sectionTitle}>Moje inzeráty</h2>
