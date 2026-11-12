@@ -474,9 +474,11 @@ export default function Home() {
                   onClick={openCreate}
                   aria-label="Přidat inzerát"
                   title="Přidat inzerát"
-                  className="inline-flex items-center justify-center gap-2.5 h-14 px-7 rounded-2xl text-base font-extrabold bg-[#111111] text-[#FEF08A] border-2 border-[#111111] shadow-[5px_5px_0px_#FF5733] dark:bg-[#FEF08A] dark:text-[#111111] dark:border-[#111111] dark:shadow-[5px_5px_0px_#000000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_#FF5733] dark:hover:shadow-[3px_3px_0px_#000000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2.5 h-14 px-7 rounded-2xl text-base font-extrabold bg-white dark:bg-[#252834] text-[#111111] dark:text-stone-100 border-2 border-[#111111] dark:border-stone-400 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000] hover:bg-stone-100 dark:hover:bg-[#323644] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[3px_3px_0px_#111111] dark:hover:shadow-[3px_3px_0px_#000000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 transition-all cursor-pointer"
                 >
-                  <Plus className="w-6 h-6 stroke-[3]" />
+                  <span className="w-8 h-8 rounded-lg bg-emerald-600 text-white border-2 border-[#111111] flex items-center justify-center">
+                    <Plus className="w-5 h-5 stroke-[3]" />
+                  </span>
                   Přidat inzerát
                 </button>
               </div>
@@ -626,11 +628,10 @@ export default function Home() {
       </footer>
 
       <MobileBottomNav
-        active={view === 'profile' ? 'profile' : tab === 'directory' ? 'directory' : 'board'}
+        active={view === 'profile' ? 'profile' : tab === 'directory' ? 'none' : 'board'}
         isLoggedIn={Boolean(user)}
         unreadCount={unread}
         onBoard={goBoard}
-        onDirectory={goDirectory}
         onCreate={openCreate}
         onProfile={() => (user ? setView((v) => (v === 'profile' ? 'board' : 'profile')) : setIsLoginOpen(true))}
       />

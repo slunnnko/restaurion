@@ -48,14 +48,15 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={onOpenDirectory}
             aria-pressed={directoryActive}
-            className={`${btnBase} hidden md:inline-flex ${
+            aria-label="Adresář"
+            className={`${btnBase} !px-2.5 md:!px-3 min-w-10 min-h-10 md:min-w-0 md:min-h-0 justify-center ${
               directoryActive
                 ? 'bg-[#FEF08A] text-[#111111]'
                 : 'bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white'
             }`}
           >
             <BookUser className="w-4 h-4 shrink-0" />
-            <span>Adresář</span>
+            <span className="hidden md:inline">Adresář</span>
           </button>
 
           {user ? (

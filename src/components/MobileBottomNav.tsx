@@ -2,14 +2,13 @@
 
 import React from 'react';
 import { unreadLabel } from '@/lib/format';
-import { Briefcase, Plus, UserRound, LogIn, BookUser } from 'lucide-react';
+import { Briefcase, Plus, UserRound, LogIn } from 'lucide-react';
 
 interface MobileBottomNavProps {
-  active: 'board' | 'directory' | 'profile';
+  active: 'board' | 'none' | 'profile';
   isLoggedIn: boolean;
   unreadCount: number;
   onBoard: () => void;
-  onDirectory: () => void;
   onCreate: () => void;
   onProfile: () => void;
 }
@@ -24,7 +23,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   isLoggedIn,
   unreadCount,
   onBoard,
-  onDirectory,
   onCreate,
   onProfile,
 }) => (
@@ -35,14 +33,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <span className="text-[10px]">Nástěnka</span>
       </button>
 
-      <button onClick={onDirectory} className={`${itemBase} ${active === 'directory' ? itemActive : itemIdle}`}>
-        <BookUser className="w-5 h-5 mb-0.5" />
-        <span className="text-[10px]">Adresář</span>
-      </button>
-
-      <button onClick={onCreate} className="flex flex-col items-center -mt-4 group cursor-pointer">
-        <div className="w-12 h-12 rounded-2xl bg-[#FEF08A] text-[#111111] flex items-center justify-center border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] group-active:scale-95 transition-transform">
-          <Plus className="w-6 h-6 stroke-[2.5]" />
+      <button onClick={onCreate} className="flex flex-col items-center -mt-5 group cursor-pointer">
+        <div className="w-14 h-14 rounded-2xl bg-[#FEF08A] text-[#111111] flex items-center justify-center border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] group-active:scale-95 transition-transform">
+          <Plus className="w-7 h-7 stroke-[2.5]" />
         </div>
         <span className="text-[10px] font-extrabold text-[#111111] dark:text-[#FEF08A] mt-0.5">Přidat</span>
       </button>
