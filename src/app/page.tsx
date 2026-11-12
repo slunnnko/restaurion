@@ -21,13 +21,12 @@ import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { plural } from '@/lib/format';
-import { CRAFT_CATEGORIES, jobMatchesCraft, normalizeText } from '@/lib/crafts';
+import { jobMatchesText, jobMatchesTokens } from '@/lib/jobSearch';
 import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
 const initialFilters: FilterState = {
   searchQuery: '',
-  region: 'Všechny regiony',
-  craft: 'all',
+  tokens: [],
   mineOnly: false,
 };
 
@@ -316,6 +315,8 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const toggleDirectory = () => (view === 'board' && tab === 'directory' ? goBoard() : goDirectory());
+
   const goBoard = () => {
     setProfileHint('');
     setView('board');
@@ -347,28 +348,17 @@ export default function Home() {
   const isOffersTab = tab === 'offers';
 
   const filteredJobs = useMemo(() => {
-    const query = normalizeText(filters.searchQuery.trim());
-    return tabJobs.filter((job) => {
-      if (filters.mineOnly && !job.isMine) return false;
-      if (query) {
-        const craftLabels = job.crafts.map((c) => CRAFT_CATEGORIES.find((cat) => cat.id === c)?.label ?? c);
-        const haystack = normalizeText(
-          [job.title, job.description, job.city, job.monumentName ?? '', ...craftLabels].join(' ')
-        );
-        if (!haystack.includes(query)) return false;
-      }
-      if (filters.region !== 'Všechny regiony' && filters.region !== 'Celá ČR') {
-        if (!job.region.includes(filters.region.split(' ')[0])) return false;
-      }
-      if (filters.craft !== 'all' && !jobMatchesCraft(job.crafts, filters.craft)) return false;
-      return true;
-    });
+    return tabJobs.filter(
+      (job) =>
+        (!filters.mineOnly || job.isMine) &&
+        jobMatchesText(job, filters.searchQuery) &&
+        jobMatchesTokens(job, filters.tokens)
+    );
   }, [tabJobs, filters]);
 
   const activeFiltersCount =
     (filters.searchQuery ? 1 : 0) +
-    (filters.region !== 'Všechny regiony' ? 1 : 0) +
-    (filters.craft !== 'all' ? 1 : 0) +
+    filters.tokens.length +
     (filters.mineOnly ? 1 : 0);
 
   return (
@@ -378,7 +368,8 @@ export default function Home() {
         unreadCount={unread}
         isDark={isDark}
         onToggleDark={handleToggleDark}
-        onOpenNotifications={openNotifications}
+        onOpenDirectory={toggleDirectory}
+        directoryActive={view === 'board' && tab === 'directory'}
         onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
         onLogin={() => setIsLoginOpen(true)}
       />
@@ -391,6 +382,8 @@ export default function Home() {
           onLogout={handleLogout}
           hint={profileHint}
           onListingsChanged={() => void loadJobs()}
+          unreadCount={unread}
+          onOpenNotifications={openNotifications}
         />
       ) : (
         <>
@@ -437,12 +430,17 @@ export default function Home() {
 
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              {tab === 'directory' ? (
+                <h2 className="inline-flex items-center gap-2.5 font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
+                  <BookUser className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <span>Adresář</span>
+                </h2>
+              ) : (
               <div className="inline-flex items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000]">
                 {(
                   [
                     { id: 'jobs', label: 'Nástěnka zakázek', icon: Briefcase, count: boardJobs.length },
                     { id: 'offers', label: 'Nabízím se', icon: UserCheck, count: offers.length },
-                    { id: 'directory', label: 'Adresář', icon: BookUser, count: null },
                   ] as const
                 ).map((t) => {
                   const on = tab === t.id;
@@ -470,6 +468,7 @@ export default function Home() {
                   );
                 })}
               </div>
+              )}
 
               <div className="hidden sm:flex items-center">
                 <button
@@ -488,6 +487,7 @@ export default function Home() {
             ) : (
               <JobFilters
                 filters={filters}
+                jobs={tabJobs}
                 onChange={setFilters}
                 onReset={() => setFilters(initialFilters)}
                 activeCount={activeFiltersCount}
@@ -588,7 +588,7 @@ export default function Home() {
                     ? isOffersTab
                       ? 'Buď první a nabídni se s volným termínem.'
                       : 'Buď první a přidej zakázku. Řemeslníci v oboru dostanou upozornění.'
-                    : 'Zkus uvolnit vyhledávání, vybrat jiný region nebo obor, nebo přidej vlastní inzerát.'}
+                    : 'Zkus uvolnit vyhledávání nebo filtry, nebo přidej vlastní inzerát.'}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {tabJobs.length > 0 && activeFiltersCount > 0 && (
@@ -632,7 +632,6 @@ export default function Home() {
         onBoard={goBoard}
         onDirectory={goDirectory}
         onCreate={openCreate}
-        onNotifications={openNotifications}
         onProfile={() => (user ? setView((v) => (v === 'profile' ? 'board' : 'profile')) : setIsLoginOpen(true))}
       />
 

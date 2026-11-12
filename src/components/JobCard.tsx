@@ -5,7 +5,7 @@ import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, pluralDays, rewardDisplay } from '@/lib/format';
 import { ContactsOrLogin, dangerBtn } from './ui';
-import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil, Trash2 } from 'lucide-react';
+import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, Users, UserCheck, Pencil, Trash2, X } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
 interface JobCardProps {
@@ -54,6 +54,9 @@ const TYPE_INFO = {
     icon: UserCheck,
   },
 } as const;
+
+const iconBtn =
+  'inline-flex items-center justify-center w-8 h-8 rounded-lg border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 
 export const JobCard: React.FC<JobCardProps> = ({
   job,
@@ -106,20 +109,64 @@ export const JobCard: React.FC<JobCardProps> = ({
     void run(() => onDeleteJob(job));
   };
 
+  const canDelete = isAdmin && Boolean(onDeleteJob);
+  const iconCount = (job.isMine ? 2 : 0) + (canDelete ? 1 : 0);
+  // Místo vpravo nahoře pro ikony, aby je nepřekrývaly odznaky.
+  const badgesPad = ['', 'pr-11', 'pr-[5.5rem]', 'pr-[8.25rem]'][iconCount];
+
   const labelFor = (id: string) => CRAFT_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 
   return (
     <article
       id={`job-${job.id}`}
-      className={`rounded-2xl transition-all duration-150 flex flex-col justify-between overflow-hidden group bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] ${
+      className={`relative rounded-2xl transition-all duration-150 flex flex-col justify-between overflow-hidden group bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] ${
         highlighted ? 'ring-4 ring-[#FF5733] ring-offset-2 ring-offset-[#FAF6EB] dark:ring-offset-[#121318]' : ''
       }`}
     >
+      {iconCount > 0 && (
+        <div className="absolute top-8 right-5 z-10 flex items-center gap-1.5">
+          {job.isMine && (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(job)}
+                aria-label="Upravit inzerát"
+                title="Upravit"
+                className={`${iconBtn} bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111]`}
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleClose}
+                aria-label="Ukončit inzerát"
+                title="Ukončit"
+                className={`${iconBtn} bg-white dark:bg-[#252834] hover:bg-red-100 dark:hover:bg-red-950/60 text-[#111111] dark:text-white`}
+              >
+                <X className="w-4 h-4 stroke-[3]" />
+              </button>
+            </>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleDelete}
+              aria-label="Smazat inzerát"
+              title="Smazat"
+              className={`${iconBtn} bg-[#DC2626] hover:bg-[#B91C1C] text-white`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
       <div>
         <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
 
         <div className="p-5 pb-0">
-          <div className="flex flex-wrap items-center gap-2 mb-3.5">
+          <div className={`flex flex-wrap items-center gap-2 mb-3.5 ${badgesPad}`}>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${info.badgeClass}`}>
               <BadgeIcon className={`w-3.5 h-3.5 ${info.iconColorClass}`} />
               <span>{info.label}</span>
@@ -233,17 +280,6 @@ export const JobCard: React.FC<JobCardProps> = ({
               <Users className="w-3.5 h-3.5" />
               <span>Zájemci ({job.interestedCount})</span>
             </button>
-            <button
-              type="button"
-              onClick={() => onEdit(job)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-              <span>Upravit</span>
-            </button>
-            <button type="button" disabled={busy} onClick={handleClose} className={dangerBtn}>
-              Ukončit
-            </button>
           </div>
         ) : engStatus === 'pending' ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -276,19 +312,6 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span>{isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
-        )}
-        {isAdmin && onDeleteJob && (
-          <div className="mt-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-white bg-[#DC2626] hover:bg-[#B91C1C] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Smazat</span>
-            </button>
-          </div>
         )}
       </div>
     </article>

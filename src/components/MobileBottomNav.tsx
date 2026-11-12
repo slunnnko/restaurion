@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Briefcase, Plus, Bell, UserRound, LogIn, BookUser } from 'lucide-react';
+import { unreadLabel } from '@/lib/format';
+import { Briefcase, Plus, UserRound, LogIn, BookUser } from 'lucide-react';
 
 interface MobileBottomNavProps {
   active: 'board' | 'directory' | 'profile';
@@ -10,12 +11,12 @@ interface MobileBottomNavProps {
   onBoard: () => void;
   onDirectory: () => void;
   onCreate: () => void;
-  onNotifications: () => void;
   onProfile: () => void;
 }
 
 const itemBase = 'flex flex-col items-center py-1 px-2.5 rounded-xl transition-all cursor-pointer';
 const itemIdle = 'text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold';
+const itemAlert = 'bg-[#FFE4DE] dark:bg-[#4A180D] text-[#7C1D0B] dark:text-[#FFB4A2] font-extrabold border border-[#111111]';
 const itemActive = 'bg-[#FEF08A] text-[#111111] font-extrabold border border-[#111111]';
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -25,7 +26,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onBoard,
   onDirectory,
   onCreate,
-  onNotifications,
   onProfile,
 }) => (
   <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#181A20] border-t-2 border-[#111111] dark:border-stone-600 px-2 py-1.5 safe-bottom transition-colors">
@@ -47,19 +47,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <span className="text-[10px] font-extrabold text-[#111111] dark:text-[#FEF08A] mt-0.5">Přidat</span>
       </button>
 
-      <button onClick={onNotifications} className={`relative ${itemBase} ${itemIdle}`}>
-        <Bell className="w-5 h-5 mb-0.5" />
-        <span className="text-[10px]">Upozornění</span>
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-[#FF5733] text-white border border-[#111111] text-[9px] font-extrabold flex items-center justify-center">
+      <button
+        onClick={onProfile}
+        aria-label={isLoggedIn && unreadCount > 0 ? `Profil, ${unreadLabel(unreadCount)}` : undefined}
+        className={`relative ${itemBase} ${
+          active === 'profile' ? itemActive : isLoggedIn && unreadCount > 0 ? itemAlert : itemIdle
+        }`}
+      >
+        {isLoggedIn ? <UserRound className="w-5 h-5 mb-0.5" /> : <LogIn className="w-5 h-5 mb-0.5" />}
+        <span className="text-[10px]">{isLoggedIn ? 'Profil' : 'Přihlásit'}</span>
+        {isLoggedIn && unreadCount > 0 && (
+          <span
+            aria-hidden="true"
+            className="absolute -top-1 right-0 min-w-4 h-4 px-1 rounded-full bg-[#FF5733] text-white border border-[#111111] text-[9px] font-extrabold flex items-center justify-center"
+          >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
-      </button>
-
-      <button onClick={onProfile} className={`${itemBase} ${active === 'profile' ? itemActive : itemIdle}`}>
-        {isLoggedIn ? <UserRound className="w-5 h-5 mb-0.5" /> : <LogIn className="w-5 h-5 mb-0.5" />}
-        <span className="text-[10px]">{isLoggedIn ? 'Profil' : 'Přihlásit'}</span>
       </button>
     </div>
   </nav>

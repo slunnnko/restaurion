@@ -5,7 +5,7 @@ import { DirectoryGroup, OwnProfile, UnavailabilityBlock } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { PROFILE_REGIONS } from '@/lib/regions';
-import { formatRange, todayIso } from '@/lib/format';
+import { formatRange, todayIso, unreadLabel } from '@/lib/format';
 import {
   ErrorBox,
   FieldError,
@@ -23,7 +23,7 @@ import {
   dangerBtn,
 } from './ui';
 import { MyListings } from './MyListings';
-import { ArrowLeft, Ban, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Bell, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
@@ -34,6 +34,9 @@ interface ProfilePageProps {
   hint?: string;
   /** Po změně vlastního inzerátu, aby si nástěnka obnovila data. */
   onListingsChanged?: () => void;
+  /** Počet nepřečtených upozornění; upozornění jsou součástí profilu (bez samostatného tlačítka v hlavičce). */
+  unreadCount: number;
+  onOpenNotifications: () => void;
 }
 
 const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label: string }> = ({
@@ -52,7 +55,16 @@ const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void; label
   </label>
 );
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, onBack, onLogout, hint, onListingsChanged }) => {
+export const ProfilePage: React.FC<ProfilePageProps> = ({
+  user,
+  onUserChange,
+  onBack,
+  onLogout,
+  hint,
+  onListingsChanged,
+  unreadCount,
+  onOpenNotifications,
+}) => {
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone ?? '');
   const [region, setRegion] = useState(user.region || 'Celá ČR');
@@ -256,6 +268,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onUserChange, on
           Odhlásit
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={onOpenNotifications}
+        className={`w-full flex items-center justify-between gap-3 p-4 rounded-2xl border-2 border-[#111111] dark:border-stone-500 text-left text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white cursor-pointer transition-all hover:translate-x-[1px] hover:translate-y-[1px] ${
+          unreadCount > 0
+            ? 'bg-[#FFE4DE] dark:bg-[#4A180D] shadow-[3px_3px_0px_#111111] hover:shadow-[2px_2px_0px_#111111]'
+            : 'bg-white dark:bg-[#1C1E26] shadow-[2px_2px_0px_#111111] hover:shadow-[1px_1px_0px_#111111]'
+        }`}
+      >
+        <span className="flex items-center gap-3">
+          <span
+            className={`w-9 h-9 rounded-xl border-2 border-[#111111] flex items-center justify-center shrink-0 ${
+              unreadCount > 0 ? 'bg-[#FF5733] text-white' : 'bg-[#FEF08A] text-[#111111]'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+          </span>
+          <span>{unreadCount > 0 ? `Máš ${unreadLabel(unreadCount)}` : 'Upozornění'}</span>
+        </span>
+        <span className="underline underline-offset-4 decoration-2 shrink-0">{unreadCount > 0 ? 'Zobrazit' : 'Otevřít'}</span>
+      </button>
 
       {hint && (
         <div role="status" className="p-4 rounded-2xl bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-500 shadow-[3px_3px_0px_#111111] text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">

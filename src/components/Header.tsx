@@ -3,15 +3,17 @@
 import React from 'react';
 import { HammerLogo } from './HammerLogo';
 import { OwnProfile } from '@/types/api';
-import { initials } from '@/lib/format';
-import { Moon, Sun, Bell, LogIn, Camera } from 'lucide-react';
+import { initials, unreadLabel } from '@/lib/format';
+import { Moon, Sun, Bell, LogIn, Camera, BookUser } from 'lucide-react';
 
 interface HeaderProps {
   user: OwnProfile | null;
   unreadCount: number;
   isDark: boolean;
   onToggleDark: () => void;
-  onOpenNotifications: () => void;
+  onOpenDirectory: () => void;
+  /** Adresář je právě otevřený (zvýrazní tlačítko). */
+  directoryActive: boolean;
   onOpenProfile: () => void;
   onLogin: () => void;
 }
@@ -24,7 +26,8 @@ export const Header: React.FC<HeaderProps> = ({
   unreadCount,
   isDark,
   onToggleDark,
-  onOpenNotifications,
+  onOpenDirectory,
+  directoryActive,
   onOpenProfile,
   onLogin,
 }) => (
@@ -47,6 +50,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2.5">
           <button
+            onClick={onOpenDirectory}
+            aria-pressed={directoryActive}
+            className={`${btnBase} hidden md:inline-flex ${
+              directoryActive
+                ? 'bg-[#FEF08A] text-[#111111]'
+                : 'bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white'
+            }`}
+          >
+            <BookUser className="w-4 h-4 shrink-0" />
+            <span>Adresář</span>
+          </button>
+
+          <button
             onClick={onToggleDark}
             className={`${btnBase} bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-[#FEF08A]`}
             title={isDark ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
@@ -55,38 +71,45 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden md:inline">{isDark ? 'Světlý' : 'Tmavý'}</span>
           </button>
 
-          {user && (
-            <button
-              onClick={onOpenNotifications}
-              aria-label="Upozornění"
-              className={`relative ${btnBase} hidden md:inline-flex bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white`}
-            >
-              <Bell className="w-4 h-4 shrink-0" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1.5 rounded-full bg-[#FF5733] text-white border-2 border-[#111111] dark:border-white text-[10px] font-extrabold flex items-center justify-center shadow-[1px_1px_0px_#111111]">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-          )}
-
           {user ? (
             <button
               onClick={onOpenProfile}
-              className={`${btnBase} !pl-1.5 bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-white`}
-              title="Můj profil"
+              className={`relative ${btnBase} !pl-1.5 ${
+                unreadCount > 0
+                  ? 'bg-[#FFE4DE] dark:bg-[#4A180D] hover:bg-[#FFD3C8] dark:hover:bg-[#5E2112]'
+                  : 'bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644]'
+              } text-[#111111] dark:text-white`}
+              title={unreadCount > 0 ? `Můj profil – ${unreadLabel(unreadCount)}` : 'Můj profil'}
+              aria-label={unreadCount > 0 ? `Můj profil, ${unreadLabel(unreadCount)}` : 'Můj profil'}
             >
-              <span className="w-8 h-8 rounded-full border-2 border-[#111111] dark:border-stone-300 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-bold text-xs shrink-0">
-                {initials(user.name || user.email)}
+              <span className="relative shrink-0">
+                <span className="w-8 h-8 rounded-full border-2 border-[#111111] dark:border-stone-300 bg-[#FEF08A] text-[#111111] flex items-center justify-center font-bold text-xs">
+                  {initials(user.name || user.email)}
+                </span>
+                {unreadCount > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-2 -right-2 min-w-5 h-5 px-1.5 rounded-full bg-[#FF5733] text-white border-2 border-[#111111] dark:border-white text-[10px] font-extrabold flex items-center justify-center shadow-[1px_1px_0px_#111111]"
+                  >
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </span>
               <span className="hidden sm:block text-left">
                 <span className="block text-xs font-extrabold text-[#111111] dark:text-white leading-tight">
                   {user.name || user.email}
                 </span>
-                <span className="flex items-center gap-1 text-[10px] font-bold text-stone-600 dark:text-stone-300">
-                  <Camera className="w-2.5 h-2.5" />
-                  <span>Můj profil</span>
-                </span>
+                {unreadCount > 0 ? (
+                  <span className="flex items-center gap-1 text-[10px] font-extrabold text-[#C2370F] dark:text-[#FFB4A2]">
+                    <Bell className="w-2.5 h-2.5" />
+                    <span>{unreadLabel(unreadCount)}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-stone-600 dark:text-stone-300">
+                    <Camera className="w-2.5 h-2.5" />
+                    <span>Můj profil</span>
+                  </span>
+                )}
               </span>
             </button>
           ) : (

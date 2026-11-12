@@ -71,3 +71,10 @@ export function rewardDisplay(job: { budgetNote: string; reward?: PublicJob['rew
   if (headline === 'Dohodou') return { headline };
   return { headline, scope: r.scope };
 }
+
+/** „1 nové upozornění“ / „3 nová upozornění“ / „5 nových upozornění“. */
+export function unreadLabel(n: number): string {
+  if (n === 1) return '1 nové upozornění';
+  if (n >= 2 && n <= 4) return `${n} nová upozornění`;
+  return `${n} nových upozornění`;
+}
