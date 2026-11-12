@@ -328,9 +328,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={onBack} className={secondaryBtn}>
-            <ArrowLeft className="w-4 h-4" />
-            <span>Zpět na nástěnku</span>
+          {/* D39: jen ikona, text je v aria-label / title */}
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Zpět na nástěnku"
+            title="Zpět na nástěnku"
+            className={`${secondaryBtn} w-10 !px-0`}
+          >
+            <ArrowLeft className="w-5 h-5" />
           </button>
           <button type="button" onClick={onOpenDirectory} className={secondaryBtn}>
             <BookUser className="w-4 h-4" />
