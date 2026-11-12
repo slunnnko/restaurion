@@ -66,15 +66,18 @@ export async function loadInvitableOffer(
 export interface InviteJob {
   id: string;
   authorId: string;
+  jobType: string;
   status: string;
   expiresAt: string | null;
-  dateFrom: string;
-  dateTo: string;
+  dateFrom: string | null;
+  dateTo: string | null;
   crafts: string[];
 }
 
 export function fitsOffer(offer: InvitableOffer, job: InviteJob, today: string) {
-  return offerFitsJob(offer, { ...job, jobType: 'subcontract_needed' }, today);
+  // A job without dates cannot be matched against the offer's days.
+  if (!job.dateFrom || !job.dateTo) return { fits: false, reason: 'no_overlap' as const };
+  return offerFitsJob(offer, { ...job, dateFrom: job.dateFrom, dateTo: job.dateTo }, today);
 }
 
 /** Statements: engagement INSERT + `invited` notification. The caller puts them into one db.batch. */

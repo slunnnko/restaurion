@@ -93,11 +93,12 @@ export async function loadMatchCandidates(
 export async function notifyJobMatches(
   db: D1Database,
   job: { id: string; posterId: string; dateFrom: string; dateTo: string; crafts: string[]; expiresAt: string },
-  today: string
+  today: string,
+  excludeProfileId?: string
 ): Promise<number> {
   const candidates = await loadMatchCandidates(db, job.posterId, job);
   const matchJob = { ...job, status: 'active' };
-  const matched = candidates.filter((w) => evaluateMatch(matchJob, w, today).matches);
+  const matched = candidates.filter((w) => w.id !== excludeProfileId && evaluateMatch(matchJob, w, today).matches);
   const inserts = matched.map((w) =>
     db
       .prepare(`INSERT INTO notifications (id, profile_id, type, job_id) VALUES (?, ?, 'job_match', ?)`)

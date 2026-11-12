@@ -1,4 +1,4 @@
-import { JOB_SELECT, jsonResponse, mapJobRow, noDb, requireUser, todayUtc } from '../../_shared.ts';
+import { JOB_SELECT, jobRowCrafts, jsonResponse, noDb, requireUser, todayUtc } from '../../_shared.ts';
 import type { JobRow, PagesContext } from '../../_shared.ts';
 import { fitsOffer, isUnconfirmed, loadInvitableOffer } from '../../_lib/invitations.ts';
 import type { EngagementStatus, InviteOptionJob } from '../../../../src/types/api.ts';
@@ -37,11 +37,12 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
           {
             id: r.id,
             authorId: r.author_id,
+            jobType: r.job_type,
             status: r.status,
             expiresAt: r.expires_at,
             dateFrom: r.date_from,
             dateTo: r.date_to,
-            crafts: mapJobRow(r).crafts,
+            crafts: jobRowCrafts(r),
           },
           today
         ).fits
@@ -60,7 +61,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
         title: r.title,
         dateFrom: r.date_from,
         dateTo: r.date_to,
-        crafts: mapJobRow(r).crafts,
+        crafts: jobRowCrafts(r),
         visibility: r.visibility === 'direct' ? 'direct' : 'public',
         ...(e ? { invite: { engagementId: e.id, status: e.status, unconfirmed: isUnconfirmed(e, today) } } : {}),
       };

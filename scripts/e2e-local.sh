@@ -447,6 +447,22 @@ api poster POST /api/jobs/$DJ/invite "{\"offerId\":\"$OFFER\"}"
 eq "re-invite after decline -> 409 'Tuhle poptávku už odmítl.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Tuhle poptávku už odmítl."
 api poster POST /api/jobs "$(direct_body 'Nova poptavka po odmitnuti' "$DFROM" "$DTO")"
 eq "a NEW direct listing for the same offerer stays allowed" "$CODE" 201
+DJN=$(echo "$BODY" | jq -r '.job.id')
+api poster POST /api/jobs "$(direct_body 'Druha hned za sebou' "$DFROM" "$DTO")"
+eq "a second direct listing while one waits -> 409 spam cap" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Už mu jedna poptávka čeká na potvrzení."
+api poster GET "/api/jobs?mine=1"
+eq "mine=1 carries directInvite: declined listing / pending listing" "$(echo "$BODY" | jq -r --arg a "$DJ" --arg b "$DJN" '[(.jobs[] | select(.id==$a) | .directInvite.status), (.jobs[] | select(.id==$b) | .directInvite.status + "/" + (.directInvite.unconfirmed | tostring))] | join(",")')" "declined,pending/false"
+api poster PATCH /api/jobs/$DJN '{"visibility":"public"}'
+eq "publish while the invitation waits -> 409" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Pozvánka ještě čeká na potvrzení."
+api poster GET /api/jobs/$DJN/engagements
+api poster POST /api/engagements/$(echo "$BODY" | jq -r '.engagements[0].id') '{"action":"decline"}'
+eq "poster cancels the waiting one (frees the spam cap)" "$CODE" 200
+api poster GET "/api/jobs?mine=1"
+eq "cancelled listing: directInvite withdrawn" "$(echo "$BODY" | jq -r --arg b "$DJN" '.jobs[] | select(.id==$b) | .directInvite.status')" "withdrawn"
+api poster PATCH /api/jobs/$DJN '{"visibility":"public"}'
+eq "publish a cancelled direct listing -> 200 public" "$CODE/$(echo "$BODY" | jq -r '.job.visibility')" "200/public"
+api poster2 GET /api/notifications
+eq "invited O gets no job_match for the published listing" "$(echo "$BODY" | jq -r --arg j "$DJN" '[.items[] | select(.type=="job_match" and .jobId==$j)] | length')" 0
 api poster GET /api/jobs/$OFFER/invite-options
 eq "invite-options marks the declined listing as declined" "$(echo "$BODY" | jq -r --arg j "$DJ" '.jobs[] | select(.id==$j) | .invite.status')" "declined"
 
@@ -467,6 +483,8 @@ api poster POST /api/jobs/$DJ2/invite '{}'
 eq "re-send of an unconfirmed direct listing without offerId -> 201, new deadline" "$CODE/$(echo "$BODY" | jq -r '.engagement.respondBy')" "201/$(fdate 3)"
 api poster2 GET /api/invitations
 eq "after re-invite the invitation is confirmable again" "$(echo "$BODY" | jq -r --arg j "$DJ2" '.invitations[] | select(.job.id==$j) | .unconfirmed | tostring')" "false"
+api poster PATCH /api/jobs/$DJ2 '{"visibility":"public"}'
+eq "publish while the re-sent invitation waits -> 409" "$CODE" 409
 d1 --command "UPDATE engagements SET respond_by = '$YEST' WHERE job_id = '$DJ2'" > /dev/null
 api poster PATCH /api/jobs/$DJ2 '{"visibility":"public"}'
 eq "publish an unconfirmed direct listing" "$CODE/$(echo "$BODY" | jq -r '.job.visibility')" "200/public"
@@ -491,8 +509,31 @@ api poster2 GET /api/notifications
 eq "O got 'invite_cancelled'" "$(echo "$BODY" | jq -r --arg e "$CE" '[.items[] | select(.type=="invite_cancelled" and .engagementId==$e)] | length')" 1
 api poster POST /api/jobs/$DJ3/invite "{\"offerId\":\"$OFFER\"}"
 eq "re-invite after a cancel -> 201 (engagement re-opened)" "$CODE" 201
+api poster POST /api/jobs "$(direct_body 'Treti pri cekajici' "$DFROM" "$DTO")"
+eq "spam cap again while DJ3 waits -> 409" "$CODE" 409
 api poster2 GET /api/invitations
 eq "re-opened invitation is listed for O again" "$(echo "$BODY" | jq -r --arg j "$DJ3" '[.invitations[] | select(.job.id==$j)] | length')" 1
+
+echo "== D40 review: cancelled invite then Mám zájem; invite guards"
+mk_inv_job "Zruseni a zajem" "$(dd 6)" "$(dd 8)" '["kámen"]'; CJ=$JOBID
+api poster POST /api/jobs/$CJ/invite "{\"offerId\":\"$OFFER\"}"
+eq "invite to a public job" "$CODE" 201
+api poster GET /api/jobs/$CJ/engagements
+CEI=$(echo "$BODY" | jq -r '.engagements[0].id')
+api poster POST /api/engagements/$CEI '{"action":"decline"}'
+eq "poster cancels the invitation" "$CODE" 200
+api poster2 POST /api/jobs/$CJ/respond '{}'
+eq "O responds with Mám zájem after the cancel -> 201" "$CODE" 201
+api poster GET /api/jobs/$CJ/engagements
+eq "the re-opened engagement is worker-initiated, no deadline" "$(echo "$BODY" | jq -r '[.engagements[0].initiatedBy, (.engagements[0].respondBy // "none"), (.engagements[0].unconfirmed // false | tostring)] | join("|")')" "worker|none|false"
+api poster POST /api/engagements/$CEI '{"action":"accept"}'
+eq "poster accepts the worker's interest" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/accepted"
+api poster POST /api/jobs "{\"title\":\"Nabidka zadavatele\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+OFFV=$(echo "$BODY" | jq -r '.job.id')
+api poster2 POST /api/jobs/$OFFER/invite "{\"offerId\":\"$OFFV\"}"
+eq "inviting with an offer as the :id job -> 409" "$CODE" 409
+api poster2 POST /api/jobs/$OFFER/invite '{}'
+eq "same without offerId -> not accepted (409/400)" "$([ "$CODE" = 409 ] || [ "$CODE" = 400 ] && echo ok || echo "$CODE")" ok
 
 echo "== D40 worker declined on a regular listing: re-respond -> 409 'Zadavatel už vybral jinak.'"
 mk_inv_job "Zakazka k odmitnuti" "$R_FROM" "$R_TO" '["kámen"]'; RJ=$JOBID

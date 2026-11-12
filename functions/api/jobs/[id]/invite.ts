@@ -1,4 +1,4 @@
-import { JOB_SELECT, badJson, jsonResponse, mapJobRow, noDb, readJson, requireUser, todayUtc } from '../../_shared.ts';
+import { JOB_SELECT, badJson, jobRowCrafts, jsonResponse, noDb, readJson, requireUser, todayUtc } from '../../_shared.ts';
 import type { JobRow, PagesContext } from '../../_shared.ts';
 import { profileNameMissing, profileNameResponse } from '../../_lib/validate.ts';
 import {
@@ -39,6 +39,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     if (!row || row.visibility === 'deleted') return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
     if (row.author_id !== auth.userId) return jsonResponse({ error: 'Poptávku může poslat jen zadavatel zakázky.' }, 403);
 
+    // Only a real job with dates can be sent (an offer, or a legacy row without dates, cannot).
+    if (row.job_type === 'craftsman_available') return jsonResponse({ error: 'Poptávku nelze poslat z nabídky.' }, 409);
+    if (!row.date_from || !row.date_to) return jsonResponse({ error: 'Zakázka nemá termín.' }, 409);
+
     // A direct listing can be re-sent without offerId: the offer is the invited person's newest active offer.
     let offerId = rawOfferId;
     if (!offerId && row.visibility === 'direct' && row.direct_to) {
@@ -65,11 +69,12 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       {
         id: row.id,
         authorId: row.author_id,
+        jobType: row.job_type,
         status: row.status,
         expiresAt: row.expires_at,
         dateFrom: row.date_from,
         dateTo: row.date_to,
-        crafts: mapJobRow(row).crafts,
+        crafts: jobRowCrafts(row),
       },
       today
     );

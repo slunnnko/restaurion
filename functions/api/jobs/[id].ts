@@ -3,6 +3,7 @@ import {
   addDays,
   badJson,
   jobClosedNotifications,
+  jobRowCrafts,
   jsonResponse,
   mapJobRow,
   noDb,
@@ -135,8 +136,11 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
     else if (existing.visibility !== 'direct') {
       return jsonResponse({ error: 'Inzerát už je na nástěnce.' }, 409);
     } else {
+      // Same states as the "Zveřejnit na nástěnce" button: not while a confirmable invitation waits, not after it was accepted.
+      const di = mapJobRow(existing, { userId: auth.userId }).directInvite;
+      if (di?.status === 'accepted') return jsonResponse({ error: 'Pozvaný už potvrdil.' }, 409);
+      if (di?.status === 'pending' && !di.unconfirmed) return jsonResponse({ error: 'Pozvánka ještě čeká na potvrzení.' }, 409);
       publishing = true;
-      sets.push(`visibility = 'public'`);
     }
   }
   if ('status' in body) {
@@ -160,21 +164,35 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
       statements.push(...(await jobClosedNotifications(db, jobId)));
     }
     if (statements.length > 0) await db.batch(statements);
+    // Publishing is its own conditional UPDATE: only the request that really flips direct → public notifies.
+    let switched = false;
+    if (publishing && !closing) {
+      const res = await db
+        .prepare(`UPDATE jobs SET visibility = 'public', updated_at = datetime('now') WHERE id = ? AND visibility = 'direct'`)
+        .bind(jobId)
+        .run();
+      switched = res.meta?.changes === 1;
+    }
     const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
-    // Publishing a direct listing sends the same matching notifications as creating a job.
-    if (publishing && !closing && row) {
-      await notifyJobMatches(
-        db,
-        {
-          id: jobId,
-          posterId: auth.userId,
-          dateFrom: row.date_from,
-          dateTo: row.date_to,
-          crafts: mapJobRow(row).crafts,
-          expiresAt: row.expires_at ?? addDays(row.date_to, 14),
-        },
-        todayUtc()
-      );
+    if (switched && row) {
+      // The invited person already has the invitation, so no job_match for him. A failing notification does not undo the publish.
+      try {
+        await notifyJobMatches(
+          db,
+          {
+            id: jobId,
+            posterId: auth.userId,
+            dateFrom: row.date_from,
+            dateTo: row.date_to,
+            crafts: jobRowCrafts(row),
+            expiresAt: row.expires_at ?? addDays(row.date_to, 14),
+          },
+          todayUtc(),
+          row.direct_to ?? undefined
+        );
+      } catch (err) {
+        console.error('Chyba při párovacích upozorněních po zveřejnění:', err);
+      }
     }
     return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }) });
   } catch (err) {

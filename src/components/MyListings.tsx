@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { EngagementForPoster, MvpJobType, PublicJob } from '@/types/api';
+import { MvpJobType, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { formatRange } from '@/lib/format';
 import { ErrorBox, secondaryBtn } from './ui';
@@ -25,28 +25,20 @@ const TYPE_INFO: Record<MvpJobType, { label: string; icon: React.ComponentType<{
   craftsman_available: { label: 'Nabízím se', icon: UserCheck, tile: 'bg-[#2563EB]' },
 };
 
-/** D40: nepotvrzená přímá poptávka se dá zveřejnit na nástěnce nebo poslat znovu (nové 3 dny); Ukončit je v menu. */
+/**
+ * D40: stav pozvánky přímého inzerátu je přímo na inzerátu (`directInvite`).
+ * `Zveřejnit na nástěnce` jde, když nečeká potvrzení ani není přijato; `Poslat znovu` po lhůtě a po zrušení (ne po odmítnutí).
+ */
 const DirectActions: React.FC<{ job: PublicJob; onChanged: () => void }> = ({ job, onChanged }) => {
-  const [unconfirmed, setUnconfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const di = job.directInvite;
+  if (!di) return null;
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const data = await api<{ engagements: EngagementForPoster[] }>(`/api/jobs/${encodeURIComponent(job.id)}/engagements`);
-        if (!cancelled) setUnconfirmed(data.engagements.some((e) => e.initiatedBy === 'poster' && e.unconfirmed === true));
-      } catch {
-        // bez tlačítek; seznam zájemců ukáže chybu sám
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [job.id, job.interestedCount]);
-
-  if (!unconfirmed) return null;
+  const waiting = di.status === 'pending' && !di.unconfirmed;
+  const canPublish = !waiting && di.status !== 'accepted';
+  const canResend = (di.status === 'pending' && di.unconfirmed) || di.status === 'withdrawn';
+  if (!canPublish && !canResend && di.status !== 'declined') return null;
 
   const run = async (fn: () => Promise<unknown>, fallback: string) => {
     setBusy(true);
@@ -72,15 +64,20 @@ const DirectActions: React.FC<{ job: PublicJob; onChanged: () => void }> = ({ jo
     void run(() => api(`/api/jobs/${encodeURIComponent(job.id)}/invite`, { method: 'POST', body: {} }), 'Poptávku se nepodařilo poslat znovu.');
 
   return (
-    <div className="mt-3">
+    <div className="mt-3 space-y-2">
       {error && <ErrorBox message={error} />}
+      {di.status === 'declined' && <p className="text-xs font-bold text-stone-500 dark:text-stone-400">Odmítl</p>}
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} onClick={publish} className={secondaryBtn}>
-          Zveřejnit na nástěnce
-        </button>
-        <button type="button" disabled={busy} onClick={resend} className={secondaryBtn}>
-          Poslat znovu
-        </button>
+        {canPublish && (
+          <button type="button" disabled={busy} onClick={publish} className={secondaryBtn}>
+            Zveřejnit na nástěnce
+          </button>
+        )}
+        {canResend && (
+          <button type="button" disabled={busy} onClick={resend} className={secondaryBtn}>
+            Poslat znovu
+          </button>
+        )}
       </div>
     </div>
   );

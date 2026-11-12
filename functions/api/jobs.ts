@@ -141,10 +141,20 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       if ('response' in offer) return offer.response;
       const fit = fitsOffer(
         offer.offer,
-        { id: jobId, authorId: auth.userId, status: 'active', expiresAt, dateFrom: values.dateFrom, dateTo: values.dateTo, crafts: values.crafts },
+        { id: jobId, authorId: auth.userId, jobType: values.jobType, status: 'active', expiresAt, dateFrom: values.dateFrom, dateTo: values.dateTo, crafts: values.crafts },
         today
       );
       if (!fit.fits) return jsonResponse({ error: 'Poptávka se k nabídce nehodí (obor nebo termín).' }, 409);
+      // Spam cap: one confirmable direct invitation per person at a time.
+      const waiting = await db
+        .prepare(
+          `SELECT 1 AS x FROM engagements e JOIN jobs j ON j.id = e.job_id
+           WHERE j.author_id = ? AND j.visibility = 'direct' AND j.direct_to = ? AND j.status = 'active'
+             AND e.worker_id = ? AND e.initiated_by = 'poster' AND e.status = 'pending' AND e.respond_by >= ? LIMIT 1`
+        )
+        .bind(auth.userId, offer.offer.authorId, offer.offer.authorId, today)
+        .first();
+      if (waiting) return jsonResponse({ error: 'Už mu jedna poptávka čeká na potvrzení.' }, 409);
     }
     const directTo = offer && 'offer' in offer ? offer.offer : null;
 

@@ -496,6 +496,10 @@ export interface JobRow {
   visibility: string;
   direct_to: string | null;
   direct_to_name: string | null;
+  /** Direct listing: the invited person's engagement (subqueries in JOB_SELECT). */
+  di_id: string | null;
+  di_status: string | null;
+  di_respond_by: string | null;
   created_at: string;
   expires_at: string | null;
   a_name: string;
@@ -517,7 +521,10 @@ export const JOB_SELECT = `
          a.name AS a_name, a.directory_group AS a_group,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
-         (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count
+         (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count,
+         (SELECT e.id FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_id,
+         (SELECT e.status FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_status,
+         (SELECT e.respond_by FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_respond_by
   FROM jobs j JOIN profiles a ON a.id = j.author_id LEFT JOIN profiles dt ON dt.id = j.direct_to`;
 
 export interface JobViewer {
@@ -526,6 +533,22 @@ export interface JobViewer {
   busyDays?: number;
   /** Offers only: the viewer's own poster-initiated invitations to this offer's author. */
   invites?: MyInvite[];
+}
+
+/** Crafts of a job row, parsed once (shared by the mapping and the invitation fit checks). */
+export function jobRowCrafts(row: Pick<JobRow, 'required_crafts_json'>): string[] {
+  return safeJsonParse<string[]>(row.required_crafts_json, []);
+}
+
+/** State of the single invitation of a direct listing (owner only). `unconfirmed` is derived from respond_by. */
+function directInviteOf(row: JobRow): NonNullable<PublicJob['directInvite']> {
+  const status = (row.di_status ?? 'none') as NonNullable<PublicJob['directInvite']>['status'];
+  return {
+    ...(row.di_id ? { engagementId: row.di_id } : {}),
+    status,
+    unconfirmed: status === 'pending' && !!row.di_respond_by && row.di_respond_by < todayUtc(),
+    ...(row.di_respond_by ? { respondBy: row.di_respond_by } : {}),
+  };
 }
 
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
@@ -537,7 +560,7 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
     monumentStatus: row.monument_status as PublicJob['monumentStatus'],
     ...(row.monument_name ? { monumentName: row.monument_name } : {}),
     ...(row.image_url ? { imageUrl: row.image_url } : {}),
-    crafts: safeJsonParse<string[]>(row.required_crafts_json, []),
+    crafts: jobRowCrafts(row),
     region: row.region,
     city: row.city,
     dateFrom: row.date_from,
@@ -555,6 +578,7 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
       : {}),
     status: row.status === 'active' ? 'active' : 'closed',
     visibility: row.visibility === 'direct' ? 'direct' : 'public',
+    ...(row.visibility === 'direct' && viewer && viewer.userId === row.author_id ? { directInvite: directInviteOf(row) } : {}),
     ...(row.visibility === 'direct' && row.direct_to ? { directTo: { id: row.direct_to, name: row.direct_to_name ?? '' } } : {}),
     createdAt: row.created_at,
     poster: {

@@ -88,6 +88,13 @@ export interface PublicJob {
   /** 'direct' = invitation-only listing (not on the board), visible to its author and `directTo`. */
   visibility: 'public' | 'direct';
   directTo?: { id: string; name: string };
+  /** Owner of a direct listing only: state of the invitation ('none' = no engagement). `unconfirmed` = pending after `respondBy`. */
+  directInvite?: {
+    engagementId?: string;
+    status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'none';
+    unconfirmed: boolean;
+    respondBy?: string;
+  };
   createdAt: string;
   poster: { id: string; name: string; group: DirectoryGroup };
   interestedCount: number; // pending + accepted engagements

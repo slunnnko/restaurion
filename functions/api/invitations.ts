@@ -39,9 +39,21 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
       .bind(auth.userId)
       .all<EngRow>();
 
+    // One query for all jobs (no N+1).
+    const rows =
+      engs.results.length === 0
+        ? []
+        : (
+            await db
+              .prepare(`${JOB_SELECT} WHERE j.id IN (${engs.results.map(() => '?').join(',')})`)
+              .bind(...engs.results.map((e) => e.job_id))
+              .all<JobRow>()
+          ).results;
+    const rowById = new Map(rows.map((r) => [r.id, r]));
+
     const invitations: Invitation[] = [];
     for (const e of engs.results) {
-      const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(e.job_id).first<JobRow>();
+      const row = rowById.get(e.job_id);
       if (!row) continue;
       const unconfirmed = isUnconfirmed(e, today);
       invitations.push({
