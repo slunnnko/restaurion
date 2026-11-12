@@ -10,10 +10,10 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | Item | State |
 | :--- | :--- |
 | Branch | `mvp-core`, pushed. PR [#1](https://github.com/slunnnko/restaurion/pull/1) into `main` is open and mergeable. `[measured 2026-11-11: gh pr view 1]` |
-| Production | https://restaurion.pages.dev = Pages deployment `45c63c0a`, built from commit `79294c5` on `mvp-core`. `ADMIN_EMAILS` is set. Smoke test: `/`, `/api/jobs`, `/api/directory` 200; anonymous `?mine=1` and DELETE 401. `[measured 2026-11-12]` |
-| Digest worker | `restaurion-digest` redeployed 2026-11-12 (version `23038dda`), cron `0 6 * * *`. It only cleans up rows until Resend is configured. `[measured 2026-11-12: wrangler deploy output]` |
+| Production | https://restaurion.pages.dev = Pages deployment `5e6ef195`, built from commit `00e6493` on `mvp-core`, with Resend secrets. Smoke test: `/`, `/api/jobs`, `/api/directory` 200. `[measured 2026-11-12]` |
+| Digest worker | `restaurion-digest` version `23038dda`, cron `0 6 * * *`; `RESEND_API_KEY` and `RESEND_FROM` set 2026-11-12, so the daily digest now sends mail. `[measured 2026-11-12]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
-| Pages secrets | `TEST_LOGIN_ECHO=1` is set. `RESEND_API_KEY` and `RESEND_FROM` are not set. `[measured 2026-11-11]` |
+| Mail | Resend domain `echo.sunhaze.dev` (eu-west-1) verified; DNS records (DKIM, SPF TXT, MX, CNAME) in the `sunhaze.dev` zone, cf-scan baseline updated. Sender `Restaurion <noreply@echo.sunhaze.dev>`. Test mail and a real login-code mail reached `delivered`. Secrets: `RESEND_API_KEY` (sending-only key), `RESEND_FROM`, `ADMIN_EMAILS`, and still `TEST_LOGIN_ECHO=1`. `[measured 2026-11-12]` |
 | Tests | `npm test` 45/45, `scripts/e2e-local.sh` all PASS, tsc and build clean after the owner-management commit. `[measured 2026-11-11]` |
 | D1 migration 0009 | Applied remotely 2026-11-12 after a backup; row counts unchanged (jobs 10, profiles 8, engagements 0, notifications 0, blocks 1); 0008 was never applied. `[measured 2026-11-12]` |
 | Directory content | 0 of 8 existing profiles are visible (pre-0007 profiles start hidden by design, D14). `[measured 2026-11-11: D1 query]` |
@@ -22,7 +22,7 @@ D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-
 
 ## 2. Open risks
 
-1. `TEST_LOGIN_ECHO=1` lets anyone log in as any email. It must go before real users (step 3 below).
+1. `TEST_LOGIN_ECHO=1` is still set. With Resend configured the code is no longer echoed (`request-code.ts:66` returns `testCode` only without Resend), but the secret should go: owner runs `npx wrangler pages secret delete TEST_LOGIN_ECHO --project-name restaurion` and redeploys.
 2. Any logged-in user can bulk-read all contacts (D12, owner decision). There is no pagination beyond 200 directory entries.
 3. Two posters who accept the same worker at the same moment can double-book. The busy check and the update are not one transaction.
 4. When the 50/day budget for new addresses runs out, the 503 differs for known and unknown emails (minor account enumeration).
@@ -35,7 +35,7 @@ D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | Try the app on https://restaurion.pages.dev: log in with the shown test code, fill the profile, turn on "Zobrazit mě v Adresáři", post a job and an offer. | owner | own profile appears in Adresář; job and offer appear in their tabs | any 5xx – read `wrangler pages deployment tail` |
 | 2 | Merge PR [#1](https://github.com/slunnnko/restaurion/pull/1) in GitHub. | owner | `main` = `mvp-core`; the Actions run builds only, it does not deploy (ARCHITECTURE §10) | build fails on `main` |
-| 3 | Set up Resend (owner decided 2026-11-11: send from a `sunhaze.dev` subdomain, proposed `echo.sunhaze.dev`; Cloudflare Email Sending needs Workers Paid, Resend free tier does not): owner creates a Resend account and API key, the domain is added in Resend, its DNS records go into the `sunhaze.dev` zone, then `wrangler pages secret put RESEND_API_KEY` / `RESEND_FROM` and the same two with `wrangler secret put … -c workers/digest/wrangler.json`. Then delete `TEST_LOGIN_ECHO` (`wrangler pages secret delete TEST_LOGIN_ECHO --project-name restaurion`) and redeploy. | owner (needs a domain) | request-code sends an email; response has no `testCode` | email does not arrive – keep `TEST_LOGIN_ECHO` until it does |
+| 3 | Delete `TEST_LOGIN_ECHO` and redeploy (Resend itself is done, see Mail above). | owner | request-code still returns `{ok:true}` and the mail arrives | mail stops arriving – check Resend logs |
 | 4 | Test on an iPhone (Safari): login, selects, modals, dark mode. | owner | no layout breaks | – |
 | 5 | Phase 2 candidates: directory pagination, transactional accept, an admin view for reported listings. | next session | a plan in `docs/`, agreed with the owner before code | – |
 
