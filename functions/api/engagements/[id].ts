@@ -10,12 +10,14 @@ import {
   todayUtc,
 } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
+import { str } from '../_lib/validate.ts';
 import { loadBusySlots } from '../_lib/data.ts';
 import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
 
 /**
  * POST /api/engagements/:id {action}
- * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. withdraw: jen zájemce, z `pending`/`accepted`.
+ * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. withdraw: jen zájemce, z `pending`/`accepted`,
+ * volitelně s `reason` (max 500 znaků, D38).
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
@@ -26,7 +28,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   const auth = await requireUser(request, db);
   if ('response' in auth) return auth.response;
 
-  const body = await readJson<{ action?: unknown }>(request);
+  const body = await readJson<{ action?: unknown; reason?: unknown }>(request);
   if (!body) return badJson();
   const action = body.action;
   if (action !== 'accept' && action !== 'decline' && action !== 'withdraw') {
@@ -34,6 +36,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   }
 
   try {
+    let withdrawReason: string | null = null;
+    if (action === 'withdraw') {
+      withdrawReason = str(body.reason) || null;
+      if (withdrawReason && withdrawReason.length > 500) {
+        return jsonResponse({ error: 'Důvod je příliš dlouhý.', fieldErrors: { reason: 'Nejvýše 500 znaků.' } }, 400);
+      }
+    }
+
     const eng = await db
       .prepare(
         `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
@@ -67,7 +77,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     if (action === 'withdraw') {
       if (eng.worker_id !== auth.userId) return jsonResponse({ error: 'Odstoupit může jen přihlášený řemeslník.' }, 403);
       if (eng.status !== 'pending' && eng.status !== 'accepted') return jsonResponse({ error: 'Z tohoto stavu nelze odstoupit.' }, 409);
-      await db.prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now') WHERE id = ?`).bind(id).run();
+      await db
+        .prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now'), withdraw_reason = ? WHERE id = ?`)
+        .bind(withdrawReason, id)
+        .run();
       await insertNotification(db, { profileId: eng.author_id, type: 'withdrawn', jobId: eng.job_id, engagementId: id });
       return jsonResponse({ engagement: { id, status: 'withdrawn' } });
     }

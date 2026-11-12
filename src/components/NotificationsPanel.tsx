@@ -101,6 +101,11 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ onClose,
                     V tomto termínu máš {pluralDays(n.busyDays)} obsazeno
                   </div>
                 )}
+                {n.type === 'withdrawn' && n.reason && (
+                  <div className="mt-1 text-xs font-semibold text-stone-700 dark:text-stone-300 break-words whitespace-pre-line">
+                    Důvod: {n.reason}
+                  </div>
+                )}
                 <div className="mt-1 text-[10px] font-semibold text-stone-500 dark:text-stone-400">
                   {n.createdAt.slice(0, 16).replace('T', ' ')}
                 </div>

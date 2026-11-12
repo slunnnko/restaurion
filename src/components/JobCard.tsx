@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, pluralDays, rewardDisplay } from '@/lib/format';
-import { ContactsOrLogin, dangerBtn } from './ui';
-import { ActionMenu, MenuAction } from './ActionMenu';
-import { InterestedList } from './InterestedList';
+import { ContactsOrLogin } from './ui';
+import { ActionMenu, MenuAction, iconBtn } from './ActionMenu';
+import { InterestedList, PersonChip } from './InterestedList';
+import { WithdrawModal } from './WithdrawModal';
 import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, UserCheck, Pencil, Trash2, X } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
@@ -14,12 +15,14 @@ interface JobCardProps {
   job: PublicJob;
   highlighted?: boolean;
   onRespond: (job: PublicJob) => void;
-  onWithdraw: (job: PublicJob) => Promise<void>;
+  onWithdraw: (job: PublicJob, reason?: string) => Promise<void>;
   onCloseJob: (job: PublicJob) => Promise<void>;
   /** Po přijetí / odmítnutí zájemce, aby si nástěnka obnovila data. */
   onChanged: () => void;
   onEdit: (job: PublicJob) => void;
   onLogin: () => void;
+  /** Jméno přihlášeného (čip vlastního zájmu). */
+  viewerName?: string;
   /** Správce (ADMIN_EMAILS) smí smazat jakýkoli inzerát. */
   isAdmin?: boolean;
   onDeleteJob?: (job: PublicJob) => Promise<void>;
@@ -67,10 +70,12 @@ export const JobCard: React.FC<JobCardProps> = ({
   onChanged,
   onEdit,
   onLogin,
+  viewerName = '',
   isAdmin = false,
   onDeleteJob,
 }) => {
   const [busy, setBusy] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
@@ -80,6 +85,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   const engStatus = eng?.status;
   const isOffer = job.jobType === 'craftsman_available';
   const reward = rewardDisplay(job);
+  // D38: karta, o kterou mám zájem (čekající / přijatý), je zvýrazněná; odmítnutý a odstoupený zájem ne.
+  const myInterest = !job.isMine && (engStatus === 'pending' || engStatus === 'accepted') ? engStatus : null;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -88,14 +95,6 @@ export const JobCard: React.FC<JobCardProps> = ({
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleWithdraw = () => {
-    const text = isOffer
-      ? 'Opravdu chceš zrušit zájem o nabídku? Nabízející dostane upozornění.'
-      : 'Opravdu chceš odstoupit od zakázky? Termín se uvolní a zadavatel dostane upozornění.';
-    if (!window.confirm(text)) return;
-    void run(() => onWithdraw(job));
   };
 
   const handleClose = () => {
@@ -128,7 +127,13 @@ export const JobCard: React.FC<JobCardProps> = ({
     <article
       id={`job-${job.id}`}
       className={`relative rounded-2xl transition-all duration-150 flex flex-col justify-between overflow-hidden group bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] ${
-        highlighted ? 'ring-4 ring-[#FF5733] ring-offset-2 ring-offset-[#FAF6EB] dark:ring-offset-[#121318]' : ''
+        highlighted
+          ? 'ring-4 ring-[#FF5733] ring-offset-2 ring-offset-[#FAF6EB] dark:ring-offset-[#121318]'
+          : myInterest === 'pending'
+            ? 'ring-4 ring-[#FEF08A]/80'
+            : myInterest === 'accepted'
+              ? 'ring-4 ring-emerald-500/70'
+              : ''
       }`}
     >
       {actions.length > 0 && (
@@ -162,6 +167,18 @@ export const JobCard: React.FC<JobCardProps> = ({
               >
                 <Church className="w-3.5 h-3.5 text-[#111111] shrink-0" />
                 <span>{job.monumentStatus === 'national_monument' ? 'Národní kulturní památka' : 'Kulturní památka'}</span>
+              </span>
+            )}
+
+            {myInterest && (
+              <span
+                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border-2 border-[#111111] dark:border-stone-400 ${
+                  myInterest === 'accepted'
+                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-950 dark:text-emerald-200'
+                    : 'bg-[#FEF08A] text-[#111111]'
+                }`}
+              >
+                {myInterest === 'accepted' ? 'Přijat' : 'Mám zájem'}
               </span>
             )}
 
@@ -255,39 +272,45 @@ export const JobCard: React.FC<JobCardProps> = ({
         {/* Akce */}
         {job.isMine ? (
           <InterestedList job={job} onChanged={onChanged} showHeading />
-        ) : engStatus === 'pending' ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled
-              className="min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-[#111111] dark:border-stone-500 opacity-80 cursor-not-allowed"
-            >
-              Zájem odeslán
-            </button>
-            <button type="button" disabled={busy} onClick={handleWithdraw} className={dangerBtn}>
-              Odstoupit
-            </button>
+        ) : engStatus === 'pending' || engStatus === 'accepted' || engStatus === 'declined' ? (
+          <div>
+            <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1.5">
+              Zájemci
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <PersonChip name={viewerName} status={isOffer ? undefined : engStatus} muted={engStatus === 'declined'} />
+              {engStatus !== 'declined' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setWithdrawOpen(true)}
+                  aria-label={isOffer ? 'Zrušit zájem' : 'Odstoupit'}
+                  title={isOffer ? 'Zrušit zájem' : 'Odstoupit'}
+                  className={`${iconBtn} bg-white dark:bg-[#252834] hover:bg-red-100 dark:hover:bg-red-950/60 text-[#111111] dark:text-white`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
-        ) : engStatus === 'accepted' ? (
-          <div className="space-y-2">
-            <div className="text-xs font-extrabold text-emerald-800 dark:text-emerald-300">Zadavatel tě přijal</div>
-            <button type="button" disabled={busy} onClick={handleWithdraw} className={dangerBtn}>
-              Odstoupit
-            </button>
-          </div>
-        ) : engStatus === 'declined' ? (
-          <div className="text-xs font-bold text-stone-500 dark:text-stone-400">Zadavatel vybral jinak</div>
         ) : (
           <button
             type="button"
             onClick={() => onRespond(job)}
-            className="inline-flex items-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
           >
             <span>{isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
+      {withdrawOpen && (
+        <WithdrawModal
+          isOffer={isOffer}
+          onClose={() => setWithdrawOpen(false)}
+          onConfirm={(reason) => onWithdraw(job, reason || undefined)}
+        />
+      )}
     </article>
   );
 };

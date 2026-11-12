@@ -121,6 +121,8 @@ export interface EngagementForPoster {
   id: string;
   status: EngagementStatus;
   message?: string;
+  /** Optional reason of a withdrawn interest (D38). */
+  withdrawReason?: string;
   createdAt: string;
   worker: PublicPerson;
   workerContact: ContactInfo;
@@ -136,6 +138,8 @@ export interface NotificationItem {
   engagementId?: string;
   /** For job_match: days of the job range the recipient has busy (> 0 → show the note). */
   busyDays?: number;
+  /** For withdrawn: the worker's optional reason (D38). */
+  reason?: string;
 }
 
 // ---- Endpoints ----
@@ -172,7 +176,7 @@ export interface NotificationItem {
 //                                             the offerer gets an 'interest' notification)
 // GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts)
 // POST /api/engagements/:id {action: 'accept'|'decline'} (poster, jobs only; 409 on an offer)
-//                                           | {action: 'withdraw'} (interested user)
+//                                           | {action: 'withdraw', reason?: string (≤ 500)} (interested user)
 //                                           → { engagement: { id, status }, contact?: ContactInfo }
 //   Accepting books the worker's dates (busy days) and notifies; contacts do not depend on it.
 // GET  /api/profile                         → { profile: OwnProfile } (session only, own profile)

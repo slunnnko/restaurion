@@ -95,9 +95,14 @@ Tyto tři typy inzerátů (zakládá je kdokoli přihlášený) mají pevně dan
 - **Akce vlastníka a správce (D37, `ActionMenu.tsx`):** jednotné pravidlo. Jedna akce = jedno ikonové tlačítko (32 px) a spustí se rovnou (žluté, `Smazat` červené). Dvě a více = jedno žluté tlačítko s tužkou (`aria-haspopup="menu"`), klik otevře menu (stejně na dotyku i myši, ne při najetí); položka `Upravit`, `Ukončit`, `Smazat` (červená). Zavře se výběrem, klikem mimo a `Escape`. Styl menu jako v hlavičce (2px rámeček, stín 3px).
 - **Zájemci (D37, `InterestedList.tsx`, `EngagementDetailModal.tsx`):** čipy (`min-h-10`, iniciály, jméno, u zakázek stavový štítek; odmítnutí a odstoupení `opacity-60`), bez dat se nic nenačítá a ukáže se `Zatím žádný zájemce.` Klik na čip otevře detail: zpráva, stav, `Přijmout` / `Odmítnout` (jen čekající zakázky), kontakty. Ikona profilu (`UserRound`) vedle jména přepne na profil osoby (`DirectoryCard`) a `← Zpět na detail` vrátí zpět.
 - **Upozornění (D37):** nepřečtená upozornění jsou jedno červené číslo (`UnreadBadge` v `ui.tsx`: `bg-[#FF5733]`, 2px rámeček, `99+`) na avataru v hlavičce a v `MobileBottomNav`. Tlačítko profilu se nebarví a podřádek je vždy `Můj profil`; počet je v `aria-label` a `title`.
-- **Hlavní akční tlačítko na kartě (`JobCard.tsx`):**
+- **Hlavní akční tlačítko na kartě (`JobCard.tsx`, D38):**
   - U zakázek: **`Mám zájem`**
   - U záložky „Nabízím se“ (`craftsman_available`): **`Poptat spolupráci`**
+  - Tlačítko je na celou šířku (`w-full justify-center min-h-12 text-sm sm:text-base`), žluté neo-brutalistické; zobrazuje se bez zájmu nebo po odstoupení (anonymovi také).
+- **Můj zájem na kartě (D38):** nevlastník s `myEngagement` (čekající / přijatý / odmítnutý) vidí místo tlačítek nadpis `Zájemci` (bez počtu) a jen svůj čip (`PersonChip` z `InterestedList.tsx`, stejný vzhled jako u vlastníka, nekliknutelný; u nabídky bez stavového štítku). U čekajícího a přijatého vpravo ikonové tlačítko `X` (32 px, `Odstoupit` / u nabídky `Zrušit zájem`), odmítnutý čip je `opacity-60` bez `X`.
+- **Dialog odstoupení (D38, `WithdrawModal.tsx`):** nadpis `Odstoupit od zakázky` (nabídka `Zrušit zájem o nabídku`), krátký text, pole `Důvod (nepovinné)` (max 500 znaků, počítadlo `N/500`), `dangerBtn` `Odstoupit` / `Zrušit zájem` a `secondaryBtn` `Zpět`. Důvod vidí zadavatel v detailu zájemce (`Důvod odstoupení:`) a pod upozorněním `Řemeslník odstoupil…` v `NotificationsPanel` (`Důvod: …`).
+- **Zvýraznění karty (D38):** karta s čekajícím zájmem má v řádku odznaků pilulku `Mám zájem` (žlutá) a `ring-4 ring-[#FEF08A]/80`, s přijatým pilulku `Přijat` (zelená) a `ring-4 ring-emerald-500/70`. Odmítnutý a odstoupený zájem se nezvýrazňuje; `highlighted` kroužek má přednost.
+- **Spodní lišta (D38):** `Nástěnka` a `Profil` / `Přihlásit` mají vždy rámeček tlačítka (`border-2`, stín 2px, `min-w-16`); nečinné bílé (`dark:bg-[#252834]`), aktivní žluté.
 
 ---
 

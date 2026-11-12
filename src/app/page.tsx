@@ -269,13 +269,13 @@ export default function Home() {
     void loadJobs();
   };
 
-  const handleWithdraw = async (job: PublicJob) => {
+  const handleWithdraw = async (job: PublicJob, reason?: string) => {
     if (!job.myEngagement) return;
     setActionError('');
     try {
       await api(`/api/engagements/${encodeURIComponent(job.myEngagement.id)}`, {
         method: 'POST',
-        body: { action: 'withdraw' },
+        body: reason ? { action: 'withdraw', reason } : { action: 'withdraw' },
       });
       await loadJobs();
     } catch (err) {
@@ -564,6 +564,7 @@ export default function Home() {
                       onChanged={() => void loadJobs()}
                       onEdit={setEditingJob}
                       onLogin={() => setIsLoginOpen(true)}
+                      viewerName={user ? user.name || user.email : ''}
                       isAdmin={user?.isAdmin === true}
                       onDeleteJob={handleDeleteJob}
                     />

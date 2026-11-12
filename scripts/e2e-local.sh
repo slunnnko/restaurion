@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -618,6 +618,27 @@ api pwreset PUT /api/profile '{"themePreference":"light"}'
 eq "PUT themePreference light -> 200 light" "$CODE/$(echo "$BODY" | jq -r '.profile.themePreference')" "200/light"
 api pwreset PUT /api/profile '{"themePreference":"purple"}'
 eq "invalid themePreference -> 400 fieldErrors.themePreference" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.themePreference != null')" "400/true"
+
+echo "== withdraw reason (D38)"
+api poster POST /api/jobs "{\"title\":\"Nabidka pro duvod\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+WJ=$(echo "$BODY" | jq -r '.job.id')
+api w2 POST /api/jobs/$WJ/respond '{}'
+WE=$(echo "$BODY" | jq -r '.engagement.id')
+LONG=$(printf 'x%.0s' $(seq 1 501))
+api w2 POST /api/engagements/$WE "{\"action\":\"withdraw\",\"reason\":\"$LONG\"}"
+eq "501-char reason -> 400 fieldErrors.reason" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.reason != null')" "400/true"
+api w2 POST /api/engagements/$WE '{"action":"withdraw","reason":"Nestihnu termín"}'
+eq "withdraw with a reason -> 200" "$CODE" 200
+api poster GET /api/jobs/$WJ/engagements
+eq "poster sees withdrawReason" "$(echo "$BODY" | jq -r '.engagements[0].withdrawReason')" "Nestihnu termín"
+api poster GET /api/notifications
+eq "poster's withdrawn notification carries the reason" "$(echo "$BODY" | jq -r --arg e "$WE" '[.items[] | select(.type=="withdrawn" and .engagementId==$e and .reason=="Nestihnu termín")] | length')" 1
+api w2 POST /api/jobs/$WJ/respond '{}'
+eq "re-respond after withdraw -> 201" "$CODE" 201
+api poster GET /api/jobs/$WJ/engagements
+eq "re-respond clears withdrawReason" "$(echo "$BODY" | jq -r '.engagements[0].withdrawReason // "none"')" "none"
+api w2 POST /api/engagements/$WE '{"action":"withdraw"}'
+eq "withdraw without a reason -> 200" "$CODE" 200
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

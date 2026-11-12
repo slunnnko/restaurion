@@ -16,9 +16,11 @@ interface MobileBottomNavProps {
   onProfile: () => void;
 }
 
-const itemBase = 'flex flex-col items-center py-1 px-2.5 rounded-xl transition-all cursor-pointer';
-const itemIdle = 'text-stone-600 dark:text-stone-300 hover:text-[#111111] dark:hover:text-white font-semibold';
-const itemActive = 'bg-[#FEF08A] text-[#111111] font-extrabold border border-[#111111]';
+// D38: nečinné položky mají rámeček tlačítka, aktivní je žlutá.
+const itemBase =
+  'flex flex-col items-center min-w-16 py-1 px-3 rounded-xl border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all cursor-pointer';
+const itemIdle = 'bg-white dark:bg-[#252834] text-[#111111] dark:text-white font-extrabold';
+const itemActive = 'bg-[#FEF08A] text-[#111111] font-extrabold';
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   active,

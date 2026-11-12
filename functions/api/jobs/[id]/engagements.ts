@@ -7,6 +7,7 @@ interface Row extends ProfileRow {
   eng_status: EngagementStatus;
   eng_message: string | null;
   eng_created_at: string;
+  eng_withdraw_reason: string | null;
 }
 
 /** GET /api/jobs/:id/engagements (jen zadavatel) → zájemci s kontakty (zadavatel je přihlášený). */
@@ -28,9 +29,9 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   const cols = PROFILE_COLUMNS.split(', ').map((c) => `p.${c}`).join(', ');
   const rows = await db
     .prepare(
-      `SELECT e.id AS eng_id, e.status AS eng_status, e.message AS eng_message, e.created_at AS eng_created_at, ${cols}
+      `SELECT e.id AS eng_id, e.status AS eng_status, e.message AS eng_message, e.created_at AS eng_created_at, e.withdraw_reason AS eng_withdraw_reason, ${cols}
        FROM engagements e JOIN profiles p ON p.id = e.worker_id
-       WHERE e.job_id = ? AND e.status != 'withdrawn' ORDER BY e.created_at`
+       WHERE e.job_id = ? AND (e.status != 'withdrawn' OR e.withdraw_reason IS NOT NULL) ORDER BY e.created_at`
     )
     .bind(String(params.id))
     .all<Row>();
@@ -39,6 +40,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     id: r.eng_id,
     status: r.eng_status,
     ...(r.eng_message ? { message: r.eng_message } : {}),
+    ...(r.eng_withdraw_reason ? { withdrawReason: r.eng_withdraw_reason } : {}),
     createdAt: r.eng_created_at,
     worker: mapPublicPerson(r),
     workerContact: mapContact(r),
