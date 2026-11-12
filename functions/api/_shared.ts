@@ -570,11 +570,11 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
 
 export async function insertNotification(
   db: D1Database,
-  n: { profileId: string; type: string; jobId?: string; engagementId?: string }
+  n: { profileId: string; type: string; jobId?: string; engagementId?: string; reason?: string | null }
 ): Promise<void> {
   await db
-    .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id) VALUES (?, ?, ?, ?, ?)`)
-    .bind(`n-${crypto.randomUUID()}`, n.profileId, n.type, n.jobId ?? null, n.engagementId ?? null)
+    .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, engagement_id, reason) VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(`n-${crypto.randomUUID()}`, n.profileId, n.type, n.jobId ?? null, n.engagementId ?? null, n.reason ?? null)
     .run();
 }
 

@@ -178,7 +178,7 @@ export const JobCard: React.FC<JobCardProps> = ({
                     : 'bg-[#FEF08A] text-[#111111]'
                 }`}
               >
-                {myInterest === 'accepted' ? 'Přijat' : 'Mám zájem'}
+                {myInterest === 'accepted' ? 'Přijat' : isOffer ? 'Poptáno' : 'Mám zájem'}
               </span>
             )}
 
@@ -275,10 +275,10 @@ export const JobCard: React.FC<JobCardProps> = ({
         ) : engStatus === 'pending' || engStatus === 'accepted' || engStatus === 'declined' ? (
           <div>
             <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1.5">
-              Zájemci
+              Tvůj zájem
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <PersonChip name={viewerName} status={isOffer ? undefined : engStatus} muted={engStatus === 'declined'} />
+              <PersonChip name={viewerName || 'Ty'} status={isOffer ? undefined : engStatus} muted={engStatus === 'declined'} />
               {engStatus !== 'declined' && (
                 <button
                   type="button"
@@ -292,6 +292,12 @@ export const JobCard: React.FC<JobCardProps> = ({
                 </button>
               )}
             </div>
+            {engStatus === 'accepted' && (
+              <div className="mt-1.5 text-xs font-extrabold text-emerald-800 dark:text-emerald-300">Zadavatel tě přijal</div>
+            )}
+            {engStatus === 'declined' && (
+              <div className="mt-1.5 text-xs font-bold text-stone-500 dark:text-stone-400">Zadavatel vybral jinak</div>
+            )}
           </div>
         ) : (
           <button

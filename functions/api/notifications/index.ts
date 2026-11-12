@@ -14,7 +14,7 @@ interface Row {
   title: string | null;
   date_from: string | null;
   date_to: string | null;
-  withdraw_reason: string | null;
+  reason: string | null;
 }
 
 /** GET /api/notifications → nejnovějších 50 + počet nepřečtených; busyDays se počítá živě. */
@@ -27,9 +27,8 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
 
   const rows = await db
     .prepare(
-      `SELECT n.id, n.type, n.created_at, n.read_at, n.job_id, n.engagement_id, j.title, j.date_from, j.date_to, e.withdraw_reason
-       FROM notifications n LEFT JOIN engagements e ON e.id = n.engagement_id AND n.type = 'withdrawn'
-       LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility = 'public' OR n.type = 'job_closed')
+      `SELECT n.id, n.type, n.created_at, n.read_at, n.job_id, n.engagement_id, j.title, j.date_from, j.date_to, n.reason
+       FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility = 'public' OR n.type = 'job_closed')
        WHERE n.profile_id = ? ORDER BY n.created_at DESC, n.rowid DESC LIMIT 50`
     )
     .bind(auth.userId)
@@ -48,7 +47,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     ...(r.job_id ? { jobId: r.job_id } : {}),
     ...(r.title ? { jobTitle: r.title } : {}),
     ...(r.engagement_id ? { engagementId: r.engagement_id } : {}),
-    ...(r.type === 'withdrawn' && r.withdraw_reason ? { reason: r.withdraw_reason } : {}),
+    ...(r.type === 'withdrawn' && r.reason ? { reason: r.reason } : {}),
     ...(r.type === 'job_match' && r.date_from && r.date_to
       ? { busyDays: countBusyDays({ dateFrom: r.date_from, dateTo: r.date_to }, busy.blocks, busy.engagements, r.job_id ?? undefined) }
       : {}),

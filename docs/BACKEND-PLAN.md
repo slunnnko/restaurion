@@ -47,7 +47,7 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `PATCH /api/jobs/:id` | zadavatel | úprava (název, popis, odměna, termíny, obory, kraj, obec; typ je neměnný, ukončený inzerát 409, žádná nová párovací upozornění), `status: 'closed'` uvolní termíny a pošle `job_closed` |
 | `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
-| `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce, volitelně `reason` ≤ 500 znaků, migrace 0013) |
+| `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce, volitelně `reason` ≤ 500 code pointů, uloží se do `notifications.reason`, migrace 0013) |
 | `GET`, `PUT /api/profile` | relace | vlastní profil (`firstName`, `lastName`, `companyName` nepovinný (migrace 0012; `name` se odvozuje: firma, jinak jméno + příjmení), `phone` (normalizuje se na `+420 777 111 222`), `group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`, `themePreference` = `system`/`light`/`dark`, migrace 0011); skupina `licensed` vyžaduje číslo povolení |
 | `POST`, `DELETE /api/jobs/:id/photo` | zadavatel | jedna volitelná fotka (D34): `POST` surové bajty (JPEG/PNG/WebP podle prvních bajtů, max 5 MB → 413, jiný typ 400, ukončený inzerát 409, 30/h), uloží do R2 `JOB_PHOTOS` a pak `jobs.image_url`; `DELETE` fotku odebere. Bez bindingu 503. Ukončení a smazání správcem fotku nechá. |
 | `GET /api/photos/jobs/...` | kdokoli | veřejná fotka z R2 (`nosniff`, `CSP: sandbox`, neměnná cache) |

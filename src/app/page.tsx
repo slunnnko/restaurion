@@ -280,6 +280,7 @@ export default function Home() {
       await loadJobs();
     } catch (err) {
       handleApiError(err, 'Odstoupení se nepodařilo.');
+      throw err; // WithdrawModal zůstane otevřený a ukáže chybu
     }
   };
 

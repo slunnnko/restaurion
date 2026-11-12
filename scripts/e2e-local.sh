@@ -627,18 +627,20 @@ WE=$(echo "$BODY" | jq -r '.engagement.id')
 LONG=$(printf 'x%.0s' $(seq 1 501))
 api w2 POST /api/engagements/$WE "{\"action\":\"withdraw\",\"reason\":\"$LONG\"}"
 eq "501-char reason -> 400 fieldErrors.reason" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.reason != null')" "400/true"
+api w2 POST /api/engagements/$WE '{"action":"withdraw","reason":42}'
+eq "non-string reason -> 400 fieldErrors.reason" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.reason != null')" "400/true"
+EMOJI500=$(printf '😀%.0s' $(seq 1 500))
 api w2 POST /api/engagements/$WE '{"action":"withdraw","reason":"Nestihnu termín"}'
 eq "withdraw with a reason -> 200" "$CODE" 200
-api poster GET /api/jobs/$WJ/engagements
-eq "poster sees withdrawReason" "$(echo "$BODY" | jq -r '.engagements[0].withdrawReason')" "Nestihnu termín"
 api poster GET /api/notifications
 eq "poster's withdrawn notification carries the reason" "$(echo "$BODY" | jq -r --arg e "$WE" '[.items[] | select(.type=="withdrawn" and .engagementId==$e and .reason=="Nestihnu termín")] | length')" 1
 api w2 POST /api/jobs/$WJ/respond '{}'
 eq "re-respond after withdraw -> 201" "$CODE" 201
-api poster GET /api/jobs/$WJ/engagements
-eq "re-respond clears withdrawReason" "$(echo "$BODY" | jq -r '.engagements[0].withdrawReason // "none"')" "none"
-api w2 POST /api/engagements/$WE '{"action":"withdraw"}'
-eq "withdraw without a reason -> 200" "$CODE" 200
+api w2 POST /api/engagements/$WE "{\"action\":\"withdraw\",\"reason\":\"$EMOJI500\"}"
+eq "500 code points (emoji) reason -> 200" "$CODE" 200
+api poster GET /api/notifications
+eq "first notification's reason is unchanged" "$(echo "$BODY" | jq -r --arg e "$WE" '[.items[] | select(.type=="withdrawn" and .engagementId==$e and .reason=="Nestihnu termín")] | length')" 1
+eq "second withdrawn notification has its own reason" "$(echo "$BODY" | jq -r --arg e "$WE" '[.items[] | select(.type=="withdrawn" and .engagementId==$e)] | length')" 2
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

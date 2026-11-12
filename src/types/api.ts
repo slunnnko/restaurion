@@ -121,8 +121,6 @@ export interface EngagementForPoster {
   id: string;
   status: EngagementStatus;
   message?: string;
-  /** Optional reason of a withdrawn interest (D38). */
-  withdrawReason?: string;
   createdAt: string;
   worker: PublicPerson;
   workerContact: ContactInfo;

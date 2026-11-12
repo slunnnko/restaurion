@@ -90,15 +90,6 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
             </blockquote>
           )}
 
-          {x.status === 'withdrawn' && x.withdrawReason && (
-            <div>
-              <div className="text-[11px] font-extrabold text-stone-600 dark:text-stone-400 mb-1">Důvod odstoupení:</div>
-              <blockquote className="text-xs font-semibold text-stone-700 dark:text-stone-300 border-l-4 border-stone-400 pl-3 whitespace-pre-line break-words">
-                {x.withdrawReason}
-              </blockquote>
-            </div>
-          )}
-
           {x.status === 'pending' && (
             <div className="flex flex-wrap gap-2 pt-1">
               {!isOffer && (

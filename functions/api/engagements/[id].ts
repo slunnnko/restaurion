@@ -38,8 +38,11 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   try {
     let withdrawReason: string | null = null;
     if (action === 'withdraw') {
+      if (body.reason !== undefined && body.reason !== null && typeof body.reason !== 'string') {
+        return jsonResponse({ error: 'Důvod musí být text.', fieldErrors: { reason: 'Důvod musí být text.' } }, 400);
+      }
       withdrawReason = str(body.reason) || null;
-      if (withdrawReason && withdrawReason.length > 500) {
+      if (withdrawReason && [...withdrawReason].length > 500) {
         return jsonResponse({ error: 'Důvod je příliš dlouhý.', fieldErrors: { reason: 'Nejvýše 500 znaků.' } }, 400);
       }
     }
@@ -77,11 +80,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     if (action === 'withdraw') {
       if (eng.worker_id !== auth.userId) return jsonResponse({ error: 'Odstoupit může jen přihlášený řemeslník.' }, 403);
       if (eng.status !== 'pending' && eng.status !== 'accepted') return jsonResponse({ error: 'Z tohoto stavu nelze odstoupit.' }, 409);
-      await db
-        .prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now'), withdraw_reason = ? WHERE id = ?`)
-        .bind(withdrawReason, id)
-        .run();
-      await insertNotification(db, { profileId: eng.author_id, type: 'withdrawn', jobId: eng.job_id, engagementId: id });
+      await db.prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now') WHERE id = ?`).bind(id).run();
+      await insertNotification(db, {
+        profileId: eng.author_id,
+        type: 'withdrawn',
+        jobId: eng.job_id,
+        engagementId: id,
+        reason: withdrawReason,
+      });
       return jsonResponse({ engagement: { id, status: 'withdrawn' } });
     }
 

@@ -16,6 +16,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOffer, onClose, 
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const length = [...reason].length; // code points, same as the API
+  const tooLong = length > MAX_REASON;
 
   const text = isOffer
     ? 'Opravdu chceš zrušit zájem o nabídku? Nabízející dostane upozornění.'
@@ -48,20 +50,19 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOffer, onClose, 
           <textarea
             id="withdraw-reason"
             rows={3}
-            maxLength={MAX_REASON}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className={textareaCls}
           />
           <div className="mt-1 flex items-center justify-between gap-2">
-            <FieldError message={reason.length >= MAX_REASON ? 'Nejvýše 500 znaků.' : undefined} />
+            <FieldError message={tooLong ? 'Nejvýše 500 znaků.' : undefined} />
             <span className="ml-auto text-[11px] font-bold text-stone-600 dark:text-stone-400">
-              {reason.length}/{MAX_REASON}
+              {length}/{MAX_REASON}
             </span>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 pt-1">
-          <button type="button" disabled={busy} onClick={() => void submit()} className={dangerBtn}>
+          <button type="button" disabled={busy || tooLong} onClick={() => void submit()} className={dangerBtn}>
             {isOffer ? 'Zrušit zájem' : 'Odstoupit'}
           </button>
           <button type="button" disabled={busy} onClick={onClose} className={secondaryBtn}>
