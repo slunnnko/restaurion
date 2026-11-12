@@ -106,30 +106,35 @@ export function normalizeWhatsapp(value: string): string | null {
   return phoneDigits(v);
 }
 
-/** First / last name rules. Group 'firm': first = company name, last optional. Errors keyed firstName / lastName / name. */
-export function validateNameParts(first: string, last: string, group: string): FieldErrors {
+/**
+ * Name rules: first and last name required (1–40), company optional (0–80). Display name = company when set,
+ * else "first last"; it must have 3–80 chars. Errors keyed firstName / lastName / companyName.
+ */
+export function validateNameParts(first: string, last: string, company: string): FieldErrors {
   const errors: FieldErrors = {};
-  if (first.length < 1) errors.firstName = 'Vyplň jméno.';
+  // Either a company name, or first + last name (owner decision D35).
+  if (first.length < 1 && !company) errors.firstName = 'Vyplň jméno, nebo název firmy.';
   else if (first.length > 40) errors.firstName = 'Nejvýše 40 znaků.';
-  if (group === 'firm') {
-    if (last.length > 40) errors.lastName = 'Nejvýše 40 znaků.';
-  } else if (last.length < 2) errors.lastName = 'Vyplň příjmení.';
+  if (last.length < 1 && !company) errors.lastName = 'Vyplň příjmení, nebo název firmy.';
   else if (last.length > 40) errors.lastName = 'Nejvýše 40 znaků.';
-  if (!errors.firstName && !errors.lastName) {
-    const name = `${first} ${last}`.trim();
-    if (name.length < 3) {
-      if (group === 'firm') errors.firstName = 'Název firmy musí mít aspoň 3 znaky.';
-      else errors.name = 'Jméno musí mít 3 až 80 znaků.';
-    } else if (name.length > 80) errors.name = 'Jméno musí mít 3 až 80 znaků.';
+  if (company.length > 80) errors.companyName = 'Nejvýše 80 znaků.';
+  if (!errors.firstName && !errors.lastName && !errors.companyName) {
+    const name = company || `${first} ${last}`;
+    if (name.length < 3 || name.length > 80) errors[company ? 'companyName' : 'firstName'] = 'Jméno musí mít 3 až 80 znaků.';
   }
   return errors;
 }
 
-/** Splits a legacy single `name` like migration 0012: a firm keeps the whole name as first, others split at the first space. */
-export function splitName(name: string, group = 'unlicensed'): { first: string; last: string } {
+/** Display name stored in profiles.name. */
+export function displayName(first: string, last: string, company: string): string {
+  return company || `${first} ${last}`.trim();
+}
+
+/** Splits a legacy single `name` at the first space (same rule as migration 0012). */
+export function splitName(name: string): { first: string; last: string } {
   const t = name.trim();
   const i = t.indexOf(' ');
-  return group === 'firm' || i < 0 ? { first: t, last: '' } : { first: t.slice(0, i), last: t.slice(i + 1).trim() };
+  return i < 0 ? { first: t, last: '' } : { first: t.slice(0, i), last: t.slice(i + 1).trim() };
 }
 
 export function validCraftIds(value: unknown): string[] | null {

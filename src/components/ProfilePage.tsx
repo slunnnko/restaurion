@@ -69,6 +69,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 }) => {
   const [firstName, setFirstName] = useState(user.firstName ?? '');
   const [lastName, setLastName] = useState(user.lastName ?? '');
+  const [companyName, setCompanyName] = useState(user.companyName ?? '');
   const [phone, setPhone] = useState(user.phone ?? '');
   const [waSame, setWaSame] = useState(
     !!user.whatsapp && !user.whatsapp.startsWith('@') && !!user.phone && user.whatsapp.replace(/\D/g, '') === phoneDigits(user.phone)
@@ -217,6 +218,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         body: {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          companyName: companyName.trim(),
           phone: phone.trim(),
           region,
           crafts,
@@ -376,7 +378,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
             <label htmlFor="pf-first-name" className={labelCls}>
-              {group === 'firm' ? 'Název firmy' : 'Jméno'}
+              Jméno
             </label>
             <input
               id="pf-first-name"
@@ -386,11 +388,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               onChange={(e) => setFirstName(e.target.value)}
               className={inputCls}
             />
-            <FieldError message={fieldErrors.firstName ?? fieldErrors.name} />
+            <FieldError message={fieldErrors.firstName} />
           </div>
           <div>
             <label htmlFor="pf-last-name" className={labelCls}>
-              {group === 'firm' ? 'Příjmení kontaktní osoby (nepovinné)' : 'Příjmení'}
+              Příjmení
             </label>
             <input
               id="pf-last-name"
@@ -401,6 +403,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               className={inputCls}
             />
             <FieldError message={fieldErrors.lastName} />
+          </div>
+          <div>
+            <label htmlFor="pf-company-name" className={labelCls}>
+              Název firmy (nepovinné)
+            </label>
+            <input
+              id="pf-company-name"
+              type="text"
+              autoComplete="organization"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className={inputCls}
+            />
+            <p className="mt-1 text-xs font-medium text-stone-600 dark:text-stone-400">Vyplň jméno a příjmení, nebo název firmy. Firma se zobrazí místo jména.</p>
+            <FieldError message={fieldErrors.companyName} />
           </div>
           <div>
             <label htmlFor="pf-email" className={labelCls}>

@@ -91,10 +91,14 @@ eq "firstName/lastName stored, name derived" "$(echo "$BODY" | jq -r '[.profile.
 api w6 PUT /api/profile '{"group":"unlicensed","lastName":""}'
 eq "person without lastName -> 400 fieldErrors.lastName" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.lastName != null')" "400/true"
 put w6 '{"name":"Worker Sest","phone":"","whatsapp":""}'
-put w6 '{"group":"firm","firstName":"Sest Firma","lastName":""}'
-api w6 PUT /api/profile '{"group":"unlicensed"}'
-eq "group-only PUT firm -> person without lastName -> 400 lastName" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.lastName != null')" "400/true"
-put w6 '{"group":"unlicensed","firstName":"Worker","lastName":"Sest"}'
+put w6 '{"companyName":"Sest Firma s.r.o."}'
+api w6 GET /api/profile
+eq "companyName set -> name is the company" "$(echo "$BODY" | jq -r '[.profile.companyName,.profile.name,.profile.firstName]|join("|")')" "Sest Firma s.r.o.|Sest Firma s.r.o.|Worker"
+api w6 PUT /api/profile '{"group":"firm","lastName":"","companyName":""}'
+eq "no company + empty lastName -> 400 lastName in any group" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.lastName != null')" "400/true"
+api w6 PUT /api/profile '{"firstName":"","lastName":""}'
+eq "company only (no first/last) -> 200" "$CODE" 200
+put w6 '{"group":"unlicensed","firstName":"Worker","lastName":"Sest","companyName":""}'
 api w1 PUT /api/profile '{"crafts":["neexistuje"]}'
 eq "invalid craft -> 400 with fieldErrors" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.crafts != null')" "400/true"
 api w1 PUT /api/profile '{"portfolioUrl":"javascript:alert(1)"}'

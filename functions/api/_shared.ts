@@ -413,9 +413,9 @@ export function isThemePreference(value: unknown): value is 'system' | 'light' |
 
 export async function loadOwnProfile(db: D1Database, userId: string, env?: Env): Promise<OwnProfile | null> {
   const row = await db
-    .prepare(`SELECT ${PROFILE_COLUMNS}, first_name, last_name, (password_hash IS NOT NULL) AS has_password, theme_preference FROM profiles WHERE id = ? LIMIT 1`)
+    .prepare(`SELECT ${PROFILE_COLUMNS}, first_name, last_name, company_name, (password_hash IS NOT NULL) AS has_password, theme_preference FROM profiles WHERE id = ? LIMIT 1`)
     .bind(userId)
-    .first<ProfileRow & { has_password: number; theme_preference: string; first_name: string; last_name: string }>();
+    .first<ProfileRow & { has_password: number; theme_preference: string; first_name: string; last_name: string; company_name: string }>();
   if (!row) return null;
   const today = todayUtc();
   const [blocks, booked] = await Promise.all([
@@ -453,6 +453,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
     ...mapPublicPerson(row),
     firstName: row.first_name ?? '',
     lastName: row.last_name ?? '',
+    companyName: row.company_name ?? '',
     email: row.email,
     isAdmin: env ? isAdmin(env, row.email) : false,
     hasPassword: Boolean(row.has_password),

@@ -9,6 +9,8 @@ import {
   normalizePhone,
   normalizeWhatsapp,
   validateNameParts,
+  splitName,
+  displayName,
   formatBudgetNote,
   validateNewJob,
   validateReward,
@@ -77,14 +79,24 @@ test('phone: normalised to display form, country code required', () => {
   assert.equal(normalizePhone('abc'), null);
 });
 
-test('name parts: person needs a last name, firm does not', () => {
-  assert.deepEqual(validateNameParts('Jan', 'Novák', 'unlicensed'), {});
-  assert.equal(validateNameParts('Jan', '', 'licensed').lastName, 'Vyplň příjmení.');
-  assert.equal(validateNameParts('', 'Novák', 'unlicensed').firstName, 'Vyplň jméno.');
-  assert.deepEqual(validateNameParts('Kámen s.r.o.', '', 'firm'), {});
-  assert.equal(validateNameParts('AB', '', 'firm').firstName, 'Název firmy musí mít aspoň 3 znaky.');
-  assert.equal(validateNameParts('x'.repeat(41), 'Novák', 'unlicensed').firstName, 'Nejvýše 40 znaků.');
-  assert.equal(validateNameParts('x'.repeat(40), 'y'.repeat(39), 'unlicensed').name, undefined);
+test('name parts: first and last name required, company optional', () => {
+  assert.deepEqual(validateNameParts('Jan', 'Novák', ''), {});
+  assert.equal(validateNameParts('Jan', '', '').lastName, 'Vyplň příjmení, nebo název firmy.');
+  assert.equal(validateNameParts('', 'Novák', '').firstName, 'Vyplň jméno, nebo název firmy.');
+  assert.deepEqual(validateNameParts('', '', 'Kámen s.r.o.'), {});
+  assert.deepEqual(validateNameParts('Jan', 'Novák', 'Kámen s.r.o.'), {});
+  assert.equal(validateNameParts('Jan', 'Novák', 'x'.repeat(81)).companyName, 'Nejvýše 80 znaků.');
+  assert.equal(validateNameParts('Jan', 'Novák', 'AB').companyName, 'Jméno musí mít 3 až 80 znaků.');
+  assert.deepEqual(validateNameParts('J', 'N', ''), {});
+  assert.equal(validateNameParts('x'.repeat(41), 'Novák', '').firstName, 'Nejvýše 40 znaků.');
+  assert.deepEqual(validateNameParts('x'.repeat(40), 'y'.repeat(39), ''), {});
+});
+
+test('splitName: first space; display name prefers the company', () => {
+  assert.deepEqual(splitName('Jan Novák Starší'), { first: 'Jan', last: 'Novák Starší' });
+  assert.deepEqual(splitName(' Jan '), { first: 'Jan', last: '' });
+  assert.equal(displayName('Jan', 'Novák', ''), 'Jan Novák');
+  assert.equal(displayName('Jan', 'Novák', 'Kámen s.r.o.'), 'Kámen s.r.o.');
 });
 
 test('facebook / web: only http(s) URLs up to 300 chars', () => {

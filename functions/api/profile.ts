@@ -9,6 +9,7 @@ import {
   normalizeInstagram,
   normalizePhone,
   normalizeWhatsapp,
+  displayName,
   splitName,
   str,
   validateNameParts,
@@ -47,28 +48,23 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     binds.push(value);
   };
 
-  if ('firstName' in body || 'lastName' in body || 'name' in body || 'group' in body) {
+  if ('firstName' in body || 'lastName' in body || 'companyName' in body || 'name' in body) {
     const stored = await db
-      .prepare(`SELECT first_name, last_name, directory_group FROM profiles WHERE id = ?`)
+      .prepare(`SELECT first_name, last_name, company_name FROM profiles WHERE id = ?`)
       .bind(auth.userId)
-      .first<{ first_name: string; last_name: string; directory_group: string }>();
-    // Judge the group this request leaves behind.
-    const group = isDirectoryGroup(body.group) ? body.group : stored?.directory_group ?? 'unlicensed';
-    const nameKeys = 'firstName' in body || 'lastName' in body || 'name' in body;
+      .first<{ first_name: string; last_name: string; company_name: string }>();
     let first = stored?.first_name ?? '';
     let last = stored?.last_name ?? '';
-    if ('firstName' in body || 'lastName' in body) {
-      if ('firstName' in body) first = str(body.firstName);
-      if ('lastName' in body) last = str(body.lastName);
-    } else if ('name' in body) {
-      ({ first, last } = splitName(str(body.name), group));
-    }
-    Object.assign(errors, validateNameParts(first, last, group));
-    if (nameKeys) {
-      set('first_name', first);
-      set('last_name', last);
-      set('name', `${first} ${last}`.trim());
-    }
+    let company = stored?.company_name ?? '';
+    if ('name' in body && !('firstName' in body || 'lastName' in body)) ({ first, last } = splitName(str(body.name)));
+    if ('firstName' in body) first = str(body.firstName);
+    if ('lastName' in body) last = str(body.lastName);
+    if ('companyName' in body) company = str(body.companyName);
+    Object.assign(errors, validateNameParts(first, last, company));
+    set('first_name', first);
+    set('last_name', last);
+    set('company_name', company);
+    set('name', displayName(first, last, company));
   }
   if ('phone' in body) {
     const raw = str(body.phone);
