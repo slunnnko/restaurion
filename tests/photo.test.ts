@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectPhotoType, photoKeyFromUrl } from '../functions/api/_lib/photo.ts';
+import { detectPhotoType, photoKeyFromUrl, readBodyWithLimit } from '../functions/api/_lib/photo.ts';
 
 const bytes = (...head: number[]) => Uint8Array.from([...head, ...new Array(16).fill(0)]);
 const ascii = (s: string) => Array.from(s).map((c) => c.charCodeAt(0));
@@ -23,4 +23,31 @@ test('photoKeyFromUrl: only /api/photos/ URLs map to a key', () => {
   assert.equal(photoKeyFromUrl('/api/photos/jobs/j1/a.png'), 'jobs/j1/a.png');
   assert.equal(photoKeyFromUrl('https://example.com/x.png'), null);
   assert.equal(photoKeyFromUrl(null), null);
+});
+
+const streamRequest = (chunks: number[], headers?: Record<string, string>) =>
+  new Request('http://x/', {
+    method: 'POST',
+    headers,
+    body: new ReadableStream<Uint8Array>({
+      start(c) {
+        for (const n of chunks) c.enqueue(new Uint8Array(n));
+        c.close();
+      },
+    }),
+    // @ts-expect-error Node's fetch needs duplex for stream bodies
+    duplex: 'half',
+  });
+
+test('readBodyWithLimit: a stream under the limit is returned whole', async () => {
+  const out = await readBodyWithLimit(streamRequest([10, 20, 30]), 100);
+  assert.equal(out?.byteLength, 60);
+});
+
+test('readBodyWithLimit: a stream over the limit gives null without Content-Length', async () => {
+  assert.equal(await readBodyWithLimit(streamRequest([60, 60]), 100), null);
+});
+
+test('readBodyWithLimit: a declared Content-Length over the limit gives null', async () => {
+  assert.equal(await readBodyWithLimit(streamRequest([5], { 'content-length': '500' }), 100), null);
 });

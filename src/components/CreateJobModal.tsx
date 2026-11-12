@@ -233,7 +233,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <CheckCircle2 className="w-7 h-7" />
           </div>
           <h3 className="font-serif text-xl font-bold text-[#111111] dark:text-white mb-1">
-            {isEdit ? 'Změny jsou uložené.' : isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
+            {isEdit ? (photoWarning ? 'Změny jsou uložené, fotka ne.' : 'Změny jsou uložené.') : isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
           </h3>
           {photoWarning && (
             <div className="mt-3 text-left">

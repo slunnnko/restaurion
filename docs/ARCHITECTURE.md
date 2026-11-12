@@ -71,7 +71,7 @@ Rate limits (`rateLimit` in `_shared.ts`, table `rate_limit_events`): the event 
 | password change per user | 10 / h |
 | photo upload per user (`photo-user`) | 30 / h |
 
-Photos (D34): `POST /api/jobs/:id/photo` takes raw image bytes (max 5 MB, type by magic bytes, not by header), writes R2 first and then `jobs.image_url`; a failed UPDATE deletes the new object. The previous object is deleted afterwards (best effort). `DELETE` clears `image_url` and the object. Closing a listing and the admin soft delete keep the photo.
+Photos (D34): `POST /api/jobs/:id/photo` takes raw image bytes (max 5 MB, type by magic bytes, not by header), writes R2 first and then `jobs.image_url`; a failed UPDATE deletes the new object. The previous object is deleted afterwards (best effort). `DELETE` clears `image_url` and the object. Closing a listing and the admin soft delete keep the object, but `GET /api/photos/*` serves a photo only while its job is not deleted and still points at it (404 otherwise); `Cache-Control: public, max-age=86400`.
 
 Test mode: when Resend is not configured and `TEST_LOGIN_ECHO=1`, request-code returns `testCode` in the response. The UI prefills it.
 

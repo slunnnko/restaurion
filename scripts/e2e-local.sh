@@ -589,6 +589,14 @@ photo poster DELETE "$PJ"
 eq "owner deletes the photo -> 200, imageUrl gone" "$CODE/$(echo "$BODY" | jq -r '.job.imageUrl // "none"')" "200/none"
 eq "GET the deleted photo -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL2")" 404
 
+api poster POST /api/jobs "{\"title\":\"Nabidka s fotkou ke smazani\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+PJ2=$(echo "$BODY" | jq -r '.job.id')
+photo poster POST "$PJ2" "$JARS/tiny.png"
+PURL3=$(echo "$BODY" | jq -r '.job.imageUrl')
+eq "photo of a live listing -> 200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 200
+api admin DELETE /api/jobs/$PJ2; eq "admin soft deletes the listing with a photo -> 200" "$CODE" 200
+eq "GET the photo of a deleted listing -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 404
+
 echo "== theme preference"
 api pwreset GET /api/auth/me
 eq "me.themePreference defaults to system" "$(echo "$BODY" | jq -r '.user.themePreference')" "system"

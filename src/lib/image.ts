@@ -24,6 +24,9 @@ export async function downscaleImage(file: File): Promise<Blob> {
   canvas.height = Math.max(1, Math.round(bitmap.height * scale));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Obrázek se nepodařilo zpracovat.');
+  // Fill white first: a transparent PNG/WebP would turn black in the JPEG fallback.
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
   let blob = await toBlob(canvas, 'image/webp', 0.82);

@@ -1,6 +1,6 @@
 import { JOB_SELECT, jsonResponse, mapJobRow, noDb, rateLimit, requireUser } from '../../_shared.ts';
 import type { D1Database, JobRow, PagesContext } from '../../_shared.ts';
-import { MAX_PHOTO_BYTES, PHOTO_EXT, PHOTO_PREFIX, detectPhotoType, photoKeyFromUrl } from '../../_lib/photo.ts';
+import { MAX_PHOTO_BYTES, PHOTO_EXT, PHOTO_PREFIX, detectPhotoType, photoKeyFromUrl, readBodyWithLimit } from '../../_lib/photo.ts';
 
 const NO_BUCKET = 'Nahrávání fotek zatím není zapnuté.';
 
@@ -52,10 +52,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     return jsonResponse({ error: 'Příliš mnoho nahrání. Zkus to za hodinu.' }, 429);
   }
 
-  const declared = Number(request.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > MAX_PHOTO_BYTES) return jsonResponse({ error: 'Fotka je větší než 5 MB.' }, 413);
-  const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.byteLength > MAX_PHOTO_BYTES) return jsonResponse({ error: 'Fotka je větší než 5 MB.' }, 413);
+  const bytes = await readBodyWithLimit(request, MAX_PHOTO_BYTES);
+  if (!bytes) return jsonResponse({ error: 'Fotka je větší než 5 MB.' }, 413);
   const type = detectPhotoType(bytes);
   if (!type) return jsonResponse({ error: 'Povolené formáty jsou JPEG, PNG a WebP.' }, 400);
 
