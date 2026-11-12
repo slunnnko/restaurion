@@ -21,8 +21,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="cs" className="h-full antialiased">
+    <html lang="cs" className="h-full antialiased" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var p=null;try{p=localStorage.getItem('restaurion-theme-pref')}catch(e){}var l=false;try{l=window.matchMedia('(prefers-color-scheme: light)').matches}catch(e){}var d=p==='light'?false:p==='dark'?true:!l;document.documentElement.classList.toggle('dark',d)}catch(e){}})();",
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

@@ -146,7 +146,7 @@ Dates are `YYYY-MM-DD` calendar days without a time zone. Timestamps are SQLite 
 | Command | What |
 | :--- | :--- |
 | `npm test` | unit tests in `tests/*.test.ts` with Node's native TypeScript stripping (Node 25) |
-| `bash scripts/e2e-local.sh` | resets local D1, applies `0001`–`0007`, `0009`, `0010`, starts `wrangler pages dev` on `:8788` with a stub page, drives the API with curl. Prints PASS/FAIL per check. |
+| `bash scripts/e2e-local.sh` | resets local D1, applies `0001`–`0007`, `0009`–`0011`, starts `wrangler pages dev` on `:8788` with a stub page, drives the API with curl. Prints PASS/FAIL per check. |
 | `npx tsc --noEmit -p .`, `npx eslint src`, `npm run build` | type check, lint, static export |
 
 A change to an endpoint changes `src/types/api.ts`, the tests and `scripts/e2e-local.sh` together.

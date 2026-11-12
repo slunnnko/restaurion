@@ -48,7 +48,7 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `POST /api/jobs/:id/respond` | relace, jméno v profilu | „Mám zájem“ / „Poptat spolupráci“ (engagement `pending`, upozornění `interest`) |
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
 | `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |
-| `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`); skupina `licensed` vyžaduje číslo povolení |
+| `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`, `themePreference` = `system`/`light`/`dark`, migrace 0011); skupina `licensed` vyžaduje číslo povolení |
 | `DELETE /api/jobs/:id` | správce (`ADMIN_EMAILS`) | měkké smazání jakéhokoli inzerátu (`visibility = 'deleted'`, `status = 'archived'`, řádek zůstává v D1), zájemci dostanou `job_closed`; opakované volání 200; ostatním 403 |
 | `POST /api/availability`, `PUT`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (upravit a mazat smí jen vlastník; cizí id u PUT 404) |
 | `GET /api/notifications`, `POST /api/notifications/read` | relace | upozornění a označení za přečtená |

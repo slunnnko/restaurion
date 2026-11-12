@@ -89,12 +89,16 @@ export interface BookedJob {
   posterContact: ContactInfo;
 }
 
+export type ThemePreference = 'system' | 'light' | 'dark';
+
 export interface OwnProfile extends PublicPerson {
   email: string;
   /** True for e-mails listed in the ADMIN_EMAILS env var. Gates the admin UI; the API re-checks on every call. */
   isAdmin: boolean;
   /** True when a password is set (login-password works). The hash itself never leaves the server. */
   hasPassword: boolean;
+  /** Own theme choice (profiles.theme_preference); 'system' follows the OS. Never in a public mapping. */
+  themePreference: ThemePreference;
   phone?: string;
   region: string;
   emailDigest: boolean;
@@ -169,7 +173,8 @@ export interface NotificationItem {
 //   Accepting books the worker's dates (busy days) and notifies; contacts do not depend on it.
 // GET  /api/profile                         → { profile: OwnProfile } (session only, own profile)
 // PUT  /api/profile {name?, phone?, region?, crafts?, experienceText?, portfolioUrl?, licenceNumber?,
-//                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp?, facebook?}
+//                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp?, facebook?,
+//                    themePreference? ('system'|'light'|'dark', else 400 fieldErrors.themePreference)}
 //                                           → { profile: OwnProfile }
 //   group 'licensed' requires a licence number.
 // POST /api/availability {dateFrom, dateTo, note?} → 201 { block }

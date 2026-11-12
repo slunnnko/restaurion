@@ -13,6 +13,7 @@ import type {
   RewardType,
   UnavailabilityBlock,
 } from '../../src/types/api.ts';
+import { isThemePreference } from './_lib/validate.ts';
 
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -392,9 +393,9 @@ export interface BookedRow {
 /** Full own profile including blocks and accepted jobs. Only for the profile's owner. */
 export async function loadOwnProfile(db: D1Database, userId: string, env?: Env): Promise<OwnProfile | null> {
   const row = await db
-    .prepare(`SELECT ${PROFILE_COLUMNS}, (password_hash IS NOT NULL) AS has_password FROM profiles WHERE id = ? LIMIT 1`)
+    .prepare(`SELECT ${PROFILE_COLUMNS}, (password_hash IS NOT NULL) AS has_password, theme_preference FROM profiles WHERE id = ? LIMIT 1`)
     .bind(userId)
-    .first<ProfileRow & { has_password: number }>();
+    .first<ProfileRow & { has_password: number; theme_preference: string }>();
   if (!row) return null;
   const today = todayUtc();
   const [blocks, booked] = await Promise.all([
@@ -433,6 +434,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
     email: row.email,
     isAdmin: env ? isAdmin(env, row.email) : false,
     hasPassword: Boolean(row.has_password),
+    themePreference: isThemePreference(row.theme_preference) ? row.theme_preference : 'system',
     ...(row.phone ? { phone: row.phone } : {}),
     region: row.region,
     emailDigest: Boolean(row.email_digest),

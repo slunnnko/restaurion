@@ -4,13 +4,11 @@ import React from 'react';
 import { HammerLogo } from './HammerLogo';
 import { OwnProfile } from '@/types/api';
 import { initials, unreadLabel } from '@/lib/format';
-import { Moon, Sun, Bell, LogIn, Camera, BookUser } from 'lucide-react';
+import { Bell, LogIn, Camera, BookUser } from 'lucide-react';
 
 interface HeaderProps {
   user: OwnProfile | null;
   unreadCount: number;
-  isDark: boolean;
-  onToggleDark: () => void;
   onOpenDirectory: () => void;
   /** Adresář je právě otevřený (zvýrazní tlačítko). */
   directoryActive: boolean;
@@ -24,8 +22,6 @@ const btnBase = `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-
 export const Header: React.FC<HeaderProps> = ({
   user,
   unreadCount,
-  isDark,
-  onToggleDark,
   onOpenDirectory,
   directoryActive,
   onOpenProfile,
@@ -60,15 +56,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BookUser className="w-4 h-4 shrink-0" />
             <span>Adresář</span>
-          </button>
-
-          <button
-            onClick={onToggleDark}
-            className={`${btnBase} bg-[#FFFDF7] dark:bg-[#262933] hover:bg-[#FEF08A] dark:hover:bg-[#323644] text-[#111111] dark:text-[#FEF08A]`}
-            title={isDark ? 'Přepnout na světlý režim' : 'Přepnout na tmavý režim'}
-          >
-            {isDark ? <Sun className="w-4 h-4 text-[#FEF08A] shrink-0" /> : <Moon className="w-4 h-4 text-[#111111] shrink-0" />}
-            <span className="hidden md:inline">{isDark ? 'Světlý' : 'Tmavý'}</span>
           </button>
 
           {user ? (

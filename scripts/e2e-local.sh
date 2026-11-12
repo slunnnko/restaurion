@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -544,6 +544,14 @@ api pwreset POST /api/auth/password "{\"currentPassword\":\"$PW2\",\"newPassword
 eq "change with the correct currentPassword" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
 api pwreset GET /api/auth/me
 eq "the current session survives a password change" "$(echo "$BODY" | jq -r '.user.email')" "echo@e2e.test"
+
+echo "== theme preference"
+api pwreset GET /api/auth/me
+eq "me.themePreference defaults to system" "$(echo "$BODY" | jq -r '.user.themePreference')" "system"
+api pwreset PUT /api/profile '{"themePreference":"light"}'
+eq "PUT themePreference light -> 200 light" "$CODE/$(echo "$BODY" | jq -r '.profile.themePreference')" "200/light"
+api pwreset PUT /api/profile '{"themePreference":"purple"}'
+eq "invalid themePreference -> 400 fieldErrors.themePreference" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.themePreference != null')" "400/true"
 
 echo
 if [ "$FAILS" -eq 0 ]; then echo "ALL CHECKS PASSED"; else echo "$FAILS CHECK(S) FAILED (server log: $LOG)"; cp "$LOG" "${TMPDIR:-/tmp}/e2e-pages-dev.log" 2>/dev/null; fi

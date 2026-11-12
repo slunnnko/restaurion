@@ -5,6 +5,7 @@ import {
   groupLicenceError,
   isDirectoryGroup,
   isHttpUrl,
+  isThemePreference,
   normalizeFacebook,
   normalizeInstagram,
   normalizeWhatsapp,
@@ -117,6 +118,10 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
       if (typeof body[key] !== 'boolean') errors[key] = 'Očekává se ano/ne.';
       set(col, body[key] ? 1 : 0);
     }
+  }
+  if ('themePreference' in body) {
+    if (!isThemePreference(body.themePreference)) errors.themePreference = 'Vyberte vzhled ze seznamu.';
+    set('theme_preference', body.themePreference);
   }
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { DirectoryGroup, OwnProfile, UnavailabilityBlock } from '@/types/api';
+import { DirectoryGroup, OwnProfile, ThemePreference, UnavailabilityBlock } from '@/types/api';
+import { applyTheme } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { PROFILE_REGIONS } from '@/lib/regions';
@@ -100,6 +101,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [pwError, setPwError] = useState('');
   const [pwSaved, setPwSaved] = useState(false);
   const [pwFieldErrors, setPwFieldErrors] = useState<Record<string, string>>({});
+  const [themeError, setThemeError] = useState('');
+  const [themeBusy, setThemeBusy] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [blockSavedMsg, setBlockSavedMsg] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -107,6 +110,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const blockFormRef = useRef<HTMLFormElement | null>(null);
 
   const today = todayIso();
+
+  const chooseTheme = async (pref: ThemePreference) => {
+    if (themeBusy || pref === user.themePreference) return;
+    setThemeError('');
+    setThemeBusy(true);
+    applyTheme(pref);
+    try {
+      const data = await api<{ profile: OwnProfile }>('/api/profile', {
+        method: 'PUT',
+        body: { themePreference: pref },
+      });
+      onUserChange(data.profile);
+    } catch (err) {
+      applyTheme(user.themePreference);
+      setThemeError(err instanceof ApiError ? err.message : 'Vzhled se nepodařilo uložit.');
+    } finally {
+      setThemeBusy(false);
+    }
+  };
 
   const savePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -637,6 +659,45 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             </div>
           </div>
         </form>
+      </section>
+
+      <section className={`${cardCls} p-5 sm:p-6 space-y-3`}>
+        <h2 className={sectionTitle}>Vzhled</h2>
+        <div
+          role="group"
+          aria-label="Vzhled aplikace"
+          className="inline-flex flex-wrap items-center gap-1 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000]"
+        >
+          {(
+            [
+              ['system', 'Podle systému'],
+              ['light', 'Světlý'],
+              ['dark', 'Tmavý'],
+            ] as const
+          ).map(([value, label]) => {
+            const active = user.themePreference === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={active}
+                disabled={themeBusy}
+                onClick={() => chooseTheme(value)}
+                className={`px-3.5 py-2 rounded-xl border-2 text-xs sm:text-sm font-extrabold transition-all cursor-pointer disabled:opacity-60 ${
+                  active
+                    ? 'bg-[#FEF08A] text-[#111111] border-[#111111] shadow-[2px_2px_0px_#111111]'
+                    : 'border-transparent text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-[#262933]'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs font-bold text-stone-600 dark:text-stone-400">
+          Bez přihlášení se řídí nastavením systému, jinak je tmavý.
+        </p>
+        {themeError && <ErrorBox message={themeError} />}
       </section>
 
       <form onSubmit={savePassword} className={`${cardCls} p-5 sm:p-6 space-y-3.5`}>

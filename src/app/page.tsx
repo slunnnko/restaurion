@@ -18,7 +18,8 @@ import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { ErrorBox } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
-import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry } from '@/types/api';
+import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry, ThemePreference } from '@/types/api';
+import { applyTheme, THEME_PREF_KEY } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
 import { plural } from '@/lib/format';
 import { jobMatchesText, jobMatchesTokens } from '@/lib/jobSearch';
@@ -46,7 +47,6 @@ export default function Home() {
   const [dirLoading, setDirLoading] = useState(false);
   const [dirError, setDirError] = useState('');
   const [isHeroInfoOpen, setIsHeroInfoOpen] = useState(false);
-  const [isDark, setIsDark] = useState<boolean>(false);
 
   const [user, setUser] = useState<OwnProfile | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -71,39 +71,34 @@ export default function Home() {
   // Akce, která čeká na přihlášení.
   const pendingAction = useRef<(() => void) | null>(null);
 
-  // Inicializace a synchronizace Dark Mode (přepínač v hlavičce + systémový vzhled)
+  // Vzhled: preference přihlášeného (profil) nebo systém; .dark na <html>. Cache v localStorage kvůli bliknutí.
+  const themePref: ThemePreference | null = user?.themePreference ?? null;
   useEffect(() => {
-    const saved = localStorage.getItem('restaurion-theme');
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    if (saved === 'dark' || (!saved && mediaQuery.matches)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsDark(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setIsDark(false);
-      document.documentElement.classList.remove('dark');
+    try {
+      localStorage.removeItem('restaurion-theme'); // starý přepínač v hlavičce
+    } catch {
+      /* localStorage nedostupný */
     }
-
-    const handleSystemChange = (e: MediaQueryListEvent) => {
-      if (!localStorage.getItem('restaurion-theme')) {
-        setIsDark(e.matches);
-        document.documentElement.classList.toggle('dark', e.matches);
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleSystemChange);
-    return () => mediaQuery.removeEventListener('change', handleSystemChange);
   }, []);
-
-  const handleToggleDark = () => {
-    setIsDark((prev) => {
-      const next = !prev;
-      document.documentElement.classList.toggle('dark', next);
-      localStorage.setItem('restaurion-theme', next ? 'dark' : 'light');
-      return next;
-    });
-  };
+  useEffect(() => {
+    if (!authLoaded) return;
+    try {
+      if (themePref) localStorage.setItem(THEME_PREF_KEY, themePref);
+      else localStorage.removeItem(THEME_PREF_KEY);
+    } catch {
+      /* localStorage nedostupný */
+    }
+    applyTheme(themePref);
+    let mq: MediaQueryList | null = null;
+    try {
+      mq = window.matchMedia('(prefers-color-scheme: light)');
+    } catch {
+      return;
+    }
+    const onChange = () => applyTheme(themePref);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [themePref, authLoaded]);
 
   const loadJobs = useCallback(async () => {
     setJobsError('');
@@ -366,8 +361,6 @@ export default function Home() {
       <Header
         user={user}
         unreadCount={unread}
-        isDark={isDark}
-        onToggleDark={handleToggleDark}
         onOpenDirectory={toggleDirectory}
         directoryActive={view === 'board' && tab === 'directory'}
         onOpenProfile={() => setView((v) => (v === 'profile' ? 'board' : 'profile'))}
@@ -475,9 +468,10 @@ export default function Home() {
                   onClick={openCreate}
                   aria-label="Přidat inzerát"
                   title="Přidat inzerát"
-                  className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-[#FEF08A] hover:bg-[#FDE047] text-[#111111] border-2 border-[#111111] shadow-[4px_4px_0px_#111111] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2.5 h-14 px-7 rounded-2xl text-base font-extrabold bg-[#111111] text-[#FEF08A] border-2 border-[#111111] shadow-[5px_5px_0px_#FF5733] dark:bg-[#FEF08A] dark:text-[#111111] dark:border-[#111111] dark:shadow-[5px_5px_0px_#000000] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[3px_3px_0px_#FF5733] dark:hover:shadow-[3px_3px_0px_#000000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 transition-all cursor-pointer"
                 >
-                  <Plus className="w-5 h-5 stroke-[3]" />
+                  <Plus className="w-6 h-6 stroke-[3]" />
+                  Přidat inzerát
                 </button>
               </div>
             </div>

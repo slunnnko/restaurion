@@ -20,6 +20,10 @@ export function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+export function isThemePreference(value: unknown): value is 'system' | 'light' | 'dark' {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
+
 export function isDirectoryGroup(value: unknown): value is 'firm' | 'licensed' | 'unlicensed' {
   return typeof value === 'string' && DIRECTORY_GROUPS.includes(value);
 }
