@@ -50,7 +50,8 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
 - `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
 - `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, login-password, password, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
-- `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`).
+- `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`, `photo.ts`).
+- Fotka inzerátu (D34): `functions/api/jobs/[id]/photo.ts` (POST/DELETE, vlastník), `functions/api/photos/[[path]].ts` (veřejné čtení z R2, binding `JOB_PHOTOS`), `src/lib/image.ts` (zmenšení v prohlížeči). Binding je jen na nejvyšší úrovni `wrangler.json`; produkční se přidá po zapnutí R2.
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
 - `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0011` (0006, 0007, 0009, 0010 a 0011 se pouští jednou).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.

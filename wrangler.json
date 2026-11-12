@@ -29,5 +29,11 @@
         }
       ]
     }
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "JOB_PHOTOS",
+      "bucket_name": "restaurion-job-photos"
+    }
+  ]
 }

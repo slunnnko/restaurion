@@ -29,7 +29,7 @@ d1 --command "UPDATE profiles SET accepting_jobs = 0" > /dev/null
 
 echo "== start wrangler pages dev on :$PORT"
 # admin@e2e.test is the only administrator (ADMIN_EMAILS).
-npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --binding ADMIN_EMAILS=admin@e2e.test > "$LOG" 2>&1 &
+npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --r2 JOB_PHOTOS --binding ADMIN_EMAILS=admin@e2e.test > "$LOG" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null; pkill -P $SERVER 2>/dev/null; rm -rf "$JARS"' EXIT
 for _ in $(seq 1 60); do curl -s -o /dev/null "$BASE/api/jobs" && break; sleep 1; done
@@ -544,6 +544,50 @@ api pwreset POST /api/auth/password "{\"currentPassword\":\"$PW2\",\"newPassword
 eq "change with the correct currentPassword" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
 api pwreset GET /api/auth/me
 eq "the current session survives a password change" "$(echo "$BODY" | jq -r '.user.email')" "echo@e2e.test"
+
+echo "== listing photo (R2, local)"
+PNG_B64='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+printf '%s' "$PNG_B64" | base64 -d > "$JARS/tiny.png"
+echo 'this is not an image, just text' > "$JARS/not-image.txt"
+head -c 6000000 /dev/zero > "$JARS/big.bin"
+# photo <user> METHOD <jobId> [file] -> body in $BODY, status in $CODE (raw bytes, header deliberately says image/png)
+photo() {
+  local args=(-s -o "$JARS/body" -w '%{http_code}' -X "$2" "$BASE/api/jobs/$3/photo" -b "$JARS/$1.jar" -c "$JARS/$1.jar")
+  [ -n "${4:-}" ] && args+=(-H 'Content-Type: image/png' --data-binary "@$4")
+  CODE=$(curl "${args[@]}"); BODY=$(cat "$JARS/body")
+}
+api poster POST /api/jobs "{\"title\":\"Nabidka s fotkou\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+PJ=$(echo "$BODY" | jq -r '.job.id')
+photo poster POST "$PJ" "$JARS/tiny.png"
+eq "owner uploads a PNG -> 200" "$CODE" 200
+PURL=$(echo "$BODY" | jq -r '.job.imageUrl')
+case "$PURL" in /api/photos/jobs/*) check "imageUrl starts with /api/photos/jobs/ ($PURL)" 0;; *) check "imageUrl starts with /api/photos/jobs/ (got '$PURL')" 1;; esac
+curl -s -D "$JARS/hdr" -o "$JARS/got.png" -w '%{http_code}' "$BASE$PURL" > "$JARS/code"
+eq "GET the photo without a session -> 200" "$(cat "$JARS/code")" 200
+eq "photo content-type is image/png" "$(grep -i '^content-type:' "$JARS/hdr" | tr -d '\r' | awk '{print tolower($2)}')" "image/png"
+eq "photo has nosniff" "$(grep -ci '^x-content-type-options: nosniff' "$JARS/hdr")" 1
+eq "photo bytes round-trip" "$(shasum -a 256 < "$JARS/got.png" | cut -d' ' -f1)" "$(shasum -a 256 < "$JARS/tiny.png" | cut -d' ' -f1)"
+api - GET "/api/photos/jobs/../../etc/passwd"
+eq "path traversal -> 404" "$CODE" 404
+api - GET "/api/photos/licence/x"
+eq "key outside jobs/ -> 404" "$CODE" 404
+photo poster POST "$PJ" "$JARS/not-image.txt"
+eq "text upload -> 400" "$CODE" 400
+photo poster POST "$PJ" "$JARS/big.bin"
+eq "> 5 MB -> 413" "$CODE" 413
+photo poster2 POST "$PJ" "$JARS/tiny.png"
+eq "other user upload -> 403" "$CODE" 403
+photo poster2 DELETE "$PJ"
+eq "other user delete -> 403" "$CODE" 403
+curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/jobs/$PJ/photo" --data-binary "@$JARS/tiny.png" > "$JARS/code"
+eq "upload without session -> 401" "$(cat "$JARS/code")" 401
+photo poster POST "$PJ" "$JARS/tiny.png"
+PURL2=$(echo "$BODY" | jq -r '.job.imageUrl')
+eq "replacing gives a new URL" "$([ "$PURL2" != "$PURL" ] && echo yes)" yes
+eq "the replaced photo is gone from R2" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL")" 404
+photo poster DELETE "$PJ"
+eq "owner deletes the photo -> 200, imageUrl gone" "$CODE/$(echo "$BODY" | jq -r '.job.imageUrl // "none"')" "200/none"
+eq "GET the deleted photo -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL2")" 404
 
 echo "== theme preference"
 api pwreset GET /api/auth/me

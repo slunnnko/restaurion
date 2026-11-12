@@ -49,6 +49,8 @@ API stav `closed` odpovídá `jobs.status = 'archived'`. Nástěnka ukazuje jen 
 | `GET /api/jobs/:id/engagements` | zadavatel | zájemci včetně kontaktů |
 | `POST /api/engagements/:id` | zadavatel / zájemce | `accept`, `decline` (zadavatel zakázky; u nabídky 409), `withdraw` (zájemce) |
 | `GET`, `PUT /api/profile` | relace | vlastní profil (`group`, `directoryVisible`, `instagram`, `whatsapp`, `facebook`, `themePreference` = `system`/`light`/`dark`, migrace 0011); skupina `licensed` vyžaduje číslo povolení |
+| `POST`, `DELETE /api/jobs/:id/photo` | zadavatel | jedna volitelná fotka (D34): `POST` surové bajty (JPEG/PNG/WebP podle prvních bajtů, max 5 MB → 413, jiný typ 400, ukončený inzerát 409, 30/h), uloží do R2 `JOB_PHOTOS` a pak `jobs.image_url`; `DELETE` fotku odebere. Bez bindingu 503. Ukončení a smazání správcem fotku nechá. |
+| `GET /api/photos/jobs/...` | kdokoli | veřejná fotka z R2 (`nosniff`, `CSP: sandbox`, neměnná cache) |
 | `DELETE /api/jobs/:id` | správce (`ADMIN_EMAILS`) | měkké smazání jakéhokoli inzerátu (`visibility = 'deleted'`, `status = 'archived'`, řádek zůstává v D1), zájemci dostanou `job_closed`; opakované volání 200; ostatním 403 |
 | `POST /api/availability`, `PUT`, `DELETE /api/availability/:id` | relace | bloky nedostupnosti (upravit a mazat smí jen vlastník; cizí id u PUT 404) |
 | `GET /api/notifications`, `POST /api/notifications/read` | relace | upozornění a označení za přečtená |

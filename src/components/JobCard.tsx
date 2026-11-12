@@ -164,6 +164,15 @@ export const JobCard: React.FC<JobCardProps> = ({
       )}
       <div>
         <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
+        {job.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={job.imageUrl}
+            alt={job.title}
+            loading="lazy"
+            className="aspect-[16/9] w-full object-cover border-b-2 border-[#111111] dark:border-stone-500 bg-stone-200 dark:bg-[#252834]"
+          />
+        )}
 
         <div className="p-5 pb-0">
           <div className={`flex flex-wrap items-center gap-2 mb-3.5 ${badgesPad}`}>

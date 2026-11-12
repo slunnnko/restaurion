@@ -50,7 +50,7 @@ export interface PublicJob {
   jobType: MvpJobType;
   monumentStatus: MvpMonumentStatus;
   monumentName?: string;
-  imageUrl?: string; // legacy jobs only; no upload in MVP
+  imageUrl?: string; // optional photo: '/api/photos/jobs/<jobId>/<uuid>.<ext>' (owner upload, D34); legacy rows may hold an old URL
   crafts: string[]; // craft category ids
   region: string;
   city: string;
@@ -184,6 +184,10 @@ export interface NotificationItem {
 // DELETE /api/jobs/:id                      → { ok: true } (ADMIN_EMAILS only: 401 without session, 403 otherwise).
 //   Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
 //   accepted workers get 'job_closed'. Idempotent: an already deleted job → 200. Owner PATCH on it → 404.
+// POST /api/jobs/:id/photo  (raw image bytes, owner) → { job }  JPEG/PNG/WebP by magic bytes (else 400), max 5 MB (413),
+//   closed or deleted job 409, 401/403/404 like PATCH, 429 (30/h), 503 { error } when R2 is not enabled. Replaces the old photo.
+// DELETE /api/jobs/:id/photo (owner) → { job } (imageUrl absent). 503 without R2.
+// GET  /api/photos/jobs/<jobId>/<uuid>.<ext> → the image (public, immutable cache); 404 when missing, 503 without R2.
 // GET  /api/notifications                   → { items: NotificationItem[], unread: number }
 // POST /api/notifications/read {ids?: string[]} (no ids = all) → { unread: number }
 // Errors: { error: string, fieldErrors?: Record<string,string> } with 400/401/403/404/409/429/503.

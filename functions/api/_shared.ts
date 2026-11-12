@@ -26,8 +26,25 @@ export interface D1Database {
   batch<T = unknown>(statements: D1PreparedStatement[]): Promise<T[]>;
 }
 
+export interface R2ObjectBody {
+  body: ReadableStream;
+  httpMetadata?: { contentType?: string };
+}
+
+export interface R2Bucket {
+  put(
+    key: string,
+    value: ArrayBuffer | Uint8Array,
+    options?: { httpMetadata?: { contentType?: string } }
+  ): Promise<unknown>;
+  get(key: string): Promise<R2ObjectBody | null>;
+  delete(key: string): Promise<void>;
+}
+
 export interface Env {
   DB?: D1Database;
+  /** Public-by-URL bucket for listing photos (served through GET /api/photos/*). */
+  JOB_PHOTOS?: R2Bucket;
   /** Comma-separated e-mails of administrators (case-insensitive). Secret, only the name is in git. */
   ADMIN_EMAILS?: string;
   RESEND_API_KEY?: string;

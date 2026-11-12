@@ -27,6 +27,7 @@ flowchart LR
 | Frontend | `src/` | Next.js 16 with `output: 'export'`. All pages are client components that call `/api/*`. No SSR, no Next API routes. |
 | API | `functions/api/` | Cloudflare Pages Functions, file-based routing. Files starting with `_` are helpers, not routes. |
 | Database | D1 `restaurion-db` (binding `DB`) | One database for production, preview, and the digest worker. |
+| Photos | R2 `restaurion-job-photos` (binding `JOB_PHOTOS`, D34) | One photo per listing, served publicly through `GET /api/photos/*`. Declared only at the top level of `wrangler.json` (local dev / e2e); the production binding is added once R2 is enabled. Without it the photo endpoints return 503. |
 | Email | Resend | `RESEND_API_KEY` + `RESEND_FROM`. Not configured yet (see STATUS). |
 | Scheduled jobs | `workers/digest/` | A separate Worker, because Pages Functions cannot run Cron Triggers. Shares code with `functions/api/_lib/digest.ts`. |
 
@@ -39,6 +40,10 @@ flowchart LR
 | Row mappers, contact helper, auth, rate limit, email | `functions/api/_shared.ts` |
 | Busy-slot and candidate loading | `functions/api/_lib/data.ts` – `loadBusySlots`, `loadMatchCandidates` |
 | Input validation and contact normalisers | `functions/api/_lib/validate.ts` |
+| Photo type sniffing (magic bytes), size limit, key helpers | `functions/api/_lib/photo.ts` |
+| Photo upload / delete (owner) | `functions/api/jobs/[id]/photo.ts` |
+| Public photo serving | `functions/api/photos/[[path]].ts` |
+| Client-side downscale and upload | `src/lib/image.ts` |
 | Digest selection, HTML, cleanup | `functions/api/_lib/digest.ts` |
 | Frontend fetch wrapper | `src/lib/api.ts` |
 | Main page, tabs, modals | `src/app/page.tsx` + `src/components/*` |
@@ -64,6 +69,9 @@ Rate limits (`rateLimit` in `_shared.ts`, table `rate_limit_events`): the event 
 | login-password per IP | 30 / h |
 | login-password per email | 10 / h |
 | password change per user | 10 / h |
+| photo upload per user (`photo-user`) | 30 / h |
+
+Photos (D34): `POST /api/jobs/:id/photo` takes raw image bytes (max 5 MB, type by magic bytes, not by header), writes R2 first and then `jobs.image_url`; a failed UPDATE deletes the new object. The previous object is deleted afterwards (best effort). `DELETE` clears `image_url` and the object. Closing a listing and the admin soft delete keep the photo.
 
 Test mode: when Resend is not configured and `TEST_LOGIN_ECHO=1`, request-code returns `testCode` in the response. The UI prefills it.
 

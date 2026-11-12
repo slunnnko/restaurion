@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MvpJobType, MvpMonumentStatus, PublicJob, RewardCurrency, RewardType } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES, toCraftIds } from '@/lib/crafts';
 import { REGIONS } from '@/lib/regions';
 import { pluralCraftsmen, todayIso } from '@/lib/format';
+import { deleteJobPhoto, downscaleImage, uploadJobPhoto } from '@/lib/image';
 import {
   ModalShell,
   ErrorBox,
@@ -18,6 +19,7 @@ import {
   labelCls,
   primaryBtn,
   secondaryBtn,
+  dangerBtn,
 } from './ui';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, CheckCircle2, UserCheck } from 'lucide-react';
@@ -86,6 +88,52 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notified, setNotified] = useState<number | null>(null);
+  // Photo: `photo` is a downscaled blob waiting for upload; `removePhoto` marks the existing one for deletion (edit).
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+  const [photoWarning, setPhotoWarning] = useState('');
+  const previewRef = useRef('');
+  useEffect(() => () => URL.revokeObjectURL(previewRef.current), []);
+  const setPhotoBlob = (blob: Blob | null) => {
+    URL.revokeObjectURL(previewRef.current);
+    previewRef.current = blob ? URL.createObjectURL(blob) : '';
+    setPhoto(blob);
+    setPhotoPreview(previewRef.current);
+  };
+  const shownPhoto = photoPreview || (!removePhoto && editJob?.imageUrl) || '';
+
+  const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError('');
+    try {
+      setPhotoBlob(await downscaleImage(file));
+      setRemovePhoto(false);
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : 'Fotku se nepodařilo zpracovat.');
+    }
+  };
+
+  const clearPhoto = () => {
+    setPhotoBlob(null);
+    setPhotoError('');
+    if (editJob?.imageUrl) setRemovePhoto(true);
+  };
+
+  /** Non-blocking: the listing is already saved when this fails. */
+  const syncPhoto = async (jobId: string, hadPhoto: boolean): Promise<string> => {
+    try {
+      if (photo) await uploadJobPhoto(jobId, photo);
+      else if (removePhoto && hadPhoto) await deleteJobPhoto(jobId);
+      return '';
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 503) return err.message;
+      return 'Inzerát je uložený, fotku se nepodařilo nahrát.';
+    }
+  };
   const isOffer = jobType === 'craftsman_available';
 
   /** Reward part of the request body; negotiable sends the type only. */
@@ -132,7 +180,13 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         if (rewardChanged) Object.assign(body, rewardBody());
         if (Object.keys(body).length > 0) {
           await api<{ job: PublicJob }>(`/api/jobs/${encodeURIComponent(editJob.id)}`, { method: 'PATCH', body });
-          onSaved?.();
+        }
+        const warning = photo || removePhoto ? await syncPhoto(editJob.id, Boolean(editJob.imageUrl)) : '';
+        if (Object.keys(body).length > 0 || photo || removePhoto) onSaved?.();
+        if (warning) {
+          setPhotoWarning(warning);
+          setNotified(-1);
+          return;
         }
         onClose();
         return;
@@ -152,6 +206,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
           ...rewardBody(),
         },
       });
+      if (photo) setPhotoWarning(await syncPhoto(data.job.id, false));
       setNotified(data.notified);
       onCreated();
     } catch (err) {
@@ -178,8 +233,13 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             <CheckCircle2 className="w-7 h-7" />
           </div>
           <h3 className="font-serif text-xl font-bold text-[#111111] dark:text-white mb-1">
-            {isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
+            {isEdit ? 'Změny jsou uložené.' : isOffer ? 'Nabídka je venku.' : `Inzerát je venku. Upozornili jsme ${pluralCraftsmen(notified)}.`}
           </h3>
+          {photoWarning && (
+            <div className="mt-3 text-left">
+              <ErrorBox message={photoWarning} />
+            </div>
+          )}
           <div className="mt-5">
             <button type="button" onClick={onClose} className={primaryBtn}>
               Zavřít
@@ -435,6 +495,33 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
               </div>
             </div>
           )}
+        </div>
+
+        <div>
+          <span className={labelCls}>Fotka (nepovinné)</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {shownPhoto && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={shownPhoto}
+                alt="Náhled fotky"
+                className="w-24 h-16 object-cover rounded-xl border-2 border-[#111111] dark:border-stone-500"
+              />
+            )}
+            <label className={`${secondaryBtn} cursor-pointer`}>
+              {shownPhoto ? 'Vybrat jinou' : 'Vybrat fotku'}
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={pickPhoto} className="sr-only" />
+            </label>
+            {shownPhoto && (
+              <button type="button" onClick={clearPhoto} className={dangerBtn}>
+                Odebrat
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-stone-600 dark:text-stone-400">
+            JPEG, PNG nebo WebP. Fotka se před nahráním zmenší.
+          </p>
+          {photoError && <p className="mt-1 text-xs font-bold text-red-700 dark:text-red-400">{photoError}</p>}
         </div>
 
         {error && <ErrorBox message={error} />}
