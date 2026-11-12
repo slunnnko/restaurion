@@ -76,6 +76,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       return jsonResponse({ error: 'Kód je neplatný nebo jeho platnost vypršela.' }, 401);
     }
 
+    // Hash before the code is consumed, so a failure here does not burn the user's code.
+    const newHash = newPassword !== null ? await hashPassword(newPassword) : null;
+
     await db.prepare(`DELETE FROM login_codes WHERE email = ?`).bind(email).run();
 
     let profile = await db
@@ -106,13 +109,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       }
     }
 
-    if (newPassword !== null) {
-      await db
-        .prepare(`UPDATE profiles SET password_hash = ?, password_set_at = datetime('now') WHERE id = ?`)
-        .bind(await hashPassword(newPassword), profile.id)
-        .run();
-      // A reset logs the user out everywhere.
-      await db.prepare(`DELETE FROM auth_sessions WHERE user_id = ?`).bind(profile.id).run();
+    if (newHash !== null) {
+      // One batch (atomic in D1): a reset sets the password and logs the user out everywhere, or does neither.
+      await db.batch([
+        db
+          .prepare(`UPDATE profiles SET password_hash = ?, password_set_at = datetime('now') WHERE id = ?`)
+          .bind(newHash, profile.id),
+        db.prepare(`DELETE FROM auth_sessions WHERE user_id = ?`).bind(profile.id),
+      ]);
     }
 
     const cookie = await createSession(db, profile.id);

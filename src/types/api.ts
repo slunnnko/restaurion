@@ -139,7 +139,7 @@ export interface NotificationItem {
 //   newPassword (10..200 chars, else 400 fieldErrors.newPassword) sets/resets the password and logs out all older sessions.
 // POST /api/auth/login-password {email, password} → { user: OwnProfile } + Set-Cookie | 401 (one message for every failure) | 429
 // POST /api/auth/password      {currentPassword?, newPassword} → { user: OwnProfile } (needs a session; currentPassword is
-//                                required when a password exists; 400 fieldErrors.newPassword / currentPassword; 429;
+//                                required when a password exists; a first password needs a code-login session < 30 min old, else 403; 400 fieldErrors.newPassword / currentPassword; 429;
 //                                all other sessions of the user are deleted)
 // POST /api/auth/logout                     → { ok: true } (clears cookie, deletes session)
 // GET  /api/jobs                            → { jobs: PublicJob[] } active, not expired, with dates; jobs AND

@@ -39,18 +39,34 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       }
     }
 
-    const hash = await hashPassword(body.newPassword as string);
-    await db
-      .prepare(`UPDATE profiles SET password_hash = ?, password_set_at = datetime('now') WHERE id = ?`)
-      .bind(hash, auth.userId)
-      .run();
-
     const raw = getCookie(request, 'restaurion_session');
     const currentHash = raw ? await sha256Hex(raw) : '';
-    await db
-      .prepare(`DELETE FROM auth_sessions WHERE user_id = ? AND token_hash <> ?`)
-      .bind(auth.userId, currentHash)
-      .run();
+
+    if (!row.password_hash) {
+      // First password: a session cookie alone is not enough proof. The session must come from a code login
+      // in the last 30 minutes, so a stolen old cookie cannot be turned into a permanent credential.
+      const fresh = await db
+        .prepare(
+          `SELECT 1 AS ok FROM auth_sessions WHERE token_hash = ? AND user_id = ? AND created_at >= datetime('now', '-30 minutes') LIMIT 1`
+        )
+        .bind(currentHash, auth.userId)
+        .first<{ ok: number }>();
+      if (!fresh) {
+        return jsonResponse(
+          { error: 'Z bezpečnostních důvodů se nejdřív odhlas a znovu přihlas kódem z e-mailu, pak heslo nastav do 30 minut.' },
+          403
+        );
+      }
+    }
+
+    const hash = await hashPassword(body.newPassword as string);
+    // One batch (atomic in D1): new password and the other sessions revoked, or neither.
+    await db.batch([
+      db
+        .prepare(`UPDATE profiles SET password_hash = ?, password_set_at = datetime('now') WHERE id = ?`)
+        .bind(hash, auth.userId),
+      db.prepare(`DELETE FROM auth_sessions WHERE user_id = ? AND token_hash <> ?`).bind(auth.userId, currentHash),
+    ]);
 
     const user = await loadOwnProfile(db, auth.userId, env);
     return jsonResponse({ user });

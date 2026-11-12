@@ -497,6 +497,11 @@ api echo GET /api/auth/me
 eq "me.hasPassword is false before setting one" "$(echo "$BODY" | jq -r '.user.hasPassword')" "false"
 api echo POST /api/auth/password "{\"newPassword\":\"short\"}"
 eq "too short new password -> 400 fieldErrors.newPassword" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.newPassword != null')" "400/true"
+ECHO_SESS="UPDATE auth_sessions SET created_at = datetime('now', '%s') WHERE user_id = (SELECT id FROM profiles WHERE email = 'echo@e2e.test')"
+d1 --command "$(printf "$ECHO_SESS" '-2 hours')" >/dev/null
+api echo POST /api/auth/password "{\"newPassword\":\"$PW1\"}"
+eq "first password from a session older than 30 min -> 403" "$CODE" 403
+d1 --command "$(printf "$ECHO_SESS" '+0 minutes')" >/dev/null
 api echo POST /api/auth/password "{\"newPassword\":\"$PW1\"}"
 eq "set a first password (no current needed)" "$CODE/$(echo "$BODY" | jq -r '.user.hasPassword')" "200/true"
 api echo GET /api/auth/me

@@ -644,7 +644,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         <p className="text-xs font-bold text-stone-600 dark:text-stone-400">
           {user.hasPassword
             ? 'Heslo máš nastavené. Kód z e-mailu funguje dál.'
-            : 'Nastav si heslo, ať se příště přihlásíš bez kódu z e-mailu.'}
+            : 'Nastav si heslo, ať se příště přihlásíš bez kódu z e-mailu. Jde to do 30 minut po přihlášení kódem.'}
         </p>
         {user.hasPassword && (
           <div>
