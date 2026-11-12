@@ -46,12 +46,13 @@ export const DateInput: React.FC<React.InputHTMLAttributes<HTMLInputElement> & {
 export const textareaCls =
   'w-full px-3.5 py-2.5 rounded-xl border-2 border-[#111111] dark:border-stone-500 bg-[#FFFDF7] dark:bg-[#121318] text-sm font-semibold text-[#111111] dark:text-white placeholder:text-stone-500 dark:placeholder:text-stone-400 focus:bg-[#FEF08A]/25 dark:focus:border-[#FEF08A] outline-hidden transition-all';
 export const labelCls = 'block text-xs font-extrabold text-[#111111] dark:text-stone-200 mb-1';
+/** Tlačítka mají jednotnou velikost (D36): min. 40 px, `px-4 py-2`, `text-xs sm:text-sm`. */
 export const primaryBtn =
-  'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 export const secondaryBtn =
-  'inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-stone-100 bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:bg-stone-100 dark:hover:bg-[#323644] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-stone-100 bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:bg-stone-100 dark:hover:bg-[#323644] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 export const dangerBtn =
-  'inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold text-[#111111] dark:text-white bg-rose-100 dark:bg-rose-950 hover:bg-rose-200 dark:hover:bg-rose-900 border-2 border-[#111111] dark:border-rose-400/70 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white bg-rose-100 dark:bg-rose-950 hover:bg-rose-200 dark:hover:bg-rose-900 border-2 border-[#111111] dark:border-rose-400/70 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 export const cardCls =
   'bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000]';
 

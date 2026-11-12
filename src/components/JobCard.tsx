@@ -284,7 +284,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <button
               type="button"
               onClick={() => onOpenInterested(job)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer"
             >
               <Users className="w-3.5 h-3.5" />
               <span>Zájemci ({job.interestedCount})</span>
@@ -295,7 +295,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <button
               type="button"
               disabled
-              className="px-3.5 py-2 rounded-xl text-xs font-extrabold text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-[#111111] dark:border-stone-500 opacity-80 cursor-not-allowed"
+              className="min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-stone-600 dark:text-stone-300 bg-stone-200 dark:bg-stone-800 border-2 border-[#111111] dark:border-stone-500 opacity-80 cursor-not-allowed"
             >
               Zájem odeslán
             </button>
@@ -316,7 +316,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           <button
             type="button"
             onClick={() => onRespond(job)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
           >
             <span>{isOffer ? 'Poptat spolupráci' : 'Mám zájem'}</span>
             <ArrowRight className="w-3.5 h-3.5" />

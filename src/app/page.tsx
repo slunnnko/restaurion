@@ -378,6 +378,7 @@ export default function Home() {
           user={user}
           onUserChange={setUser}
           onBack={goBoard}
+          onOpenDirectory={goDirectory}
           onLogout={handleLogout}
           hint={profileHint}
           onListingsChanged={() => void loadJobs()}

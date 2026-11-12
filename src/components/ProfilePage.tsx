@@ -25,12 +25,14 @@ import {
   dangerBtn,
 } from './ui';
 import { MyListings } from './MyListings';
-import { ArrowLeft, Ban, Bell, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Bell, BookUser, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
   onUserChange: (user: OwnProfile) => void;
   onBack: () => void;
+  /** Otevře Adresář (D36: odkaz vedle „Zpět na nástěnku“). */
+  onOpenDirectory: () => void;
   onLogout: () => Promise<void>;
   /** Krátká výzva nad formulářem (např. po přihlášení bez jména a oborů). */
   hint?: string;
@@ -61,6 +63,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   user,
   onUserChange,
   onBack,
+  onOpenDirectory,
   onLogout,
   hint,
   onListingsChanged,
@@ -324,10 +327,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className={secondaryBtn}>
-          <ArrowLeft className="w-4 h-4" />
-          <span>Zpět na nástěnku</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={onBack} className={secondaryBtn}>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Zpět na nástěnku</span>
+          </button>
+          <button type="button" onClick={onOpenDirectory} className={secondaryBtn}>
+            <BookUser className="w-4 h-4" />
+            <span>Adresář</span>
+          </button>
+        </div>
         <button type="button" onClick={() => void onLogout()} className={dangerBtn}>
           Odhlásit
         </button>
