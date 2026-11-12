@@ -10,15 +10,15 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | Item | State |
 | :--- | :--- |
 | Branch | `mvp-core`, pushed. PR [#1](https://github.com/slunnnko/restaurion/pull/1) into `main` is open and mergeable. `[measured 2026-11-11: gh pr view 1]` |
-| Production | https://restaurion.pages.dev = Pages deployment `790da313`, built from commit `1810c32` on `mvp-core`. `[measured 2026-11-11: wrangler pages deployment list]` |
-| Digest worker | `restaurion-digest` deployed, cron `0 6 * * *`. It only cleans up rows until Resend is configured. `[measured 2026-11-11: wrangler deploy output]` |
+| Production | https://restaurion.pages.dev = Pages deployment `45c63c0a`, built from commit `79294c5` on `mvp-core`. `ADMIN_EMAILS` is set. Smoke test: `/`, `/api/jobs`, `/api/directory` 200; anonymous `?mine=1` and DELETE 401. `[measured 2026-11-12]` |
+| Digest worker | `restaurion-digest` redeployed 2026-11-12 (version `23038dda`), cron `0 6 * * *`. It only cleans up rows until Resend is configured. `[measured 2026-11-12: wrangler deploy output]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
 | Pages secrets | `TEST_LOGIN_ECHO=1` is set. `RESEND_API_KEY` and `RESEND_FROM` are not set. `[measured 2026-11-11]` |
 | Tests | `npm test` 45/45, `scripts/e2e-local.sh` all PASS, tsc and build clean after the owner-management commit. `[measured 2026-11-11]` |
-| Not deployed yet | Owner management (edit, "Moje inzeráty", `GET /api/jobs?mine=1`), admin soft delete, `ADMIN_EMAILS` (D21, D22), block editing in the profile, structured reward with migration `0009` (D26), one add button and the date overlay (D27); licence verification was dropped (D25, `0008` withdrawn, no R2 bucket needed). Needs: `0009` (see step 0 below), `ADMIN_EMAILS` secret (see README). Production still runs `1810c32`. `[measured 2026-11-11]` |
+| D1 migration 0009 | Applied remotely 2026-11-12 after a backup; row counts unchanged (jobs 10, profiles 8, engagements 0, notifications 0, blocks 1); 0008 was never applied. `[measured 2026-11-12]` |
 | Directory content | 0 of 8 existing profiles are visible (pre-0007 profiles start hidden by design, D14). `[measured 2026-11-11: D1 query]` |
 
-D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-pre-mvp-2026-11-11-063902.sql` (before 0006), `~/Personal/workspace/restaurion/backups/backup-pre-0007-2026-11-11-093913.sql` (before 0007).
+D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-pre-mvp-2026-11-11-063902.sql` (before 0006), `~/Personal/workspace/restaurion/backups/backup-pre-0007-2026-11-11-093913.sql` (before 0007). `~/Personal/workspace/restaurion/backups/backup-pre-0009-2026-11-12-102955.sql` (before 0009).
 
 ## 2. Open risks
 
@@ -33,7 +33,6 @@ D1 backups (local, not in git): `~/Personal/workspace/restaurion/backups/backup-
 
 | # | Step | Who | Expected result | Stop if |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | Before deploying: back up D1 (`npx wrangler d1 export restaurion-db --remote --output ~/Personal/workspace/restaurion/backups/backup-pre-0009-$(date +%F-%H%M%S).sql`), then run `npx wrangler d1 execute restaurion-db --remote --file=./migrations/0009_reward.sql` ONCE. If `0008` was applied earlier, `licence_requests` and the bucket `restaurion-licence-docs` can be dropped. | owner | four new nullable `reward_*` columns on `jobs`; row counts unchanged | any error – do not deploy |
 | 1 | Try the app on https://restaurion.pages.dev: log in with the shown test code, fill the profile, turn on "Zobrazit mě v Adresáři", post a job and an offer. | owner | own profile appears in Adresář; job and offer appear in their tabs | any 5xx – read `wrangler pages deployment tail` |
 | 2 | Merge PR [#1](https://github.com/slunnnko/restaurion/pull/1) in GitHub. | owner | `main` = `mvp-core`; the Actions run builds only, it does not deploy (ARCHITECTURE §10) | build fails on `main` |
 | 3 | Set up Resend (owner decided 2026-11-11: send from a `sunhaze.dev` subdomain, proposed `echo.sunhaze.dev`; Cloudflare Email Sending needs Workers Paid, Resend free tier does not): owner creates a Resend account and API key, the domain is added in Resend, its DNS records go into the `sunhaze.dev` zone, then `wrangler pages secret put RESEND_API_KEY` / `RESEND_FROM` and the same two with `wrangler secret put … -c workers/digest/wrangler.json`. Then delete `TEST_LOGIN_ECHO` (`wrangler pages secret delete TEST_LOGIN_ECHO --project-name restaurion`) and redeploy. | owner (needs a domain) | request-code sends an email; response has no `testCode` | email does not arrive – keep `TEST_LOGIN_ECHO` until it does |
