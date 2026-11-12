@@ -18,6 +18,12 @@
           "database_name": "restaurion-db",
           "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
         }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "JOB_PHOTOS",
+          "bucket_name": "restaurion-job-photos"
+        }
       ]
     },
     "preview": {
@@ -27,7 +33,19 @@
           "database_name": "restaurion-db",
           "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
         }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "JOB_PHOTOS",
+          "bucket_name": "restaurion-job-photos"
+        }
       ]
     }
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "JOB_PHOTOS",
+      "bucket_name": "restaurion-job-photos"
+    }
+  ]
 }

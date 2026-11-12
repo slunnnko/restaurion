@@ -41,3 +41,20 @@ export function jobMatchesCraft(requiredCrafts: string[], craftId: string): bool
   }
   return crafts.some((c) => cat.stems.some((stem) => c.includes(stem)));
 }
+
+/** Převede id oborů nebo starý volný text (např. „Kameník“) na id kategorií; bez duplicit. */
+export function toCraftIds(values: string[]): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    if (CRAFT_CATEGORIES.some((c) => c.id === value)) {
+      out.add(value);
+      continue;
+    }
+    // Kmen musí začínat slovo („Pískovec“ nesmí spadnout pod kov kvůli podřetězci).
+    const words = normalizeText(value).split(/[^a-z0-9]+/).filter(Boolean);
+    for (const cat of CRAFT_CATEGORIES) {
+      if (cat.stems.some((stem) => words.some((w) => w.startsWith(stem)))) out.add(cat.id);
+    }
+  }
+  return [...out];
+}

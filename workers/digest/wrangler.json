@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "restaurion-digest",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-01",
+  "triggers": { "crons": ["0 6 * * *"] },
+  "vars": { "APP_URL": "https://restaurion.pages.dev" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "restaurion-db",
+      "database_id": "4aab6ba2-9391-49b4-8f52-d57792274bb9"
+    }
+  ]
+}

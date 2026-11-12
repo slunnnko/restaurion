@@ -12,7 +12,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Restaurion – Agent Instructions (Codex / Claude / Antigravity)
 
-Tento repozitář obsahuje B2B platformu **Restaurion** (`https://restaurion.pages.dev`) propojující licencované restaurátory (držitele povolení MK ČR) a umělecké řemeslníky v ČR.
+Tento repozitář obsahuje MVP platformy **Restaurion** (`https://restaurion.pages.dev`): zadavatel vloží zakázku s termínem a obory, každý odpovídající řemeslník (celá ČR) dostane upozornění, odpoví „Mám zájem“ a zadavatel ho přijme. Přehled pro lidi je v [`README.md`](README.md).
 
 ## 1. ZÁVAZNÝ DESIGN CONTRACT – NEROZBÍT UI!
 
@@ -21,62 +21,46 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 ### Hlavní pravidla, která žádný agent NESMÍ porušit:
 1. **Vizuální styl (17. Neo-Brutalism & Bold Pop Studio):**
    - Zachovej `2px solid #111111` rámečky (`border-2 border-[#111111] dark:border-stone-500`) a tvrdé posunuté stíny (`shadow-[5px_5px_0px_#111111]`, `shadow-[3px_3px_0px_#111111]`). Nepoužívej měkké stíny (`shadow-md`, `shadow-lg`).
-   - Světlý režim: vápenné krémové pozadí `#FAF6EB` s jemným vzorem šablonové malby (`--stencil-wall` v `globals.css`), máslově žlutá Hero sekce `#FEF08A` a pod ní šablonový vlys `.stencil-frieze`.
-   - Tmavý režim (`dark:`): přepínaný třídou `.dark` na `<html>` (tlačítko **„Tmavý / Světlý“** v `src/components/Header.tsx` + synchronizace s `prefers-color-scheme: dark` v `src/app/page.tsx`). Při přidávání nových prvků vždy přidej odpovídající `dark:` třídy.
-2. **Závazné barvy a ikony 3 typů inzerátů (`src/components/JobCard.tsx`, `src/components/CreateJobModal.tsx`):**
-   - `subcontract_needed` (**Hledám subdodavatele**): ikona kladívka (`HammerLogo`), **smaragdově zelená** (`bg-emerald-600`).
-   - `guarantor_needed` (**Hledám zaštítění licencí MK ČR**): ikona štítu (`ShieldCheck`), **korálová** (`bg-[#FF5733]`).
-   - `craftsman_available` (**Nabízím se**): ikona človíčka (`UserCheck`), **elektrická modř** (`bg-[#2563EB]`).
-   - **Památkový odznak:** Zobrazuj **POUZE** štítek **„Kulturní památka“** (nebo *Národní kulturní památka*) s ikonou `Church`. **Nikdy** nezobrazuj šedý štítek *„Běžný objekt / bez licence“*.
-3. **Závazné texty a rozložení karet:**
-   - Hero nadpis: **„Najdi práci nebo parťáka“**.
-   - Tlačítko přidání inzerátu: **„+ Přidat“** (nikoliv „Přidat inzerát“).
-   - Karta zakázky (`JobCard.tsx`) zobrazuje všechny informace rovnou v přehledu + tlačítko **„Mám zájem“** (resp. *„Poptat spolupráci“*).
-   - **Odměna (`job.budgetNote`)** v `JobCard.tsx` se **NIKDY nesmí zkracovat** (žádné `truncate` – má vlastní celošířkový box s `break-words`).
-   - Fotografie zakázky (`job.imageUrl`) i profilová fotka (`user.avatarUrl`) jsou volitelné; pokud zakázka fotku nemá, nezobrazuj prázdný placeholder.
-4. **Safari `<select>` kompatibilita (`JobFilters.tsx`, `CreateJobModal.tsx`, `globals.css`):**
-   - Každý `<select>` musí mít `appearance-none` (`-webkit-appearance: none`), explicitní výšku `h-11`, `pl-10 pr-9` (pokud má ikonu vlevo) a vlastní ikonu `<ChevronDown className="... pointer-events-none" />` vpravo. Bez toho Safari na macOS/iOS rozbije výšku a překryje text s ikonou.
-5. **Fonty v `src/app/layout.tsx`:**
-   - Fonty `Plus Jakarta Sans` (text) a `Fraunces` (nadpisy, `font-serif`) načítáme přes standardní `<link>` tagy v `<head>`, nikoliv přes `next/font/google`, aby `npm run build` prošel i v prostředí bez přístupu k internetu.
+   - Světlý režim: krémové pozadí `#FAF6EB` s jemnou tečkovanou mřížkou a máslově žlutá Hero sekce `#FEF08A`. Žádný šablonový vzor ani vlys (odstraněny).
+   - Tmavý režim (`dark:`): třída `.dark` na `<html>` (D32: bez přepínače v hlavičce; volba „Vzhled“ je v `ProfilePage`, ukládá se do `profiles.theme_preference`; anonym a „Podle systému“ = systémové schéma, tmavý, pokud systém nežádá světlý; `src/lib/theme.ts`, skript v `layout.tsx` proti bliknutí). Nové prvky vždy dostanou odpovídající `dark:` třídy.
+2. **Barvy a ikony typů zakázek (`src/components/JobCard.tsx`, `src/components/CreateJobModal.tsx`):**
+   - `subcontract_needed` (**Hledám subdodavatele**): ikona kladívka (`HammerLogo`), smaragdově zelená (`bg-emerald-600`).
+   - `guarantor_needed` (**Hledám zaštítění licencí MK ČR**): ikona štítu (`ShieldCheck`), korálová (`bg-[#FF5733]`).
+   - `craftsman_available` (**Nabízím se**): ikona človíčka (`UserCheck`), elektrická modř (`bg-[#2563EB]`), tlačítko **„Poptat spolupráci“**; termín se zobrazuje jako „Volno“.
+   - **Památkový odznak:** jen štítek **„Kulturní památka“** (nebo *Národní kulturní památka*) s ikonou `Church`; nikdy štítek *„Běžný objekt / bez licence“*.
+3. **Texty a rozložení:** Hero nadpis **„Najdi práci nebo parťáka“**, jediné tlačítko přidání je v Hero (D32/D33: široké popisné tlačítko „Přidat inzerát“ stylem jako ostatní tlačítka, jen ikona „+“ ve smaragdovém čtverečku, `aria-label="Přidat inzerát"`, od `sm`) a na mobilu uprostřed spodní lišty `Nástěnka | Přidat | Profil` (D36: Adresář je u anonyma tlačítko v hlavičce, u přihlášeného v menu profilu a v profilu vedle „Zpět na nástěnku“); v hlavičce ani v prázdném stavu není. Na kartě tlačítko **„Mám zájem“**. Odměna (strukturovaná `job.reward`, u starých řádků `job.budgetNote`) se na kartě nikdy nezkracuje, včetně textu „Co se za odměnu očekává“ (`break-words`, žádné `truncate`). Texty jsou napevno v kódu (žádné CMS).
+4. **Safari `<select>`:** každý `<select>` má `appearance-none`, výšku `h-11`, `pl-10 pr-9` (s ikonou vlevo) a vlastní `<ChevronDown className="... pointer-events-none" />` vpravo.
+5. **Fonty v `src/app/layout.tsx`:** `Plus Jakarta Sans` (text) a `Space Grotesk` (nadpisy, `font-serif`) přes `<link>` v `<head>`, ne přes `next/font/google` (build musí projít i bez internetu).
 
----
+## 2. Soukromí a pravidla dat (nesmí se porušit)
 
-## 2. Struktura projektu
+- **Kontakty** (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí **každý přihlášený** uživatel (u inzerátů, v Adresáři, u zájemců). **Anonymní návštěvník je nikdy nedostane**: odpověď bez relace neobsahuje e-mail, telefon ani odkazy (UI ukáže „Kontakty uvidíš po přihlášení“). Mapování řádku na kontakt je jen v `mapContact` (`functions/api/_shared.ts`); každý endpoint ho volá jen pro přihlášeného. Pravidlo „kontakt až po přijetí“ neplatí.
+- **Adresář** (`GET /api/directory`) je veřejný. Vypisuje profily s `directory_visible = 1`, souhlasem (`consent_at`) a jménem o 3+ znacích; zveřejnění je opt-out (přepínač v profilu, zaškrtávátko při přihlášení).
+- **Bloky nedostupnosti a obsazené dny** vidí jen jejich vlastník; nikdy nejsou v Adresáři ani v jiné veřejné odpovědi. Zadavatel vidí zájemce jen u vlastního inzerátu.
+- **Nabídky „Nabízím se“** nespouštějí párovací upozornění, nemají přijetí/odmítnutí (409) a nikdy neobsazují dny. Zájem o nabídku upozorní nabízejícího (`interest`).
+- **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
+- Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
+- Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
+- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Licence se neověřují (D25): číslo povolení uvádí uživatel sám.
 
-- `src/app/page.tsx` – Hlavní stránka (state, filtrace, Dark Mode přepínač, modály, Hero sekce, nástěnka).
-- `src/app/globals.css` – Tailwind v4 konfigurace (`@custom-variant dark`), globální proměnné, tečkované pozadí, Safari `select` reset.
-- `src/components/Header.tsx` – Hlavička s logem, přepínačem regionu, přepínačem `Tmavý / Světlý`, ověřením licence MK ČR, tlačítkem `+ Přidat` a profilem s avatarem.
-- `src/components/JobFilters.tsx` – Vyhledávání, `<select>` filtry (region, typ poptávky, památkový status, filtr aktivních vs. ukončených zakázek) a pilulky oborů.
-- `src/components/JobCard.tsx` – Karta aktivní zakázky / řemeslníka s plným výpisem, nezkrácenou odměnou, volitelnou fotkou, tlačítkem `Mám zájem` a tlačítkem `Spravovat / Ukončit`.
-- `src/components/CompactArchivedJobRow.tsx` – Úsporný jednořádkový náhled pro neaktuální / realizované zakázky (nezabírá místo na hlavní nástěnce, zobrazuje vazbu `Poptával ↔ Realizoval` a udělenou recenzi).
-- `src/components/ManageJobsModal.tsx` – Admin & Správa (2 záložky: 1. Správa zakázek, doručených reakcí, propojení `Poptávka ↔ Nabídka` a recenzí; 2. Úprava textů webu / CMS v tabulce `site_settings`).
-- `src/components/CreateJobModal.tsx` – Formulář pro vložení inzerátu včetně klientského nahrání fotky do R2.
-- `src/components/UserProfileModal.tsx` – Detail profilu s možností změny profilové fotky (`avatarUrl`) a přehledem realizovaných spoluprací s recenzemi.
-- `src/components/LicenseVerificationModal.tsx` & `src/lib/mkVerification.ts` – Ověřování povolení MK ČR.
-- `src/types/index.ts` – TypeScript definice (`Job`, `UserProfile`, `JobType`, `MonumentStatus`, `FilterState`, `MatchedPartner`, `JobReview`, `SiteSettings`).
-- `functions/api/` – Cloudflare Pages Functions (`jobs.ts`, `jobs/respond.ts`, `jobs/manage.ts`, `settings.ts`, `upload.ts`, `media/[[key]].ts`, `profile.ts`, `licenses/verify.ts`).
-- `migrations/` – Cloudflare D1 (SQLite) migrace (`0001_initial.sql`, `0002_lifecycle_and_reviews.sql`, `0003_site_settings.sql`).
-- `docs/UI-DESIGN.md` – Detailní specifikace design systému (ZÁKAZ MĚNIT UI BEZ POKYNU).
-- `docs/BACKEND-PLAN.md` – Architektura a přehled 100% serverless backendu za 0 Kč/měsíc (Cloudflare D1 + Cloudflare R2 + CDN Cache + Pages Functions + Resend).
+## 3. Struktura projektu
 
----
+- `src/app/page.tsx` – hlavní stránka (nástěnka, filtry, modály, přepnutí na profil); `src/app/globals.css`, `src/app/layout.tsx`.
+- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `InterestedWorkersModal`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
+- `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
+- `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
+- `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, login-password, password, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
+- `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`, `photo.ts`).
+- Fotka inzerátu (D34): `functions/api/jobs/[id]/photo.ts` (POST/DELETE, vlastník), `functions/api/photos/[[path]].ts` (veřejné čtení z R2, binding `JOB_PHOTOS`), `src/lib/image.ts` (zmenšení v prohlížeči). Binding je jen na nejvyšší úrovni `wrangler.json`; produkční se přidá po zapnutí R2.
+- `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
+- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0012` (0006, 0007, 0009–0012 se pouští jednou).
+- `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
+- `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (endpointy a migrace).
+- **Nová session začíná v [`docs/STATUS.md`](docs/STATUS.md)** (co je nasazené, rizika, další kroky), pak [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a [`docs/DECISIONS.md`](docs/DECISIONS.md). Při změně stavu aktualizuj `STATUS.md`, při novém rozhodnutí přidej řádek do `DECISIONS.md`.
 
-## 3. Plán oživení backendu (Cloudflare D1 + R2 + Resend)
+## 4. Build, test a nasazení
 
-Při implementaci backendu postupuj podle **[`docs/BACKEND-PLAN.md`](docs/BACKEND-PLAN.md)**:
-1. **Fáze 1:** Napojení nástěnky na Cloudflare D1 (`functions/api/jobs.ts` + migrace `migrations/0001_initial.sql`).
-2. **Fáze 2:** Nahrávání fotek do Cloudflare R2 + klientská WebP komprese (`src/lib/imageCompression.ts`) + Edge CDN cache (`Cache-Control: public, max-age=31536000, immutable`).
-3. **Fáze 3:** Bezheslové přihlašování (6místný kód e-mailem přes Resend) a úprava vlastního profilu.
-4. **Fáze 4:** Odesílání reakcí **„Mám zájem“** (`POST /api/jobs/[id]/respond`) s e-mailovou notifikací zadavateli.
-5. **Fáze 5:** Reálné ověřování licencí MK ČR proti tabulce `mk_licenses_cache` v D1.
-
----
-
-## 4. Build & Deployment
-
-- Lokální vývoj: `npm run dev`
-- Produkční build: `npm run build` (generuje statický export do `./out`)
-- Nasazení na Cloudflare Pages (`restaurion.pages.dev`):
-  ```bash
-  npx wrangler pages deploy out --project-name=restaurion --branch=main
-  ```
+- Vývoj: `npm run dev`. Kontroly: `npx tsc --noEmit -p .`, `npx eslint src`, `npm test`, `bash scripts/e2e-local.sh`.
+- Build: `npm run build` (statický export do `./out`).
+- Nasazení Pages: `npm run deploy`; digest worker: `npx wrangler deploy -c workers/digest/wrangler.json`. Nasazuje jen člověk, agent nikdy nespouští `wrangler --remote` ani deploy.
+- Při instalaci balíčků použij `--registry https://registry.npmjs.org/`.
