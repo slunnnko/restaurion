@@ -12,7 +12,6 @@ import { CreateJobModal } from '@/components/CreateJobModal';
 import { RespondModal } from '@/components/RespondModal';
 import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
-import { InterestedWorkersModal } from '@/components/InterestedWorkersModal';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
 import { ErrorBox } from '@/components/ui';
@@ -21,7 +20,7 @@ import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry, ThemePreference } from '@/types/api';
 import { applyTheme, THEME_PREF_KEY } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
-import { plural } from '@/lib/format';
+import { initials, plural } from '@/lib/format';
 import { jobMatchesText, jobMatchesTokens } from '@/lib/jobSearch';
 import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
@@ -65,7 +64,6 @@ export default function Home() {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isVopOpen, setIsVopOpen] = useState(false);
   const [respondingJob, setRespondingJob] = useState<PublicJob | null>(null);
-  const [interestedJob, setInterestedJob] = useState<PublicJob | null>(null);
   const [editingJob, setEditingJob] = useState<PublicJob | null>(null);
 
   // Akce, která čeká na přihlášení.
@@ -563,7 +561,7 @@ export default function Home() {
                       onRespond={(j) => requireLogin(() => setRespondingJob(j))}
                       onWithdraw={handleWithdraw}
                       onCloseJob={handleCloseJob}
-                      onOpenInterested={setInterestedJob}
+                      onChanged={() => void loadJobs()}
                       onEdit={setEditingJob}
                       onLogin={() => setIsLoginOpen(true)}
                       isAdmin={user?.isAdmin === true}
@@ -632,6 +630,7 @@ export default function Home() {
         active={view === 'profile' ? 'profile' : tab === 'directory' ? 'none' : 'board'}
         isLoggedIn={Boolean(user)}
         unreadCount={unread}
+        avatarText={user ? initials(user.name || user.email) : ''}
         onBoard={goBoard}
         onCreate={openCreate}
         onProfile={() => (user ? setView((v) => (v === 'profile' ? 'board' : 'profile')) : setIsLoginOpen(true))}
@@ -663,14 +662,6 @@ export default function Home() {
           onClose={() => setRespondingJob(null)}
           onSubmitted={() => void loadJobs()}
           onNeedProfile={openProfileWithHint}
-        />
-      )}
-
-      {interestedJob && (
-        <InterestedWorkersModal
-          job={interestedJob}
-          onClose={() => setInterestedJob(null)}
-          onChanged={() => void loadJobs()}
         />
       )}
 

@@ -4,11 +4,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { MvpJobType, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { formatRange } from '@/lib/format';
-import { ErrorBox, dangerBtn } from './ui';
+import { ErrorBox } from './ui';
 import { CreateJobModal } from './CreateJobModal';
-import { InterestedWorkersModal } from './InterestedWorkersModal';
+import { ActionMenu } from './ActionMenu';
+import { InterestedList } from './InterestedList';
 import { HammerLogo } from './HammerLogo';
-import { ShieldCheck, UserCheck, Calendar, MapPin, Users, Pencil } from 'lucide-react';
+import { ShieldCheck, UserCheck, Calendar, MapPin, Users, Pencil, X } from 'lucide-react';
 
 interface MyListingsProps {
   /** Po změně (úprava, ukončení, rozhodnutí o zájemci), aby si nástěnka obnovila data. */
@@ -24,26 +25,35 @@ const TYPE_INFO: Record<MvpJobType, { label: string; icon: React.ComponentType<{
   craftsman_available: { label: 'Nabízím se', icon: UserCheck, tile: 'bg-[#2563EB]' },
 };
 
-const smallBtn =
-  'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
-
 const Row: React.FC<{
   job: PublicJob;
   busy: boolean;
   onEdit: (j: PublicJob) => void;
-  onInterested: (j: PublicJob) => void;
+  onChanged: () => void;
   onClose: (j: PublicJob) => void;
-}> = ({ job, busy, onEdit, onInterested, onClose }) => {
+}> = ({ job, busy, onEdit, onChanged, onClose }) => {
   const info = TYPE_INFO[job.jobType] ?? TYPE_INFO.subcontract_needed;
   const Icon = info.icon;
   const isOffer = job.jobType === 'craftsman_available';
   const active = job.status === 'active';
   return (
     <li
-      className={`rounded-2xl border-2 border-[#111111] dark:border-stone-500 p-3.5 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] ${
+      className={`relative rounded-2xl border-2 border-[#111111] dark:border-stone-500 p-3.5 shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] ${
         active ? 'bg-white dark:bg-[#1C1E26]' : 'bg-stone-100 dark:bg-[#15171E] opacity-70'
       }`}
     >
+      {active && (
+        <div className="absolute top-3 right-3 z-10">
+          <ActionMenu
+            triggerIcon={Pencil}
+            triggerLabel="Upravit inzerát"
+            actions={[
+              { key: 'edit', label: 'Upravit', icon: Pencil, onSelect: () => onEdit(job), disabled: busy },
+              { key: 'close', label: 'Ukončit', icon: X, onSelect: () => onClose(job), disabled: busy },
+            ]}
+          />
+        </div>
+      )}
       <div className="flex items-start gap-3">
         <span
           className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border-2 border-[#111111] text-white ${info.tile}`}
@@ -51,7 +61,7 @@ const Row: React.FC<{
         >
           <Icon className="w-5 h-5" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 ${active ? 'pr-11' : ''}`}>
           <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400">
             {info.label}
           </div>
@@ -73,18 +83,8 @@ const Row: React.FC<{
         </div>
       </div>
       {active && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" disabled={busy} onClick={() => onEdit(job)} className={smallBtn}>
-            <Pencil className="w-3.5 h-3.5" />
-            <span>Upravit</span>
-          </button>
-          <button type="button" disabled={busy} onClick={() => onInterested(job)} className={smallBtn}>
-            <Users className="w-3.5 h-3.5" />
-            <span>Zájemci ({job.interestedCount})</span>
-          </button>
-          <button type="button" disabled={busy} onClick={() => onClose(job)} className={dangerBtn}>
-            Ukončit
-          </button>
+        <div className="mt-3">
+          <InterestedList job={job} onChanged={onChanged} />
         </div>
       )}
     </li>
@@ -96,7 +96,6 @@ export const MyListings: React.FC<MyListingsProps> = ({ onChanged, onNeedProfile
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editing, setEditing] = useState<PublicJob | null>(null);
-  const [interested, setInterested] = useState<PublicJob | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -155,7 +154,7 @@ export const MyListings: React.FC<MyListingsProps> = ({ onChanged, onNeedProfile
             ) : (
               <ul className="space-y-3">
                 {active.map((j) => (
-                  <Row key={j.id} job={j} busy={busyId === j.id} onEdit={setEditing} onInterested={setInterested} onClose={closeJob} />
+                  <Row key={j.id} job={j} busy={busyId === j.id} onEdit={setEditing} onChanged={changed} onClose={closeJob} />
                 ))}
               </ul>
             )}
@@ -165,7 +164,7 @@ export const MyListings: React.FC<MyListingsProps> = ({ onChanged, onNeedProfile
               <h3 className={groupTitle}>Ukončené ({closed.length})</h3>
               <ul className="space-y-3">
                 {closed.map((j) => (
-                  <Row key={j.id} job={j} busy={false} onEdit={setEditing} onInterested={setInterested} onClose={closeJob} />
+                  <Row key={j.id} job={j} busy={false} onEdit={setEditing} onChanged={changed} onClose={closeJob} />
                 ))}
               </ul>
             </section>
@@ -184,9 +183,6 @@ export const MyListings: React.FC<MyListingsProps> = ({ onChanged, onNeedProfile
             onNeedProfile?.();
           }}
         />
-      )}
-      {interested && (
-        <InterestedWorkersModal job={interested} onClose={() => setInterested(null)} onChanged={changed} />
       )}
     </div>
   );

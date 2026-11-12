@@ -46,7 +46,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 ## 3. Struktura projektu
 
 - `src/app/page.tsx` – hlavní stránka (nástěnka, filtry, modály, přepnutí na profil); `src/app/globals.css`, `src/app/layout.tsx`.
-- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `InterestedWorkersModal`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
+- `src/components/` – `Header`, `MobileBottomNav`, `JobFilters`, `JobCard`, `DirectoryFilters`, `DirectoryCard`, `CreateJobModal`, `RespondModal`, `EngagementDetailModal`, `ActionMenu`, `InterestedList`, `LoginModal`, `NotificationsPanel`, `ProfilePage`, `LegalNoticeModal`, `HammerLogo`, `ui` (sdílené prvky).
 - `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
 - `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
 - `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, login-password, password, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.

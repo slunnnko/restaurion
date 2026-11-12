@@ -243,3 +243,14 @@ export const ContactBox: React.FC<{ contact: ContactInfo; title?: string }> = ({
     <ContactLinks contact={contact} />
   </div>
 );
+
+/** Číslo nepřečtených upozornění (jako na Facebooku). Rodič musí být `relative`. */
+export const UnreadBadge: React.FC<{ count: number }> = ({ count }) =>
+  count <= 0 ? null : (
+    <span
+      aria-hidden="true"
+      className="absolute -top-2 -right-2 min-w-5 h-5 px-1.5 rounded-full bg-[#FF5733] text-white border-2 border-[#111111] dark:border-white text-[10px] font-extrabold flex items-center justify-center shadow-[1px_1px_0px_#111111]"
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
