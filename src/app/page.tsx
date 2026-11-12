@@ -73,6 +73,8 @@ export default function Home() {
 
   // Vzhled: preference přihlášeného (profil) nebo systém; .dark na <html>. Cache v localStorage kvůli bliknutí.
   const themePref: ThemePreference | null = user?.themePreference ?? null;
+  // /api/auth/me failed (offline, 5xx): keep the cached preference instead of falling back to the system scheme.
+  const meFailed = useRef(false);
   useEffect(() => {
     try {
       localStorage.removeItem('restaurion-theme'); // starý přepínač v hlavičce
@@ -82,20 +84,22 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!authLoaded) return;
+    let pref: ThemePreference | null = themePref;
     try {
       if (themePref) localStorage.setItem(THEME_PREF_KEY, themePref);
+      else if (meFailed.current) pref = (localStorage.getItem(THEME_PREF_KEY) as ThemePreference | null) ?? null;
       else localStorage.removeItem(THEME_PREF_KEY);
     } catch {
       /* localStorage nedostupný */
     }
-    applyTheme(themePref);
+    applyTheme(pref);
     let mq: MediaQueryList | null = null;
     try {
       mq = window.matchMedia('(prefers-color-scheme: light)');
     } catch {
       return;
     }
-    const onChange = () => applyTheme(themePref);
+    const onChange = () => applyTheme(pref);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, [themePref, authLoaded]);
@@ -118,7 +122,9 @@ export default function Home() {
     try {
       const data = await api<{ user: OwnProfile | null }>('/api/auth/me');
       me = data.user;
+      meFailed.current = false;
     } catch {
+      meFailed.current = true;
       // nepřihlášený / API nedostupné – chyba se ukáže u zakázek
     }
     setUser(me);

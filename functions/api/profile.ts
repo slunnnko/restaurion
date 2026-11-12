@@ -121,7 +121,7 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   }
   if ('themePreference' in body) {
     if (!isThemePreference(body.themePreference)) errors.themePreference = 'Vyberte vzhled ze seznamu.';
-    set('theme_preference', body.themePreference);
+    else set('theme_preference', body.themePreference);
   }
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 

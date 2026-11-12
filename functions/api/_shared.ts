@@ -13,7 +13,6 @@ import type {
   RewardType,
   UnavailabilityBlock,
 } from '../../src/types/api.ts';
-import { isThemePreference } from './_lib/validate.ts';
 
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -391,6 +390,10 @@ export interface BookedRow {
 }
 
 /** Full own profile including blocks and accepted jobs. Only for the profile's owner. */
+export function isThemePreference(value: unknown): value is 'system' | 'light' | 'dark' {
+  return value === 'system' || value === 'light' || value === 'dark';
+}
+
 export async function loadOwnProfile(db: D1Database, userId: string, env?: Env): Promise<OwnProfile | null> {
   const row = await db
     .prepare(`SELECT ${PROFILE_COLUMNS}, (password_hash IS NOT NULL) AS has_password, theme_preference FROM profiles WHERE id = ? LIMIT 1`)

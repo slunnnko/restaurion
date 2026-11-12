@@ -20,9 +20,8 @@ export function str(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function isThemePreference(value: unknown): value is 'system' | 'light' | 'dark' {
-  return value === 'system' || value === 'light' || value === 'dark';
-}
+// Defined in _shared.ts (loadOwnProfile needs it) to keep the import graph acyclic.
+export { isThemePreference } from '../_shared.ts';
 
 export function isDirectoryGroup(value: unknown): value is 'firm' | 'licensed' | 'unlicensed' {
   return typeof value === 'string' && DIRECTORY_GROUPS.includes(value);
