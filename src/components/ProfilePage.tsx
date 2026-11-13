@@ -26,14 +26,12 @@ import {
 } from './ui';
 import { MyListings } from './MyListings';
 import { InvitationsList } from './InvitationsList';
-import { ArrowLeft, BadgeCheck, Ban, Bell, BookUser, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Ban, Bell, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
   onUserChange: (user: OwnProfile) => void;
   onBack: () => void;
-  /** Otevře Adresář (D36: odkaz vedle „Zpět na nástěnku“). */
-  onOpenDirectory: () => void;
   onLogout: () => Promise<void>;
   /** Krátká výzva nad formulářem (např. po přihlášení bez jména a oborů). */
   hint?: string;
@@ -64,7 +62,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   user,
   onUserChange,
   onBack,
-  onOpenDirectory,
   onLogout,
   hint,
   onListingsChanged,
@@ -356,10 +353,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             className={`${secondaryBtn} w-10 !px-0`}
           >
             <ArrowLeft className="w-5 h-5" />
-          </button>
-          <button type="button" onClick={onOpenDirectory} className={secondaryBtn}>
-            <BookUser className="w-4 h-4" />
-            <span>Adresář</span>
           </button>
         </div>
         <button type="button" onClick={() => void onLogout()} className={dangerBtn}>

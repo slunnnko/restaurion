@@ -15,7 +15,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
-import { ErrorBox } from '@/components/ui';
+import { ErrorBox, secondaryBtn } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry, ThemePreference } from '@/types/api';
@@ -23,7 +23,7 @@ import { applyTheme, THEME_PREF_KEY } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
 import { initials, plural } from '@/lib/format';
 import { jobMatchesText, jobMatchesTokens } from '@/lib/jobSearch';
-import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser } from 'lucide-react';
+import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser, ArrowLeft } from 'lucide-react';
 
 const initialFilters: FilterState = {
   searchQuery: '',
@@ -404,7 +404,6 @@ export default function Home() {
           user={user}
           onUserChange={setUser}
           onBack={goBoard}
-          onOpenDirectory={goDirectory}
           onLogout={handleLogout}
           hint={profileHint}
           onListingsChanged={() => void loadJobs()}
@@ -456,10 +455,22 @@ export default function Home() {
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               {tab === 'directory' ? (
-                <h2 className="inline-flex items-center gap-2.5 font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
-                  <BookUser className="w-5 h-5 sm:w-6 sm:h-6" />
-                  <span>Adresář</span>
-                </h2>
+                <div className="inline-flex items-center gap-3">
+                  {/* D50: zpět na nástěnku, stejně jako v profilu (D39) */}
+                  <button
+                    type="button"
+                    onClick={goBoard}
+                    aria-label="Zpět na nástěnku"
+                    title="Zpět na nástěnku"
+                    className={`${secondaryBtn} w-10 !px-0`}
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <h2 className="inline-flex items-center gap-2.5 font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
+                    <BookUser className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <span>Adresář</span>
+                  </h2>
+                </div>
               ) : (
               <div className="inline-flex items-center gap-2 p-1.5 bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[4px_4px_0px_#111111] dark:shadow-[4px_4px_0px_#000000]">
                 {(
