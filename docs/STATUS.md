@@ -17,6 +17,7 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | D40 | Deployed 2026-11-12 (`94699752`), migration 0014 applied on remote D1. `[decided by owner 2026-11-12]` |
 | D41 | Deployed 2026-11-13 (`054862c3`), migration 0015 applied on remote D1. `[decided by owner 2026-11-13]` |
 | D42 | Deployed 2026-11-13 (`85afb05a`), no D1 change. `[decided by owner 2026-11-13]` |
+| D48 | Deployed 2026-11-13 (`2f52ca52`, commit `9cc5be6`), no D1 change. Live HTML has `Přímý kontakt`, no `Adresář s kontakty pro přihlášené` or `Upozornění na zakázky v tvém oboru` badge. `[measured 2026-11-13]` |
 | D43–D47 | Deployed 2026-11-13 (`a21c45e5`), migration 0016 applied on remote D1. Tests at `6ce400f`: `npm test` 90/90, `scripts/e2e-local.sh` ALL PASS, tsc and build clean. `[decided by owner 2026-11-13]` |
 | Digest worker | `restaurion-digest` version `23038dda`, cron `0 6 * * *`; `RESEND_API_KEY` and `RESEND_FROM` set 2026-11-12, so the daily digest now sends mail. `[measured 2026-11-12]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
