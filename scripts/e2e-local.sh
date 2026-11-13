@@ -190,6 +190,8 @@ d1 --command "UPDATE profiles SET licence_number = '15.077/91', licence_verified
 api w2 GET /api/jobs
 eq "verified poster: licenceVerified + registry name on the job (D51)" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .poster | "\(.licenceVerified)/\(.licenceRegistryName)"')" "true/Registr Jméno"
 echo "$BODY" | grep -q '15.077/91'; eq "licence number not in /api/jobs (D51)" "$?" 1
+api - GET /api/jobs
+eq "anonymous /api/jobs: licenceVerified yes, no licenceRegistryName (D51)" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .poster | "\(.licenceVerified)/\(has("licenceRegistryName"))"')" "true/false"
 d1 --command "UPDATE profiles SET licence_number = NULL, licence_verified = 0, licence_registry_name = NULL WHERE email = 'poster@e2e.test';" > /dev/null
 
 api poster POST /api/engagements/$E1 '{"action":"accept"}'

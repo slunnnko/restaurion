@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock, Handshake } from 'lucide-react';
 import { ContactInfo } from '@/types/api';
 import { initials } from '@/lib/format';
@@ -297,24 +297,61 @@ export const UnreadBadge: React.FC<{ count: number }> = ({ count }) =>
   );
 
 /**
- * D51: small tooltip for an icon (type tile, monument, licence mark). Focusable, so it opens on hover, keyboard focus
- * and tap; `text` is also the accessible name. CSS only (group-hover / group-focus).
+ * D51: small tooltip for an icon (type tile, monument, licence mark). A button, so it opens on hover, keyboard focus
+ * and tap/click (toggle); it closes on blur, Esc and an outside click. `text` is also the accessible name.
+ * `align` 'end' anchors the bubble to the right edge for icons near the right side of a container.
  */
-export const IconTip: React.FC<{ text: string; children: React.ReactNode; className?: string }> = ({ text, children, className = '' }) => (
-  <span tabIndex={0} role="img" aria-label={text} className={`group/tip relative inline-flex shrink-0 outline-hidden focus-visible:ring-2 focus-visible:ring-[#FF5733] rounded-md ${className}`}>
-    {children}
-    <span
-      role="tooltip"
-      className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-max max-w-[16rem] rounded-lg border-2 border-[#111111] dark:border-stone-400 bg-[#111111] dark:bg-[#252834] px-2.5 py-1.5 text-left text-[11px] font-bold leading-snug text-white shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] group-hover/tip:block group-focus/tip:block"
-    >
-      {text}
+export const IconTip: React.FC<{ text: string; children: React.ReactNode; className?: string; align?: 'start' | 'end' }> = ({
+  text,
+  children,
+  className = '',
+  align = 'start',
+}) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <span ref={ref} className={`group/tip relative inline-flex shrink-0 ${className}`}>
+      <button
+        type="button"
+        aria-label={text}
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        className="inline-flex cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-[#FF5733] rounded-md"
+      >
+        {children}
+      </button>
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute top-full z-30 mt-1.5 w-max max-w-[16rem] whitespace-normal break-words rounded-lg border-2 border-[#111111] dark:border-stone-400 bg-[#111111] dark:bg-[#252834] px-2.5 py-1.5 text-left text-[11px] font-bold leading-snug text-white shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] group-hover/tip:block group-focus-within/tip:block ${
+          align === 'end' ? 'right-0' : 'left-0'
+        } ${open ? 'block' : 'hidden'}`}
+      >
+        {text}
+      </span>
     </span>
-  </span>
-);
+  );
+};
 
 /** D51: byline of a listing: initials avatar, poster name and the MK mark only when the registry check found the licence (D49). */
 export const PosterByline: React.FC<{ name: string; verified?: boolean; registryName?: string; className?: string }> = ({ name, verified = false, registryName, className = '' }) => (
-  <div className={`flex items-center gap-2.5 min-w-0 ${className}`}>
+  <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0 flex-1 ${className}`}>
     <span
       aria-hidden="true"
       className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center bg-[#FEF08A] text-[#111111] border-2 border-[#111111] dark:border-stone-500 text-xs font-extrabold"
@@ -323,7 +360,7 @@ export const PosterByline: React.FC<{ name: string; verified?: boolean; registry
     </span>
     <span className="text-[15px] font-extrabold leading-tight text-[#111111] dark:text-white break-words min-w-0">{name}</span>
     {verified && (
-      <IconTip text={`Nalezeno v rejstříku MK ČR${registryName ? `: ${registryName}` : ''}`}>
+      <IconTip align="end" text={`Nalezeno v rejstříku MK ČR${registryName ? `: ${registryName}` : ''}`}>
         <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-emerald-600 text-white border-2 border-[#111111] dark:border-stone-500 text-[10px] font-extrabold">
           MK
         </span>

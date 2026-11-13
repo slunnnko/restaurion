@@ -42,27 +42,18 @@ const tileShadowBorder = 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111]
 const TYPE_INFO = {
   subcontract_needed: {
     label: 'Hledám subdodavatele',
-    badgeClass:
-      'bg-emerald-100 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 border-2 border-[#111111] dark:border-emerald-500/70 font-extrabold',
-    iconColorClass: 'text-emerald-700 dark:text-emerald-400',
     tileClass: `bg-emerald-600 text-white ${tileShadowBorder}`,
     topStripClass: 'bg-emerald-500',
     icon: HammerLogo,
   },
   guarantor_needed: {
     label: 'Hledám zaštítění licencí MK ČR',
-    badgeClass:
-      'bg-[#FFE4DE] dark:bg-[#4A180D] text-[#7C1D0B] dark:text-[#FFB4A2] border-2 border-[#111111] dark:border-[#FF5733]/70 font-extrabold',
-    iconColorClass: 'text-[#E03E1A] dark:text-[#FF7F66]',
     tileClass: `bg-[#FF5733] text-white ${tileShadowBorder}`,
     topStripClass: 'bg-[#FF5733]',
     icon: ShieldCheck,
   },
   craftsman_available: {
     label: 'Nabízím se',
-    badgeClass:
-      'bg-[#DBEAFE] dark:bg-[#172554] text-[#1E3A8A] dark:text-[#93C5FD] border-2 border-[#111111] dark:border-[#2563EB]/70 font-extrabold',
-    iconColorClass: 'text-[#2563EB] dark:text-[#93C5FD]',
     tileClass: `bg-[#2563EB] text-white ${tileShadowBorder}`,
     topStripClass: 'bg-[#2563EB]',
     icon: UserCheck,
@@ -216,7 +207,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   return (
     <article
       id={`job-${job.id}`}
-      className={`relative rounded-2xl transition-all duration-150 flex flex-col justify-between overflow-hidden group bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] ${
+      className={`relative rounded-2xl transition-all duration-150 flex flex-col justify-between group bg-white dark:bg-[#1C1E26] border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000] ${
         highlighted
           ? 'ring-4 ring-[#FF5733] ring-offset-2 ring-offset-[#FAF6EB] dark:ring-offset-[#121318]'
           : myInterest === 'pending'
@@ -227,7 +218,7 @@ export const JobCard: React.FC<JobCardProps> = ({
       }`}
     >
       <div>
-        <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
+        <div className={`h-2.5 w-full rounded-t-[14px] border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
         {job.imageUrl && (
           <button
             type="button"
@@ -252,8 +243,12 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         <div className="p-5 pb-0 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
-            <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} className="flex-1" />
-            {actions.length > 0 && <ActionMenu triggerIcon={Pencil} triggerLabel="Upravit inzerát" actions={actions} />}
+            <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} />
+            {actions.length > 0 && (
+              <div className="shrink-0">
+                <ActionMenu triggerIcon={Pencil} triggerLabel="Upravit inzerát" actions={actions} />
+              </div>
+            )}
           </div>
 
           <div className="flex items-start gap-3">
@@ -308,7 +303,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         </div>
       </div>
 
-      <div className="p-5 pt-3.5 border-t-2 border-[#111111]/15 dark:border-stone-700 bg-[#FFFDF7]/60 dark:bg-[#15171E]">
+      <div className="p-5 pt-3.5 rounded-b-[14px] border-t-2 border-[#111111]/15 dark:border-stone-700 bg-[#FFFDF7]/60 dark:bg-[#15171E]">
         <div className="flex items-center gap-1.5 text-xs text-stone-800 dark:text-stone-300 mb-2.5">
           <Calendar className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
           <span className="font-semibold">

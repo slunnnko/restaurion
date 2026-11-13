@@ -344,8 +344,19 @@ function isLicenceCheckResult(v: unknown): v is LicenceCheckResult {
   return v === 'verified' || v === 'not_found' || v === 'name_mismatch' || v === 'ambiguous' || v === 'taken' || v === 'unavailable';
 }
 
+/** The ONE rule for the public verified-licence fields (D49): the registry found the number AND it is set. `prefix` reads joined columns (e.g. 'a_'). */
+export function verifiedLicenceFields(
+  source: object,
+  prefix = '',
+): { licenceVerified: true; licenceRegistryName?: string } | Record<string, never> {
+  const row = source as Record<string, unknown>;
+  if (!row[`${prefix}licence_verified`] || !row[`${prefix}licence_number`]) return {};
+  const name = row[`${prefix}licence_registry_name`];
+  return { licenceVerified: true as const, ...(typeof name === 'string' && name ? { licenceRegistryName: name } : {}) };
+}
+
 export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'>): PublicPerson {
-  const verified = Boolean(row.licence_verified) && Boolean(row.licence_number);
+  const verified = 'licenceVerified' in verifiedLicenceFields(row);
   return {
     id: row.id,
     name: row.name,
@@ -650,9 +661,11 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
       name: row.a_name,
       group: mapGroup(row.a_group),
       // D51: only the registry-verified flag and holder name (public since D49); never the number.
-      ...(row.a_licence_verified && row.a_licence_number
-        ? { licenceVerified: true as const, ...(row.a_licence_registry_name ? { licenceRegistryName: row.a_licence_registry_name } : {}) }
-        : {}),
+      ...(() => {
+        const { licenceRegistryName, ...flag } = verifiedLicenceFields(row, 'a_');
+        // The holder name only for a logged-in viewer, like the contacts below; anonymous callers get the flag only.
+        return viewer && licenceRegistryName ? { ...flag, licenceRegistryName } : flag;
+      })(),
     },
     interestedCount: Number(row.interested_count ?? 0),
     ...(viewer

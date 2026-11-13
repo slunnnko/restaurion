@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
-import { formatRange, placeLabel, rewardDisplay, rewardScopeItems } from '@/lib/format';
+import { containsWord, formatRange, placeLabel, rewardDisplay, rewardScopeItems } from '@/lib/format';
 import { jobPhotoList, LEGACY_PHOTO_ID } from '@/lib/photos';
 import { MAX_PHOTO_CAPTION } from '@/lib/limits';
 import { ApiError } from '@/lib/api';
@@ -54,6 +54,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
   const isOffer = job.jobType === 'craftsman_available';
   const reward = rewardDisplay(job);
   const scopeItems = rewardScopeItems(reward.scope);
+  const place = placeLabel(job.monumentName, job.city);
+  const showRegion = Boolean(job.region) && !containsWord(job.region, job.city) && !containsWord(job.city, job.region) && !containsWord(place, job.region);
   const BadgeIcon = typeInfo.icon;
   const isCulturalMonument = job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
   const created = formatCreated(job.createdAt);
@@ -173,8 +175,8 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
             <MapPin className="w-3.5 h-3.5 shrink-0" />
           )}
           <span className="font-extrabold text-[#111111] dark:text-white break-words min-w-0">
-            {placeLabel(job.monumentName, job.city)}
-            {job.region ? `, ${job.region}` : ''}
+            {place}
+            {showRegion ? `, ${job.region}` : ''}
           </span>
         </div>
 
@@ -300,6 +302,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
           {scopeItems.length > 0 && (
             <>
               <div className="mt-3 mb-2 text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-emerald-300/80">Co je v ceně</div>
+              {scopeItems.length === 1 ? (
+                <p className="text-[13.5px] font-semibold leading-snug text-stone-900 dark:text-emerald-100/90 break-words">{scopeItems[0]}</p>
+              ) : (
               <ul className="flex flex-col gap-2">
                 {scopeItems.map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-[13.5px] font-semibold leading-snug text-stone-900 dark:text-emerald-100/90">
@@ -310,6 +315,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
                   </li>
                 ))}
               </ul>
+              )}
             </>
           )}
         </div>

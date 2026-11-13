@@ -85,14 +85,22 @@ export function unreadLabel(n: number): string {
   return `${n} nových upozornění`;
 }
 
-const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-/** D51: place line of a card: the monument name, plus the city only when the name does not contain it yet. */
+/** True when `needle` occurs in `haystack` as a whole word (case- and diacritics-insensitive). */
+export function containsWord(haystack: string, needle: string): boolean {
+  const n = fold(needle.trim());
+  if (!n) return false;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}($|[^a-z0-9])`).test(fold(haystack));
+}
+
+/** D51: place line of a card: the monument name, plus the city only when the name does not contain it as a word. */
 export function placeLabel(monumentName: string | null | undefined, city: string): string {
   const name = (monumentName ?? '').trim();
   const town = (city ?? '').trim();
   if (!name) return town;
-  if (!town || fold(name).includes(fold(town))) return name;
+  if (!town || containsWord(name, town)) return name;
   return `${name}, ${town}`;
 }
 
