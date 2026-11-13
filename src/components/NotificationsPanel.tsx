@@ -45,7 +45,7 @@ export function notificationText(n: NotificationItem): string {
     case 'contacted':
       return n.actorName ? `${n.actorName} potvrdil navázání kontaktu: ${title}` : `Navázání kontaktu potvrzeno: ${title}`;
     case 'no_deal':
-      return `Nedohodli jste se: ${title}`;
+      return n.actorName ? `${n.actorName}: nedohodli jste se – ${title}` : `Nedohodli jste se: ${title}`;
     default:
       return title;
   }

@@ -21,7 +21,7 @@ import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
  * pozvaný řemeslník (accept|decline, do respond_by), zadavatel ji může jen zrušit (decline → 'withdrawn'). withdraw: jen zájemce, z `pending`/`accepted`,
  * volitelně s `reason` (max 500 znaků, D38).
  * contact (D41): zadavatel i zájemce potvrdí „Kontakt navázán“ (z `pending`, jednou; ruší lhůtu pozvánky), druhá strana dostane upozornění.
- * no_deal (D41): po navázání kontaktu kterákoli strana ukončí „Nedohodli jsme se“ (zájemce → withdrawn, zadavatel → declined).
+ * no_deal (D41): po navázání kontaktu kterákoli strana ukončí „Nedohodli jsme se“ (zájemce → withdrawn, zadavatel → declined; u pozvánky vždy withdrawn, aby šlo poslat znovu).
  * U pozvánky s navázaným kontaktem zadavatel nemůže použít decline (zrušení), jen no_deal.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
@@ -93,18 +93,35 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       if (action === 'contact') {
         if (eng.j_type === 'craftsman_available') return jsonResponse({ error: 'U nabídky se kontakt nepotvrzuje.' }, 409);
         if (eng.contacted_at) return jsonResponse({ error: 'Kontakt už je potvrzený.' }, 409);
-        await db
-          .prepare(`UPDATE engagements SET contacted_at = datetime('now'), contacted_by = ? WHERE id = ?`)
+        const today = todayUtc();
+        if (eng.j_status !== 'active' || !eng.j_expires || eng.j_expires < today) {
+          return jsonResponse({ error: 'Zakázka už není aktivní.' }, 409);
+        }
+        // Conditional UPDATE first; the notification is inserted only when this call really changed the row.
+        const upd = await db
+          .prepare(
+            `UPDATE engagements SET contacted_at = datetime('now'), contacted_by = ?
+             WHERE id = ? AND status = 'pending' AND contacted_at IS NULL`
+          )
           .bind(auth.userId, id)
           .run();
-        await insertNotification(db, { profileId: otherId, type: 'contacted', jobId: eng.job_id, engagementId: id });
+        if (Number(upd.meta?.changes ?? 0) === 0) return jsonResponse({ error: 'Kontakt už je potvrzený.' }, 409);
+        await insertNotification(db, { profileId: otherId, type: 'contacted', jobId: eng.job_id, engagementId: id, actorId: auth.userId });
         const row = await db.prepare(`SELECT contacted_at FROM engagements WHERE id = ?`).bind(id).first<{ contacted_at: string }>();
         return jsonResponse({ engagement: { id, status: 'pending', contactedAt: row?.contacted_at } });
       }
       if (!eng.contacted_at) return jsonResponse({ error: 'Nejdřív potvrďte navázání kontaktu.' }, 409);
-      const result = isAuthor ? 'declined' : 'withdrawn';
-      await db.prepare(`UPDATE engagements SET status = ?, responded_at = datetime('now') WHERE id = ?`).bind(result, id).run();
-      await insertNotification(db, { profileId: otherId, type: 'no_deal', jobId: eng.job_id, engagementId: id });
+      // Invitation: always withdrawn (a re-invite stays possible; declined would block it as "Už odmítl").
+      const result = isAuthor && eng.initiated_by !== 'poster' ? 'declined' : 'withdrawn';
+      const upd = await db
+        .prepare(
+          `UPDATE engagements SET status = ?, responded_at = datetime('now')
+           WHERE id = ? AND status = 'pending' AND contacted_at IS NOT NULL`
+        )
+        .bind(result, id)
+        .run();
+      if (Number(upd.meta?.changes ?? 0) === 0) return jsonResponse({ error: 'Nejdřív potvrďte navázání kontaktu.' }, 409);
+      await insertNotification(db, { profileId: otherId, type: 'no_deal', jobId: eng.job_id, engagementId: id, actorId: auth.userId });
       return jsonResponse({ engagement: { id, status: result } });
     }
     if (action === 'withdraw') {

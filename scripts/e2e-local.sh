@@ -624,6 +624,19 @@ api poster GET /api/notifications
 eq "poster got 'no_deal' from O" "$(echo "$BODY" | jq -r --arg e "$KIE2" '[.items[] | select(.type=="no_deal" and .engagementId==$e)] | length')" 1
 api poster POST /api/jobs/$KI2/invite "{\"offerId\":\"$OFFER\"}"
 eq "re-invite after no_deal -> 201" "$CODE" 201
+mk_inv_job "Kontakt pozvanka 3" "$(dd 6)" "$(dd 12)" '["kámen"]'; KI3=$JOBID
+api poster POST /api/jobs/$KI3/invite "{\"offerId\":\"$OFFER\"}"
+KIE3=$(echo "$BODY" | jq -r '.engagement.id')
+api poster2 POST /api/engagements/$KIE3 '{"action":"contact"}'
+api poster POST /api/engagements/$KIE3 '{"action":"no_deal"}'
+eq "poster no_deal on a contacted invitation -> withdrawn" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/withdrawn"
+api poster POST /api/jobs/$KI3/invite "{\"offerId\":\"$OFFER\"}"
+eq "re-invite after the poster's no_deal succeeds" "$CODE" 201
+api poster2 GET /api/notifications
+eq "O's no_deal notification carries the actor name" "$(echo "$BODY" | jq -r --arg e "$KIE3" '[.items[] | select(.type=="no_deal" and .engagementId==$e and (.actorName | length) > 0)] | length')" 1
+d1 --command "UPDATE jobs SET status='archived' WHERE id='$KI3'" > /dev/null
+api poster2 POST /api/engagements/$KIE3 '{"action":"contact"}'
+eq "contact on a closed job -> 409 'Zakázka už není aktivní.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Zakázka už není aktivní."
 api poster2 GET /api/invitations
 eq "re-invite clears contactedAt" "$(echo "$BODY" | jq -r --arg j "$KI2" '.invitations[] | select(.job.id==$j) | [.status, (.contactedAt // "none")] | join("|")')" "pending|none"
 

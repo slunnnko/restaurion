@@ -5,6 +5,7 @@
 -- idempotent: run ONCE. Take a D1 backup first when running --remote, and apply it BEFORE the Pages deploy.
 -- engagements.contacted_at / contacted_by: set when either side confirms that contact was established
 -- (contacted_by = profile id). Derived state, no new status: contacted = status 'pending' AND contacted_at IS NOT NULL.
+-- notifications.actor_id: profile id of the person who caused the event ('contacted', 'no_deal'); NULL for old rows.
 -- notifications: the table is rebuilt (rows, order by rowid and both indexes are kept) WITHOUT any CHECK on `type`.
 -- Types are validated in code by the NotificationType union (src/types/api.ts), so further types ('contacted',
 -- 'no_deal', ...) never need another rebuild.
@@ -22,7 +23,8 @@ CREATE TABLE notifications_new (
     read_at TEXT,
     emailed_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    reason TEXT
+    reason TEXT,
+    actor_id TEXT
 );
 INSERT INTO notifications_new (id, profile_id, type, job_id, engagement_id, read_at, emailed_at, created_at, reason)
     SELECT id, profile_id, type, job_id, engagement_id, read_at, emailed_at, created_at, reason FROM notifications ORDER BY rowid;

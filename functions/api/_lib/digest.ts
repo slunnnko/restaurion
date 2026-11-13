@@ -18,6 +18,10 @@ export function pickDigestRecipients<T extends { oldestUnread: string }>(rows: T
   return [...rows].sort((a, b) => a.oldestUnread.localeCompare(b.oldestUnread)).slice(0, budget);
 }
 
+/** Event types that never go into the e-mail digest (D41). */
+export const NON_DIGEST_TYPES = ['contacted', 'no_deal'];
+const NON_DIGEST_SQL = NON_DIGEST_TYPES.map((t) => `'${t}'`).join(', ');
+
 const LABELS: Record<string, string> = {
   job_match: 'Nová zakázka pro vás',
   interest: 'Někdo projevil zájem o vaši zakázku',
@@ -79,7 +83,7 @@ export async function runDigest(env: Env): Promise<number> {
       `SELECT p.id AS profileId, p.email AS email, MIN(n.created_at) AS oldestUnread
        FROM profiles p JOIN notifications n ON n.profile_id = p.id
        WHERE p.email_digest = 1 AND p.consent_at IS NOT NULL AND n.read_at IS NULL AND n.emailed_at IS NULL
-         AND n.type NOT IN ('contacted', 'no_deal')
+         AND n.type NOT IN (${NON_DIGEST_SQL})
        GROUP BY p.id, p.email ORDER BY oldestUnread ASC LIMIT ?`
     )
     .bind(budget)
@@ -90,7 +94,7 @@ export async function runDigest(env: Env): Promise<number> {
     const items = await db
       .prepare(
         `SELECT n.id, n.type, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility IN ('public', 'direct') OR n.type = 'job_closed')
-         WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.type NOT IN ('contacted', 'no_deal') ORDER BY n.created_at LIMIT 50`
+         WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.type NOT IN (${NON_DIGEST_SQL}) ORDER BY n.created_at LIMIT 50`
       )
       .bind(r.profileId)
       .all<NotificationRow>();

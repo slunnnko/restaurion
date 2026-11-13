@@ -216,7 +216,7 @@ export interface NotificationItem {
   reason?: string;
   /** For invited: name of the poster who sent the invitation. */
   posterName?: string;
-  /** For contacted (D41): name of the person who confirmed the contact. */
+  /** For contacted / no_deal (D41): name of the person who caused the event. */
   actorName?: string;
 }
 
