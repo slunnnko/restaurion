@@ -91,7 +91,7 @@ export interface PublicJob {
   monumentName?: string;
   imageUrl?: string; // first photo (compat, D45): '/api/photos/jobs/<jobId>/<uuid>.<ext>' (owner upload, D34); legacy rows may hold an old URL
   /** D45: up to 6 photos in display order (first = card photo). Absent when the listing has none. */
-  photos?: { id: string; url: string }[];
+  photos?: { id: string; url: string; caption?: string }[];
   crafts: string[]; // craft category ids
   region: string;
   city: string;
@@ -321,6 +321,8 @@ export interface NotificationItem {
 //   max 5 MB (413), max 6 photos per listing (409 'Inzerát už má 6 fotek.'), closed or deleted job 409, 401/403/404 like PATCH,
 //   429 (30/h), 503 { error } when R2 is not enabled.
 // DELETE /api/jobs/:id/photos/:photoId (owner) → { job } without that photo; unknown photo 404. 503 without R2.
+// PATCH /api/jobs/:id/photos/:photoId { caption } (owner, active listing) → { job }  (D47): trimmed, max 200 characters (400 with fieldErrors.caption),
+//   empty string clears it (the caption is then absent); unknown photo or the legacy fake id 404; 401/403/409 like DELETE.
 // GET  /api/photos/jobs/<jobId>/<uuid>.<ext> → the image (public, immutable cache); 404 when missing, 503 without R2.
 // GET  /api/notifications                   → { items: NotificationItem[], unread: number }
 // POST /api/notifications/read {ids?: string[]} (no ids = all) → { unread: number }

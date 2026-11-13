@@ -41,7 +41,7 @@ flowchart LR
 | Busy-slot and candidate loading | `functions/api/_lib/data.ts` – `loadBusySlots`, `loadMatchCandidates` |
 | Input validation and contact normalisers | `functions/api/_lib/validate.ts` |
 | Photo type sniffing (magic bytes), size limit, key helpers | `functions/api/_lib/photo.ts` |
-| Photo upload / delete (owner, up to 6 per listing, D45) | `functions/api/jobs/[id]/photos.ts`, `functions/api/jobs/[id]/photos/[photoId].ts` |
+| Photo upload / delete / caption (owner, up to 6 per listing, D45, D47) | `functions/api/jobs/[id]/photos.ts`, `functions/api/jobs/[id]/photos/[photoId].ts` |
 | Public photo serving | `functions/api/photos/[[path]].ts` |
 | Client-side downscale and upload | `src/lib/image.ts` |
 | Digest selection, HTML, cleanup | `functions/api/_lib/digest.ts` |
@@ -71,7 +71,7 @@ Rate limits (`rateLimit` in `_shared.ts`, table `rate_limit_events`): the event 
 | password change per user | 10 / h |
 | photo upload per user (`photo-user`) | 30 / h |
 
-Photos (D34, D45): `POST /api/jobs/:id/photos` takes raw image bytes (max 5 MB, type by magic bytes, not by header) and adds ONE photo, at most 6 per listing (409; the count is re-checked inside the INSERT). It writes R2 first and then a `job_photos` row; a failed or refused INSERT deletes the new object. `DELETE /api/jobs/:id/photos/:photoId` removes the row and the object (best effort). `JOB_SELECT` returns the photos as one JSON subquery (`photos_json`), so the board stays one query; `PublicJob.imageUrl` is the first photo. Legacy `jobs.image_url` was copied into `job_photos` by migration 0016 and is no longer written. Closing a listing and the admin soft delete keep the objects, but `GET /api/photos/*` serves a photo only while its job is not deleted and still lists it (404 otherwise); `Cache-Control: public, max-age=86400`.
+Photos (D34, D45): `POST /api/jobs/:id/photos` takes raw image bytes (max 5 MB, type by magic bytes, not by header) and adds ONE photo, at most 6 per listing (409; the count is re-checked inside the INSERT). It writes R2 first and then a `job_photos` row; a failed or refused INSERT deletes the new object. `DELETE /api/jobs/:id/photos/:photoId` removes the row and the object (best effort). `PATCH /api/jobs/:id/photos/:photoId` `{ caption }` (D47) sets the optional caption (trimmed, max 200 characters, empty clears it to NULL). `JOB_SELECT` returns the photos as one JSON subquery (`photos_json`), so the board stays one query; `PublicJob.imageUrl` is the first photo. Legacy `jobs.image_url` was copied into `job_photos` by migration 0016 and is no longer written. Closing a listing and the admin soft delete keep the objects, but `GET /api/photos/*` serves a photo only while its job is not deleted and still lists it (404 otherwise); `Cache-Control: public, max-age=86400`.
 
 Test mode: when Resend is not configured and `TEST_LOGIN_ECHO=1`, request-code returns `testCode` in the response. The UI prefills it.
 

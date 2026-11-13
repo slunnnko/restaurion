@@ -521,7 +521,7 @@ export interface JobRow {
 export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url,
-         (SELECT json_group_array(json_object('id', p.id, 'url', p.url, 'position', p.position, 'created_at', p.created_at)) FROM job_photos p WHERE p.job_id = j.id) AS photos_json,
+         (SELECT json_group_array(json_object('id', p.id, 'url', p.url, 'position', p.position, 'created_at', p.created_at, 'caption', p.caption)) FROM job_photos p WHERE p.job_id = j.id) AS photos_json,
          j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
@@ -562,11 +562,11 @@ function directInviteOf(row: JobRow): NonNullable<PublicJob['directInvite']> {
 }
 
 /** Photos of a job row (D45), in display order; empty when the job has none. */
-export function jobRowPhotos(row: Pick<JobRow, 'photos_json'>): { id: string; url: string }[] {
-  const raw = safeJsonParse<{ id: string; url: string; position: number; created_at: string }[]>(row.photos_json ?? '[]', []);
+export function jobRowPhotos(row: Pick<JobRow, 'photos_json'>): { id: string; url: string; caption?: string }[] {
+  const raw = safeJsonParse<{ id: string; url: string; position: number; created_at: string; caption?: string | null }[]>(row.photos_json ?? '[]', []);
   return [...raw]
     .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
-    .map(({ id, url }) => ({ id, url }));
+    .map(({ id, url, caption }) => ({ id, url, ...(typeof caption === 'string' && caption.trim() ? { caption } : {}) }));
 }
 
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {

@@ -6,7 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES, toCraftIds } from '@/lib/crafts';
 import { REGIONS } from '@/lib/regions';
 import { plural, pluralCraftsmen, todayIso } from '@/lib/format';
-import { deleteJobPhoto, downscaleImage, uploadJobPhoto } from '@/lib/image';
+import { deleteJobPhoto, downscaleImage, setJobPhotoCaption, uploadJobPhoto } from '@/lib/image';
 import {
   ModalShell,
   ErrorBox,
@@ -22,7 +22,8 @@ import {
 } from './ui';
 import { INVITE_RESPOND_DAYS } from '@/lib/matching';
 import { MAX_DESCRIPTION, MAX_JOB_PHOTOS } from '@/lib/limits';
-import { jobPhotoList } from '@/lib/photos';
+import { jobPhotoList, LEGACY_PHOTO_ID } from '@/lib/photos';
+import { MAX_PHOTO_CAPTION } from '@/lib/limits';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, CheckCircle2, UserCheck, X } from 'lucide-react';
 
@@ -97,7 +98,9 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [notified, setNotified] = useState<number | null>(null);
   // Photos (D45, up to 6): `newPhotos` are downscaled blobs waiting for upload; `removedIds` marks existing photos for deletion (edit).
   const existingPhotos = editJob ? jobPhotoList(editJob) : [];
-  const [newPhotos, setNewPhotos] = useState<{ key: string; blob: Blob; preview: string }[]>([]);
+  const [newPhotos, setNewPhotos] = useState<{ key: string; blob: Blob; preview: string; caption: string }[]>([]);
+  // D47: edited captions of existing photos by photo id (only ids whose text differs from the saved one are PATCHed).
+  const [captionEdits, setCaptionEdits] = useState<Record<string, string>>({});
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState('');
   const [photoWarning, setPhotoWarning] = useState('');
@@ -116,7 +119,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     e.target.value = '';
     if (files.length === 0) return;
     setPhotoError('');
-    const accepted: { key: string; blob: Blob; preview: string }[] = [];
+    const accepted: { key: string; blob: Blob; preview: string; caption: string }[] = [];
     let failed = 0;
     let over = 0;
     let firstError = '';
@@ -130,7 +133,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         const blob = await downscaleImage(file);
         const preview = URL.createObjectURL(blob);
         previewsRef.current.push(preview);
-        accepted.push({ key: preview, blob, preview });
+        accepted.push({ key: preview, blob, preview, caption: '' });
       } catch (err) {
         failed++;
         firstError ||= err instanceof Error ? err.message : '';
@@ -162,13 +165,21 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     setPhotoError('');
   };
 
-  const photosChanged = newPhotos.length > 0 || removedIds.length > 0;
+  const captionOf = (p: { id: string; caption?: string }) => captionEdits[p.id] ?? p.caption ?? '';
+  const changedCaptions = keptPhotos.filter((p) => p.id !== LEGACY_PHOTO_ID && captionOf(p).trim() !== (p.caption ?? ''));
+  const photosChanged = newPhotos.length > 0 || removedIds.length > 0 || changedCaptions.length > 0;
 
   /** Non-blocking: the listing is already saved when this fails. Deletes first (frees slots), then uploads one by one. */
   const syncPhotos = async (jobId: string): Promise<string> => {
     try {
       for (const id of removedIds) await deleteJobPhoto(jobId, id);
-      for (const p of newPhotos) await uploadJobPhoto(jobId, p.blob);
+      for (const p of changedCaptions) await setJobPhotoCaption(jobId, p.id, captionOf(p));
+      for (const p of newPhotos) {
+        const job = await uploadJobPhoto(jobId, p.blob);
+        const caption = p.caption.trim();
+        const added = job.photos?.[job.photos.length - 1];
+        if (caption && added) await setJobPhotoCaption(jobId, added.id, caption);
+      }
       return '';
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) return err.message;
@@ -582,6 +593,17 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
+{p.id !== LEGACY_PHOTO_ID && (
+                <input
+                  type="text"
+                  value={captionOf(p)}
+                  onChange={(e) => setCaptionEdits((cur) => ({ ...cur, [p.id]: e.target.value }))}
+                  maxLength={MAX_PHOTO_CAPTION}
+                  placeholder="Popisek (nepovinné)"
+                  aria-label="Popisek fotky"
+                  className="mt-1.5 w-24 sm:w-40 h-8 px-2 rounded-lg border-2 border-[#111111] dark:border-stone-500 bg-white dark:bg-[#252834] text-xs font-semibold text-[#111111] dark:text-white"
+                />
+                )}
               </div>
             ))}
             {newPhotos.map((p) => (
@@ -596,6 +618,15 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
+                <input
+                  type="text"
+                  value={p.caption}
+                  onChange={(e) => setNewPhotos((cur) => cur.map((x) => (x.key === p.key ? { ...x, caption: e.target.value } : x)))}
+                  maxLength={MAX_PHOTO_CAPTION}
+                  placeholder="Popisek (nepovinné)"
+                  aria-label="Popisek fotky"
+                  className="mt-1.5 w-24 sm:w-40 h-8 px-2 rounded-lg border-2 border-[#111111] dark:border-stone-500 bg-white dark:bg-[#252834] text-xs font-semibold text-[#111111] dark:text-white"
+                />
               </div>
             ))}
             {photoSlots > 0 && (

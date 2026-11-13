@@ -945,6 +945,18 @@ photo poster POST "$PJ" "$JARS/tiny.png"
 eq "7th upload -> 409 (limit 6)" "$CODE" 409
 photo poster DELETE "$PJ" "does-not-exist"
 eq "delete of an unknown photo -> 404" "$CODE" 404
+# photo captions (D47): PATCH { caption } on the first photo, owner only
+cap() { api "$1" PATCH "/api/jobs/$PJ/photos/$2" "$3"; }
+cap poster "$PID1" '{"caption":"  Oltář po restaurování  "}'
+eq "PATCH caption -> 200, trimmed in job.photos[0].caption" "$CODE/$(echo "$BODY" | jq -r '.job.photos[0].caption')" "200/Oltář po restaurování"
+cap poster "$PID1" "{\"caption\":\"$(head -c 201 /dev/zero | tr '\0' 'x')\"}"
+eq "PATCH caption of 201 characters -> 400 with fieldErrors.caption" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.caption | length > 0')" "400/true"
+cap poster2 "$PID1" '{"caption":"cizí"}'
+eq "PATCH caption by a non-owner -> 403" "$CODE" 403
+cap poster "does-not-exist" '{"caption":"x"}'
+eq "PATCH caption of an unknown photo -> 404" "$CODE" 404
+cap poster "$PID1" '{"caption":""}'
+eq "PATCH empty caption -> 200, caption absent" "$CODE/$(echo "$BODY" | jq -r '.job.photos[0] | has("caption")')" "200/false"
 photo poster DELETE "$PJ" "$PID1"
 eq "owner deletes the first photo -> 200, 5 left, imageUrl moves to the next" "$CODE/$(echo "$BODY" | jq -r '.job.photos | length')/$(echo "$BODY" | jq -r '.job.imageUrl')" "200/5/$PURL2"
 eq "the deleted photo is gone from R2" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL")" 404

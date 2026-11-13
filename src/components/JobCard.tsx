@@ -540,6 +540,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           job={job}
           typeInfo={info}
           startIndex={detail.index}
+          onChanged={onChanged}
           onClose={() => setDetail(null)}
           onLogin={() => {
             setDetail(null);

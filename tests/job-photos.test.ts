@@ -3,7 +3,7 @@ import test from 'node:test';
 import { jobRowPhotos, mapJobRow } from '../functions/api/_shared.ts';
 import type { JobRow } from '../functions/api/_shared.ts';
 import { MAX_JOB_PHOTOS } from '../functions/api/_lib/photo.ts';
-import { MAX_DESCRIPTION } from '../src/lib/limits.ts';
+import { MAX_DESCRIPTION, MAX_PHOTO_CAPTION } from '../src/lib/limits.ts';
 import { LEGACY_PHOTO_ID, jobPhotoList } from '../src/lib/photos.ts';
 
 test('limits: 6 photos and 5000 characters (D45)', () => {
@@ -47,4 +47,23 @@ test('mapJobRow: imageUrl is the first photo, photos keep order; legacy image_ur
   const none = mapJobRow(baseRow);
   assert.equal(none.imageUrl, undefined);
   assert.equal(none.photos, undefined);
+});
+
+test('captions (D47): limit 200, carried by jobRowPhotos, omitted when null or blank', () => {
+  assert.equal(MAX_PHOTO_CAPTION, 200);
+  const json = JSON.stringify([
+    { id: 'a', url: '/p/a', position: 0, created_at: 'x', caption: 'Oltář po restaurování' },
+    { id: 'b', url: '/p/b', position: 1, created_at: 'x', caption: null },
+    { id: 'c', url: '/p/c', position: 2, created_at: 'x', caption: '  ' },
+    { id: 'd', url: '/p/d', position: 3, created_at: 'x' },
+  ]);
+  assert.deepEqual(jobRowPhotos({ photos_json: json }), [
+    { id: 'a', url: '/p/a', caption: 'Oltář po restaurování' },
+    { id: 'b', url: '/p/b' },
+    { id: 'c', url: '/p/c' },
+    { id: 'd', url: '/p/d' },
+  ]);
+  const job = mapJobRow({ ...baseRow, photos_json: json });
+  assert.equal(job.photos?.[0].caption, 'Oltář po restaurování');
+  assert.equal('caption' in (job.photos?.[1] ?? {}), false);
 });

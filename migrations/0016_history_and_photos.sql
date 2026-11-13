@@ -1,5 +1,5 @@
 -- ==============================================================================
--- RESTAURION round 13 (D43, D45): ended engagements stay visible and can be reopened; photos per listing
+-- RESTAURION round 13 (D43, D45, D47): ended engagements stay visible and can be reopened; photos per listing
 -- Apply with: npx wrangler d1 execute restaurion-db --local|--remote --file=./migrations/0016_history_and_photos.sql
 -- (NOT `wrangler d1 migrations apply`: there is no d1_migrations table.) ALTER TABLE ADD COLUMN is not
 -- idempotent: this file runs ONCE as a whole (never apply it twice). Take a D1 backup first when running --remote, and apply it BEFORE the Pages deploy.
@@ -9,13 +9,15 @@
 
 ALTER TABLE engagements ADD COLUMN ended_by TEXT;
 
--- job_photos (D45): up to 6 photos per listing (limit enforced in code, MAX_JOB_PHOTOS). `url` is '/api/photos/<r2 key>'.
+-- job_photos (D45, D47): up to 6 photos per listing (limit enforced in code, MAX_JOB_PHOTOS). `url` is '/api/photos/<r2 key>'.
+-- `caption` (D47): optional owner caption, at most 200 characters (MAX_PHOTO_CAPTION), NULL when empty.
 -- jobs.image_url stays for compatibility but is no longer written; the backfill copies it as photo position 0.
 CREATE TABLE job_photos (
   id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES jobs(id),
   url TEXT NOT NULL,
   position INTEGER NOT NULL DEFAULT 0,
+  caption TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_job_photos_job ON job_photos(job_id, position);

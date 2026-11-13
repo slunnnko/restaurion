@@ -58,5 +58,12 @@ async function photoRequest(url: string, init: RequestInit): Promise<PublicJob> 
 export const uploadJobPhoto = (jobId: string, blob: Blob) =>
   photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos`, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
 
+export const setJobPhotoCaption = (jobId: string, photoId: string, caption: string) =>
+  photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos/${encodeURIComponent(photoId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ caption }),
+  });
+
 export const deleteJobPhoto = (jobId: string, photoId: string) =>
   photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos/${encodeURIComponent(photoId)}`, { method: 'DELETE' });
