@@ -440,8 +440,7 @@ export default function Home() {
                 <div className="flex flex-wrap items-center justify-start gap-3 sm:gap-4 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
                   {[
                     'Poptávky subdodávek a zaštítění',
-                    'Upozornění na zakázky v tvém oboru',
-                    'Adresář s kontakty pro přihlášené',
+                    'Přímý kontakt',
                   ].map((text) => (
                     <div key={text} className={badgeCls}>
                       <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
