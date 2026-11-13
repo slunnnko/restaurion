@@ -116,6 +116,8 @@ export interface PublicJob {
   createdAt: string;
   poster: { id: string; name: string; group: DirectoryGroup };
   interestedCount: number; // pending + accepted engagements
+  /** Author only (D43): declined + withdrawn engagements, which stay listed in `Zájemci`. */
+  endedCount?: number;
   // Viewer-specific fields (present only when a session exists):
   isMine?: boolean;
   myEngagement?: MyEngagement;

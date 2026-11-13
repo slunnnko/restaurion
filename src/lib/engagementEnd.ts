@@ -25,8 +25,9 @@ export function endedSide(e: EndedRow): EndSide | 'either' | null {
   if (!isEndedStatus(e.status)) return null;
   if (e.ended_by === e.worker_id) return 'worker';
   if (e.ended_by === e.author_id) return 'poster';
-  if (e.contacted_at) return 'either';
   const invite = e.initiated_by === 'poster';
+  // D41: a no-deal on an invitation always writes `withdrawn`, so a contacted invitation that is `declined` was refused by the worker.
+  if (e.contacted_at) return invite && e.status === 'declined' ? 'worker' : 'either';
   if (e.status === 'declined') return invite ? 'worker' : 'poster';
   return invite ? 'poster' : 'worker';
 }

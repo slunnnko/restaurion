@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
+import { jobPhotoList } from '@/lib/photos';
 import { formatRange, formatShortDay, pluralDays, rewardDisplay } from '@/lib/format';
 import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, primaryBtn, secondaryBtn, dangerBtn } from './ui';
 import { engagementBadge } from './engagementStatus';
@@ -84,6 +85,11 @@ export const JobCard: React.FC<JobCardProps> = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [detail, setDetail] = useState<{ index: number } | null>(autoOpenDetail ? { index: 0 } : null);
+  // D44: the deep link can turn the prop on after the card is already mounted.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (autoOpenDetail) setDetail((cur) => cur ?? { index: 0 });
+  }, [autoOpenDetail]);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -104,7 +110,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const noDeal = !job.isMine && !isOffer && !!eng?.contactedAt && (engStatus === 'declined' || engStatus === 'withdrawn');
   // D43: an ended engagement stays visible as a muted chip in the "Tvůj zájem" section; the ending side may take it back.
   const endedEng = !job.isMine && !isOffer && eng && (eng.status === 'declined' || eng.status === 'withdrawn') ? eng : null;
-  const photoCount = job.photos?.length ?? (job.imageUrl ? 1 : 0);
+  const photoCount = jobPhotoList(job).length;
   const invites = job.myInvites ?? [];
   const inviteState: 'pending' | 'accepted' | null = !isOffer
     ? null
@@ -140,7 +146,7 @@ export const JobCard: React.FC<JobCardProps> = ({
       }
     });
 
-  // D44: stejná primární akce jako dole na kartě (a ve stejném pořadí podmínek), aby ji nabízel i detail.
+  // D44: primary action derived once; the card button and the detail modal both use it (null = none).
   const primaryLabel =
     job.isMine || engStatus === 'declined' || isInvitedToMe
       ? null
@@ -149,6 +155,17 @@ export const JobCard: React.FC<JobCardProps> = ({
         : engStatus === 'pending' || engStatus === 'accepted'
           ? null
           : 'Mám zájem';
+
+  const primaryButton = primaryLabel ? (
+    <button
+      type="button"
+      onClick={() => onRespond(job)}
+      className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
+    >
+      <span>{primaryLabel}</span>
+      <ArrowRight className="w-3.5 h-3.5" />
+    </button>
+  ) : null;
 
   const handleClose = () => {
     if (!window.confirm('Opravdu chceš inzerát ukončit? Zmizí z nástěnky.')) return;
@@ -477,14 +494,7 @@ export const JobCard: React.FC<JobCardProps> = ({
                 </ul>
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => onRespond(job)}
-              className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Poptat spolupráci</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {primaryButton}
           </div>
         ) : engStatus === 'pending' || engStatus === 'accepted' ? (
           <div>
@@ -521,14 +531,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         ) : (
           <div>
             {endedBlock}
-            <button
-              type="button"
-              onClick={() => onRespond(job)}
-              className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
-            >
-              <span>Mám zájem</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+            {primaryButton}
           </div>
         )}
       </div>

@@ -4,16 +4,28 @@ import { jobRowPhotos, mapJobRow } from '../functions/api/_shared.ts';
 import type { JobRow } from '../functions/api/_shared.ts';
 import { MAX_JOB_PHOTOS } from '../functions/api/_lib/photo.ts';
 import { MAX_DESCRIPTION } from '../src/lib/limits.ts';
+import { LEGACY_PHOTO_ID, jobPhotoList } from '../src/lib/photos.ts';
 
 test('limits: 6 photos and 5000 characters (D45)', () => {
   assert.equal(MAX_JOB_PHOTOS, 6);
   assert.equal(MAX_DESCRIPTION, 5000);
 });
 
-test('jobRowPhotos: parses the subquery JSON and tolerates null / garbage', () => {
-  assert.deepEqual(jobRowPhotos({ photos_json: '[{"id":"a","url":"/api/photos/jobs/j/a.png"}]' }), [{ id: 'a', url: '/api/photos/jobs/j/a.png' }]);
+test('jobRowPhotos: sorts by position, created_at, id in JS and tolerates null / garbage', () => {
+  const json = JSON.stringify([
+    { id: 'c', url: '/p/c', position: 1, created_at: '2030-01-01 00:00:02' },
+    { id: 'b', url: '/p/b', position: 1, created_at: '2030-01-01 00:00:01' },
+    { id: 'a', url: '/p/a', position: 0, created_at: '2030-01-01 00:00:09' },
+  ]);
+  assert.deepEqual(jobRowPhotos({ photos_json: json }), [{ id: 'a', url: '/p/a' }, { id: 'b', url: '/p/b' }, { id: 'c', url: '/p/c' }]);
   assert.deepEqual(jobRowPhotos({ photos_json: null }), []);
   assert.deepEqual(jobRowPhotos({ photos_json: 'not json' }), []);
+});
+
+test('jobPhotoList: a legacy imageUrl alone becomes one photo with the shared fake id', () => {
+  assert.deepEqual(jobPhotoList({ imageUrl: '/x.png' }), [{ id: LEGACY_PHOTO_ID, url: '/x.png' }]);
+  assert.deepEqual(jobPhotoList({ photos: [{ id: 'a', url: '/a' }], imageUrl: '/a' }), [{ id: 'a', url: '/a' }]);
+  assert.deepEqual(jobPhotoList({}), []);
 });
 
 const baseRow = {
@@ -26,7 +38,7 @@ const baseRow = {
 } as unknown as JobRow;
 
 test('mapJobRow: imageUrl is the first photo, photos keep order; legacy image_url is the fallback', () => {
-  const two = mapJobRow({ ...baseRow, image_url: '/api/photos/jobs/j1/old.png', photos_json: '[{"id":"a","url":"/p/a"},{"id":"b","url":"/p/b"}]' });
+  const two = mapJobRow({ ...baseRow, image_url: '/api/photos/jobs/j1/old.png', photos_json: '[{"id":"b","url":"/p/b","position":1,"created_at":"x"},{"id":"a","url":"/p/a","position":0,"created_at":"x"}]' });
   assert.equal(two.imageUrl, '/p/a');
   assert.deepEqual(two.photos?.map((p) => p.id), ['a', 'b']);
   const legacy = mapJobRow({ ...baseRow, image_url: '/api/photos/jobs/j1/old.png' });

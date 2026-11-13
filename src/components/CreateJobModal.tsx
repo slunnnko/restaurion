@@ -5,7 +5,7 @@ import { MvpJobType, MvpMonumentStatus, PublicJob, RewardCurrency, RewardType } 
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES, toCraftIds } from '@/lib/crafts';
 import { REGIONS } from '@/lib/regions';
-import { pluralCraftsmen, todayIso } from '@/lib/format';
+import { plural, pluralCraftsmen, todayIso } from '@/lib/format';
 import { deleteJobPhoto, downscaleImage, uploadJobPhoto } from '@/lib/image';
 import {
   ModalShell,
@@ -21,7 +21,8 @@ import {
   secondaryBtn,
 } from './ui';
 import { INVITE_RESPOND_DAYS } from '@/lib/matching';
-import { MAX_JOB_PHOTOS } from '@/lib/limits';
+import { MAX_DESCRIPTION, MAX_JOB_PHOTOS } from '@/lib/limits';
+import { jobPhotoList } from '@/lib/photos';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, CheckCircle2, UserCheck, X } from 'lucide-react';
 
@@ -73,6 +74,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const prefill = editJob ?? directOffer;
   const [jobType, setJobType] = useState<MvpJobType>(editJob?.jobType ?? (directOffer ? 'subcontract_needed' : (initialType ?? 'subcontract_needed')));
   const [title, setTitle] = useState(editJob?.title ?? '');
+  const [description, setDescription] = useState(editJob?.description ?? '');
   const [crafts, setCrafts] = useState<string[]>(prefill ? toCraftIds(prefill.crafts) : []);
   const [region, setRegion] = useState(prefill?.region ?? REGIONS[0]);
   const [city, setCity] = useState(prefill?.city ?? '');
@@ -94,7 +96,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notified, setNotified] = useState<number | null>(null);
   // Photos (D45, up to 6): `newPhotos` are downscaled blobs waiting for upload; `removedIds` marks existing photos for deletion (edit).
-  const existingPhotos = editJob?.photos ?? (editJob?.imageUrl ? [{ id: 'legacy', url: editJob.imageUrl }] : []);
+  const existingPhotos = editJob ? jobPhotoList(editJob) : [];
   const [newPhotos, setNewPhotos] = useState<{ key: string; blob: Blob; preview: string }[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState('');
@@ -115,17 +117,36 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
     if (files.length === 0) return;
     setPhotoError('');
     const accepted: { key: string; blob: Blob; preview: string }[] = [];
-    for (const file of files.slice(0, Math.max(photoSlots, 0))) {
+    let failed = 0;
+    let over = 0;
+    let firstError = '';
+    // Only files that downscaled successfully use up a free slot.
+    for (const file of files) {
+      if (accepted.length >= photoSlots) {
+        over++;
+        continue;
+      }
       try {
         const blob = await downscaleImage(file);
         const preview = URL.createObjectURL(blob);
         previewsRef.current.push(preview);
         accepted.push({ key: preview, blob, preview });
       } catch (err) {
-        setPhotoError(err instanceof Error ? err.message : 'Fotku se nepodařilo zpracovat.');
+        failed++;
+        firstError ||= err instanceof Error ? err.message : '';
       }
     }
-    if (files.length > photoSlots) setPhotoError(`Inzerát může mít nejvýše ${MAX_JOB_PHOTOS} fotek.`);
+    if (failed > 0 || over > 0) {
+      if (failed === 1 && accepted.length === 0 && over === 0 && firstError) {
+        setPhotoError(firstError);
+      } else {
+        const parts: string[] = [];
+        if (accepted.length > 0) parts.push(`${accepted.length} ${plural(accepted.length, 'fotka přidána', 'fotky přidány', 'fotek přidáno')}`);
+        if (failed > 0) parts.push(`${failed} se nepodařilo načíst`);
+        if (over > 0) parts.push(`${over} se nevešlo, limit je ${MAX_JOB_PHOTOS}`);
+        setPhotoError(`${parts.join(', ')}.`);
+      }
+    }
     if (accepted.length > 0) setNewPhotos((cur) => [...cur, ...accepted]);
   };
 
@@ -183,6 +204,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         const origCrafts = toCraftIds(editJob.crafts);
         const body: Record<string, unknown> = {};
         if (title.trim() !== editJob.title) body.title = title.trim();
+        if (description.trim() !== (editJob.description ?? '').trim()) body.description = description.trim();
         if (crafts.length !== origCrafts.length || crafts.some((c) => !origCrafts.includes(c))) body.crafts = crafts;
         if (region !== editJob.region) body.region = region;
         if (city.trim() !== editJob.city) body.city = city.trim();
@@ -215,7 +237,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         method: 'POST',
         body: {
           title: title.trim(),
-          description: '',
+          description: description.trim(),
           jobType,
           ...(isOffer ? {} : { monumentStatus, monumentName: monumentName.trim() || undefined }),
           crafts,
@@ -338,6 +360,27 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
             className={inputCls}
           />
           <FieldError message={fieldErrors.title} />
+        </div>
+
+        <div>
+          <label htmlFor="job-description" className={labelCls}>
+            Popis práce (nepovinné)
+          </label>
+          <textarea
+            id="job-description"
+            rows={5}
+            maxLength={MAX_DESCRIPTION}
+            placeholder="Co je třeba udělat, o jaký objekt jde, v jakém je stavu, jaký je přístup na místo…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className={textareaCls}
+          />
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <FieldError message={fieldErrors.description} />
+            <span className="ml-auto text-[11px] font-bold text-stone-600 dark:text-stone-400">
+              {description.length} / {MAX_DESCRIPTION}
+            </span>
+          </div>
         </div>
 
         <div>

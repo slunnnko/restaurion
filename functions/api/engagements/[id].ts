@@ -10,7 +10,7 @@ import {
   todayUtc,
 } from '../_shared.ts';
 import type { PagesContext } from '../_shared.ts';
-import { str } from '../_lib/validate.ts';
+import { profileNameMissing, profileNameResponse, str } from '../_lib/validate.ts';
 import { loadBusySlots } from '../_lib/data.ts';
 import { isUnconfirmed, respondByFrom } from '../_lib/invitations.ts';
 import { endedSide } from '../../../src/lib/engagementEnd.ts';
@@ -58,7 +58,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     const eng = await db
       .prepare(
         `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
-                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type, e.initiated_by, e.respond_by, e.contacted_at, e.ended_by, j.visibility AS j_visibility,
+                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type, e.initiated_by, e.respond_by, e.contacted_at, e.ended_by, j.visibility AS j_visibility, j.direct_to AS j_direct_to,
                 ${contactSelect('w', 'w')}
          FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles w ON w.id = e.worker_id
          WHERE e.id = ?`
@@ -80,6 +80,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         contacted_at: string | null;
         ended_by: string | null;
         j_visibility: string;
+        j_direct_to: string | null;
         w_name: string;
         w_email: string;
         w_phone: string | null;
@@ -103,6 +104,14 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         return jsonResponse({ error: 'Zakázka už není aktivní.' }, 409);
       }
       const isInvite = eng.initiated_by === 'poster';
+      if (!isAuthor) {
+        // Worker reopening: same preconditions as respond.ts (profile name, listing still visible to them).
+        const me = await db.prepare(`SELECT name FROM profiles WHERE id = ?`).bind(auth.userId).first<{ name: string }>();
+        if (profileNameMissing(me?.name)) return profileNameResponse();
+      }
+      if (!isAuthor && (eng.j_visibility === 'deleted' || (eng.j_visibility === 'direct' && eng.j_direct_to !== auth.userId))) {
+        return jsonResponse({ error: 'Zakázka není dostupná.' }, 404);
+      }
       if (isInvite && eng.j_visibility === 'direct') {
         // Same spam cap as creating a direct listing: one confirmable direct invitation per person at a time.
         const waiting = await db
@@ -120,7 +129,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       // Conditional UPDATE first; the notification is inserted only when this call really changed the row.
       const upd = await db
         .prepare(
-          `UPDATE engagements SET status = 'pending', ended_by = NULL, responded_at = datetime('now'), respond_by = ?
+          `UPDATE engagements SET status = 'pending', ended_by = NULL, responded_at = NULL, respond_by = ?
            WHERE id = ? AND status IN ('declined', 'withdrawn')`
         )
         .bind(respondBy, id)

@@ -37,20 +37,22 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   try {
     await bucket.put(key, bytes, { httpMetadata: { contentType: type } });
     try {
-      // The count is re-checked inside the INSERT so two parallel uploads cannot pass the limit.
-      const res = await db
-        .prepare(
-          `INSERT INTO job_photos (id, job_id, url, position)
-           SELECT ?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM job_photos WHERE job_id = ?), 0)
-           WHERE (SELECT COUNT(*) FROM job_photos WHERE job_id = ?) < ?`,
-        )
-        .bind(crypto.randomUUID().replace(/-/g, ''), jobId, `${PHOTO_PREFIX}${key}`, jobId, jobId, MAX_JOB_PHOTOS)
-        .run();
-      if (!res.meta?.changes) {
+      // One batch: the row and the updated_at touch land together or not at all. The count is re-checked inside
+      // the INSERT so two parallel uploads cannot pass the limit.
+      const [ins] = await db.batch<{ meta?: { changes?: number } }>([
+        db
+          .prepare(
+            `INSERT INTO job_photos (id, job_id, url, position)
+             SELECT ?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM job_photos WHERE job_id = ?), 0)
+             WHERE (SELECT COUNT(*) FROM job_photos WHERE job_id = ?) < ?`,
+          )
+          .bind(crypto.randomUUID().replace(/-/g, ''), jobId, `${PHOTO_PREFIX}${key}`, jobId, jobId, MAX_JOB_PHOTOS),
+        db.prepare(`UPDATE jobs SET updated_at = datetime('now') WHERE id = ?`).bind(jobId),
+      ]);
+      if (!ins.meta?.changes) {
         await bucket.delete(key).catch(() => undefined);
         return jsonResponse({ error: LIMIT_REACHED }, 409);
       }
-      await db.prepare(`UPDATE jobs SET updated_at = datetime('now') WHERE id = ?`).bind(jobId).run();
     } catch (err) {
       await bucket.delete(key).catch(() => undefined);
       throw err;

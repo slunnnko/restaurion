@@ -482,7 +482,7 @@ export interface JobRow {
   monument_status: string;
   monument_name: string | null;
   image_url: string | null;
-  /** JSON array of { id, url } from job_photos (subquery in JOB_SELECT), ordered by position. */
+  /** JSON array of job_photos objects (subquery in JOB_SELECT); unordered, jobRowPhotos sorts it. */
   photos_json: string | null;
   required_crafts_json: string;
   region: string;
@@ -514,12 +514,14 @@ export interface JobRow {
   a_whatsapp: string | null;
   a_facebook: string | null;
   interested_count: number;
+  /** declined + withdrawn engagements (D43); exposed to the author only. */
+  ended_count: number;
 }
 
 export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
          j.image_url,
-         (SELECT json_group_array(json_object('id', p.id, 'url', p.url)) FROM (SELECT id, url FROM job_photos WHERE job_id = j.id ORDER BY position, created_at, id) p) AS photos_json,
+         (SELECT json_group_array(json_object('id', p.id, 'url', p.url, 'position', p.position, 'created_at', p.created_at)) FROM job_photos p WHERE p.job_id = j.id) AS photos_json,
          j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
@@ -527,6 +529,7 @@ export const JOB_SELECT = `
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count,
+         (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('declined', 'withdrawn')) AS ended_count,
          (SELECT e.id FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_id,
          (SELECT e.status FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_status,
          (SELECT e.respond_by FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_respond_by,
@@ -560,7 +563,10 @@ function directInviteOf(row: JobRow): NonNullable<PublicJob['directInvite']> {
 
 /** Photos of a job row (D45), in display order; empty when the job has none. */
 export function jobRowPhotos(row: Pick<JobRow, 'photos_json'>): { id: string; url: string }[] {
-  return safeJsonParse<{ id: string; url: string }[]>(row.photos_json ?? '[]', []);
+  const raw = safeJsonParse<{ id: string; url: string; position: number; created_at: string }[]>(row.photos_json ?? '[]', []);
+  return [...raw]
+    .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    .map(({ id, url }) => ({ id, url }));
 }
 
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
@@ -605,6 +611,7 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
     ...(viewer
       ? {
           isMine: row.author_id === viewer.userId,
+          ...(row.author_id === viewer.userId ? { endedCount: Number(row.ended_count ?? 0) } : {}),
           ...(viewer.engagement ? { myEngagement: viewer.engagement } : {}),
           ...(viewer.invites && viewer.invites.length > 0 ? { myInvites: viewer.invites } : {}),
           ...(viewer.busyDays !== undefined ? { myBusyDays: viewer.busyDays } : {}),

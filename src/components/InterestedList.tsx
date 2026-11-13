@@ -75,6 +75,8 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
   const reqId = useRef(0);
   const isOffer = job.jobType === 'craftsman_available';
   const count = job.interestedCount;
+  // D43: ended rows stay listed; the request is skipped only when there is nothing at all (no extra request per own listing).
+  const total = count + (job.endedCount ?? 0);
 
   const load = useCallback(async () => {
     const id = ++reqId.current;
@@ -90,10 +92,10 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
   }, [job.id]);
 
   useEffect(() => {
-    // D43: ended rows stay listed, so the list is loaded even when no engagement is running.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [load, count]);
+    if (total === 0) setItems([]);
+    else void load();
+  }, [load, total]);
 
   return (
     <div>
@@ -105,7 +107,7 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
       {error && items === null ? (
         <ErrorBox message={error} onRetry={() => void load()} />
       ) : items === null ? (
-        <p className={mutedCls}>{count === 0 ? 'Zatím žádný zájemce.' : 'Načítám zájemce…'}</p>
+        <p className={mutedCls}>{total === 0 ? 'Zatím žádný zájemce.' : 'Načítám zájemce…'}</p>
       ) : items.length === 0 ? (
         <p className={mutedCls}>Zatím žádný zájemce.</p>
       ) : (

@@ -307,11 +307,13 @@ export default function Home() {
     setActionError('');
     try {
       await api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE', body: { reason } });
-      await loadJobs();
     } catch (err) {
-      handleApiError(err, 'Inzerát se nepodařilo smazat.');
-      throw err; // DeleteJobModal zůstane otevřený a ukáže chybu
+      // The error is shown once, in DeleteJobModal (it stays open); only an expired session is handled here too.
+      if (err instanceof ApiError && err.status === 401) handleApiError(err, '');
+      throw err;
     }
+    // Reload after the modal has closed (it closes right after this resolves), so no card updates an unmounted state.
+    setTimeout(() => void loadJobs(), 0);
   };
 
   const openCreate = () => requireLogin(() => setIsCreateOpen(true));

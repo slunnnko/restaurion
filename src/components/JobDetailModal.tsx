@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, rewardDisplay } from '@/lib/format';
+import { jobPhotoList } from '@/lib/photos';
 import { ContactsOrLogin } from './ui';
 import { MapPin, Calendar, Coins, Church, ArrowRight, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -35,7 +36,7 @@ function formatCreated(iso: string): string {
 
 /** D44: celý inzerát: plný popis, galerie fotek, odměna, zadavatel. Akce vlastníka a čipy zůstávají na kartě. */
 export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, typeInfo, startIndex = 0, onClose, onLogin, primaryAction }) => {
-  const photos = job.photos && job.photos.length > 0 ? job.photos : job.imageUrl ? [{ id: 'legacy', url: job.imageUrl }] : [];
+  const photos = jobPhotoList(job);
   const [index, setIndex] = useState(Math.min(Math.max(startIndex, 0), Math.max(photos.length - 1, 0)));
   const isOffer = job.jobType === 'craftsman_available';
   const reward = rewardDisplay(job);

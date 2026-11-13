@@ -18,8 +18,8 @@ export function pickDigestRecipients<T extends { oldestUnread: string }>(rows: T
   return [...rows].sort((a, b) => a.oldestUnread.localeCompare(b.oldestUnread)).slice(0, budget);
 }
 
-/** Event types that never go into the e-mail digest (D41, D43, D46). */
-export const NON_DIGEST_TYPES = ['contacted', 'no_deal', 'reopened', 'job_removed'];
+/** Event types that never go into the e-mail digest (D41, D43). `job_removed` (D46) does go in, with its reason. */
+export const NON_DIGEST_TYPES = ['contacted', 'no_deal', 'reopened'];
 const NON_DIGEST_SQL = NON_DIGEST_TYPES.map((t) => `'${t}'`).join(', ');
 
 const LABELS: Record<string, string> = {
@@ -33,19 +33,23 @@ const LABELS: Record<string, string> = {
   invite_accepted: 'Řemeslník potvrdil vaši poptávku',
   invite_declined: 'Řemeslník vaši poptávku odmítl',
   invite_cancelled: 'Poptávka byla zrušena',
+  job_removed: 'Správce odstranil tvůj inzerát',
 };
 
 interface NotificationRow {
   id: string;
   type: string;
   title: string | null;
+  reason?: string | null;
 }
 
 export function buildDigestHtml(items: NotificationRow[], appUrl: string): string {
   const list = items
     .map(
       (n) =>
-        `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS[n.type] ?? n.type)}</b>${n.title ? `: ${escapeHtml(n.title)}` : ''}</li>`
+        n.type === 'job_removed'
+          ? `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS.job_removed)}</b>${n.title ? ` „${escapeHtml(n.title)}“` : ''}. Důvod: ${escapeHtml(n.reason ?? '')}</li>`
+          : `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS[n.type] ?? n.type)}</b>${n.title ? `: ${escapeHtml(n.title)}` : ''}</li>`
     )
     .join('');
   const link = `${appUrl}/?profil=1`;
@@ -93,7 +97,7 @@ export async function runDigest(env: Env): Promise<number> {
   for (const r of pickDigestRecipients(rows.results, budget)) {
     const items = await db
       .prepare(
-        `SELECT n.id, n.type, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility IN ('public', 'direct') OR n.type = 'job_closed')
+        `SELECT n.id, n.type, n.reason, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility IN ('public', 'direct') OR n.type IN ('job_closed', 'job_removed'))
          WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.type NOT IN (${NON_DIGEST_SQL}) ORDER BY n.created_at LIMIT 50`
       )
       .bind(r.profileId)

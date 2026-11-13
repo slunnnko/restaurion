@@ -39,7 +39,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
          FROM engagements e JOIN jobs j ON j.id = e.job_id
          WHERE e.worker_id = ? AND e.initiated_by = 'poster'
            AND j.status = 'active' AND j.visibility IN ('public', 'direct')
-         ORDER BY e.created_at DESC, e.rowid DESC LIMIT 100`
+         ORDER BY (e.status IN ('pending', 'accepted')) DESC, e.created_at DESC, e.rowid DESC LIMIT 100`
       )
       .bind(auth.userId)
       .all<EngRow>();

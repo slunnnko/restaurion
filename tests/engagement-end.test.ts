@@ -38,6 +38,15 @@ test('legacy no-deal row (contact confirmed, nobody recorded) can be reopened by
   assert.equal(endedSide(r), 'either');
   assert.deepEqual(endedFields(r, 'a', true), { canReopen: true });
   assert.deepEqual(endedFields(r, 'w', true), { canReopen: true });
+  const inviteNoDeal = row({ status: 'withdrawn', initiated_by: 'poster', contacted_at: '2026-11-01 10:00:00' });
+  assert.equal(endedSide(inviteNoDeal), 'either');
+});
+
+test('legacy contacted invitation that is declined was refused by the worker', () => {
+  const r = row({ status: 'declined', initiated_by: 'poster', contacted_at: '2026-11-01 10:00:00' });
+  assert.equal(endedSide(r), 'worker');
+  assert.deepEqual(endedFields(r, 'w', true), { endedBy: 'worker', canReopen: true });
+  assert.deepEqual(endedFields(r, 'a', true), { endedBy: 'worker' });
 });
 
 test('only the ending side gets canReopen, and only while the job is open', () => {
