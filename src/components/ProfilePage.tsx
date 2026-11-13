@@ -23,10 +23,12 @@ import {
   primaryBtn,
   secondaryBtn,
   dangerBtn,
+  BackToBoardButton,
 } from './ui';
 import { MyListings } from './MyListings';
 import { InvitationsList } from './InvitationsList';
-import { ArrowLeft, BadgeCheck, Ban, Bell, Pencil, Trash2 } from 'lucide-react';
+import { stripTitles } from '@/lib/names';
+import { BadgeCheck, Ban, Bell, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
@@ -235,8 +237,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       const data = await api<{ profile: OwnProfile }>('/api/profile', {
         method: 'PUT',
         body: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
+          firstName: stripTitles(firstName),
+          lastName: stripTitles(lastName),
           companyName: companyName.trim(),
           phone: phone.trim(),
           region,
@@ -344,16 +346,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-7 flex-1 w-full relative z-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          {/* D39: jen ikona, text je v aria-label / title */}
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Zpět na nástěnku"
-            title="Zpět na nástěnku"
-            className={`${secondaryBtn} w-10 !px-0`}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <BackToBoardButton onClick={onBack} />
         </div>
         <button type="button" onClick={() => void onLogout()} className={dangerBtn}>
           Odhlásit
@@ -420,6 +413,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               autoComplete="given-name"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              onBlur={() => setFirstName((v) => stripTitles(v) || v)}
               className={inputCls}
             />
             <FieldError message={fieldErrors.firstName} />
@@ -434,10 +428,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               autoComplete="family-name"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              onBlur={() => setLastName((v) => stripTitles(v) || v)}
               className={inputCls}
             />
             <FieldError message={fieldErrors.lastName} />
           </div>
+          <p className="sm:col-span-2 -mt-1.5 text-xs font-medium text-stone-600 dark:text-stone-400">
+            Bez titulů (Mgr., Ing. …), s rejstříkem MK ČR se porovnává jen jméno.
+          </p>
           <div>
             <label htmlFor="pf-company-name" className={labelCls}>
               Název firmy (nepovinné)
@@ -611,12 +609,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     )}
                   </div>
                 ) : (
-                  <span>
+                  <span
+                    className={
+                      user.licenceCheck.result === 'unavailable'
+                        ? 'text-amber-800 dark:text-amber-300'
+                        : 'text-red-700 dark:text-red-400 font-bold'
+                    }
+                  >
                     {user.licenceCheck.result === 'not_found' && 'Číslo jsme v rejstříku nenašli.'}
                     {user.licenceCheck.result === 'name_mismatch' &&
                       (!user.firstName?.trim() || !user.lastName?.trim()
                         ? 'Pro ověření vyplň jméno a příjmení restaurátora, na kterého je povolení vydané.'
                         : 'Číslo v rejstříku je, ale jméno nesouhlasí s profilem.')}
+                    {user.licenceCheck.result === 'name_mismatch' && user.licenceCheck.registryName && (
+                      <span className="block text-xs font-medium">V rejstříku je: {user.licenceCheck.registryName}</span>
+                    )}
                     {user.licenceCheck.result === 'ambiguous' && 'Zadej celé číslo povolení (č.j.).'}
                     {user.licenceCheck.result === 'taken' &&
                       'Toto povolení už má v Restaurionu ověřený jiný profil. Pokud je to chyba, napiš nám.'}

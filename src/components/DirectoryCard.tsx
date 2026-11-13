@@ -83,6 +83,11 @@ export const DirectoryCard: React.FC<DirectoryCardProps> = ({ entry, onLogin }) 
             )
           )}
         </div>
+        {entry.licenceNumber && entry.licenceUnverified && !entry.licenceVerified && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-2 py-0.5 rounded-md border-2 border-[#111111] dark:border-stone-500 bg-orange-200 dark:bg-orange-900 text-[#111111] dark:text-orange-100">
+            Nepodařilo se ověřit v rejstříku MK ČR
+          </span>
+        )}
         {entry.licenceNumber && entry.licenceVerified && (
           <div className="text-xs space-y-0.5">
             <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-700 dark:text-emerald-400">

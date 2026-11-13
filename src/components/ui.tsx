@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock, Handshake } from 'lucide-react';
+import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock, Handshake, ArrowLeft, Briefcase } from 'lucide-react';
 import { ContactInfo } from '@/types/api';
 import { initials } from '@/lib/format';
 
@@ -52,6 +52,14 @@ export const primaryBtn =
   'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_#111111] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 export const secondaryBtn =
   'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-stone-100 bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:bg-stone-100 dark:hover:bg-[#323644] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+/** D53: zpět na nástěnku (profil D39, Adresář D50): `secondaryBtn` s šipkou a kufříkem, od `sm` i s textem. */
+export const BackToBoardButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button type="button" onClick={onClick} aria-label="Zpět na nástěnku" title="Zpět na nástěnku" className={secondaryBtn}>
+    <ArrowLeft className="w-5 h-5" />
+    <Briefcase className="w-5 h-5" />
+    <span className="hidden sm:inline">Nástěnka</span>
+  </button>
+);
 export const dangerBtn =
   'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white bg-rose-100 dark:bg-rose-950 hover:bg-rose-200 dark:hover:bg-rose-900 border-2 border-[#111111] dark:border-rose-400/70 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 /** D41: „Kontakt navázán“ – jedno kliknutí, bez potvrzování. */
@@ -350,7 +358,7 @@ export const IconTip: React.FC<{ text: string; children: React.ReactNode; classN
 };
 
 /** D51: byline of a listing: initials avatar, poster name and the MK mark only when the registry check found the licence (D49). */
-export const PosterByline: React.FC<{ name: string; verified?: boolean; registryName?: string; className?: string }> = ({ name, verified = false, registryName, className = '' }) => (
+export const PosterByline: React.FC<{ name: string; verified?: boolean; unverified?: boolean; registryName?: string; className?: string }> = ({ name, verified = false, unverified = false, registryName, className = '' }) => (
   <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0 flex-1 ${className}`}>
     <span
       aria-hidden="true"
@@ -362,6 +370,13 @@ export const PosterByline: React.FC<{ name: string; verified?: boolean; registry
     {verified && (
       <IconTip align="end" text={`Nalezeno v rejstříku MK ČR${registryName ? `: ${registryName}` : ''}`}>
         <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-emerald-600 text-white border-2 border-[#111111] dark:border-stone-500 text-[10px] font-extrabold">
+          MK
+        </span>
+      </IconTip>
+    )}
+    {!verified && unverified && (
+      <IconTip align="end" text="Číslo povolení se nepodařilo ověřit v rejstříku MK ČR">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-orange-500 dark:bg-orange-600 text-white border-2 border-[#111111] dark:border-stone-500 text-[10px] font-extrabold">
           MK
         </span>
       </IconTip>

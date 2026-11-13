@@ -296,6 +296,21 @@ api w6 PUT /api/profile '{"licenceNumber":"15.077/91"}'
 eq "PUT licence number -> 200, check unavailable" "$CODE/$(echo "$BODY" | jq -r '.profile.licenceCheck.result')" "200/unavailable"
 api - GET /api/directory
 eq "directory entry has no licenceVerified" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest") | has("licenceVerified")] | .[0]')" false
+echo "== names without titles (D52) and the unverified licence flag"
+api w6 PUT /api/profile '{"firstName":"Mgr. Worker"}'
+eq "first name 'Mgr. Worker' is stored as 'Worker'" "$CODE/$(echo "$BODY" | jq -r '.profile.firstName')" "200/Worker"
+api w6 PUT /api/profile '{"firstName":"Ing."}'
+eq "first name of only a title -> 400 with fieldErrors" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.firstName')" "400/Jméno bez titulů."
+d1 --command "UPDATE profiles SET licence_verified = 0, licence_check_result = 'name_mismatch', licence_registry_name = 'Surma Radomír, Mgr., Ak. mal.' WHERE name = 'Worker Sest';" > /dev/null
+api - GET /api/directory
+eq "name_mismatch profile: licenceUnverified, not licenceVerified, no registry name (D52)" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest") | "\(.licenceUnverified)/\(has("licenceVerified"))/\(has("licenceRegistryName"))"] | .[0]')" "true/false/false"
+api w6 GET /api/profile
+eq "own profile shows the registry name without titles" "$(echo "$BODY" | jq -r '.profile.licenceCheck.registryName')" "Surma Radomír"
+d1 --command "UPDATE profiles SET licence_check_result = 'unavailable' WHERE name = 'Worker Sest';" > /dev/null
+api - GET /api/directory
+eq "unavailable profile has no licenceUnverified" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest") | has("licenceUnverified")] | .[0]')" false
+d1 --command "UPDATE profiles SET licence_check_result = 'unavailable', licence_registry_name = NULL WHERE name = 'Worker Sest';" > /dev/null
+
 api - POST /api/profile/licence-check
 eq "anonymous licence-check -> 401" "$CODE" 401
 # the PUT above used one of the 5 shared attempts

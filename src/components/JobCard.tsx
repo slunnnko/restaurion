@@ -243,7 +243,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         <div className="p-5 pb-0 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
-            <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} />
+            <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} unverified={job.poster.licenceUnverified === true} registryName={job.poster.licenceRegistryName} />
             {actions.length > 0 && (
               <div className="shrink-0">
                 <ActionMenu triggerIcon={Pencil} triggerLabel="Upravit inzerát" actions={actions} />

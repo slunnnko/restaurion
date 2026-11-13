@@ -2,7 +2,7 @@
 // Mapování řádků na veřejné typy je jen zde. Kontakty (mapContact) dostává jen přihlášený;
 // anonymní odpověď nikdy neobsahuje e-mail ani telefon.
 
-import { rrkpBase } from './_lib/rrkp.ts';
+import { registryDisplayName, rrkpBase } from './_lib/rrkp.ts';
 import type { LicenceCheckResult } from './_lib/rrkp.ts';
 import type {
   BookedJob,
@@ -344,19 +344,24 @@ function isLicenceCheckResult(v: unknown): v is LicenceCheckResult {
   return v === 'verified' || v === 'not_found' || v === 'name_mismatch' || v === 'ambiguous' || v === 'taken' || v === 'unavailable';
 }
 
+const UNVERIFIED_RESULTS = new Set(['not_found', 'name_mismatch', 'ambiguous', 'taken']);
+
 /** The ONE rule for the public verified-licence fields (D49): the registry found the number AND it is set. `prefix` reads joined columns (e.g. 'a_'). */
 export function verifiedLicenceFields(
   source: object,
   prefix = '',
-): { licenceVerified: true; licenceRegistryName?: string } | Record<string, never> {
+): { licenceVerified: true; licenceRegistryName?: string } | { licenceUnverified: true } | Record<string, never> {
   const row = source as Record<string, unknown>;
-  if (!row[`${prefix}licence_verified`] || !row[`${prefix}licence_number`]) return {};
+  if (!row[`${prefix}licence_number`]) return {};
+  // D52: a definitively failed check is flagged (never shown as verified); unchecked and 'unavailable' carry neither flag.
+  if (!row[`${prefix}licence_verified`]) return UNVERIFIED_RESULTS.has(String(row[`${prefix}licence_check_result`])) ? { licenceUnverified: true as const } : {};
   const name = row[`${prefix}licence_registry_name`];
   return { licenceVerified: true as const, ...(typeof name === 'string' && name ? { licenceRegistryName: name } : {}) };
 }
 
 export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'>): PublicPerson {
-  const verified = 'licenceVerified' in verifiedLicenceFields(row);
+  const flags = verifiedLicenceFields(row);
+  const verified = 'licenceVerified' in flags;
   return {
     id: row.id,
     name: row.name,
@@ -372,7 +377,9 @@ export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'
           ...(row.licence_registry_id ? { licenceRegistryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
           ...(row.licence_registry_name ? { licenceRegistryName: row.licence_registry_name } : {}),
         }
-      : {}),
+      : 'licenceUnverified' in flags
+        ? { licenceUnverified: true as const }
+        : {}),
   };
 }
 
@@ -514,7 +521,9 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
                   ...(row.licence_registry_id ? { registryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
                   ...(row.licence_registry_name ? { registryName: row.licence_registry_name } : {}),
                 }
-              : {}),
+              : row.licence_check_result === 'name_mismatch' && row.licence_registry_name
+                ? { registryName: registryDisplayName(row.licence_registry_name) }
+                : {}),
           },
         }
       : {}),
@@ -560,6 +569,7 @@ export interface JobRow {
   a_licence_number: string | null;
   a_licence_verified: number | null;
   a_licence_registry_name: string | null;
+  a_licence_check_result: string | null;
   a_email: string;
   a_phone: string | null;
   a_portfolio_url: string | null;
@@ -579,7 +589,7 @@ export const JOB_SELECT = `
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
          a.name AS a_name, a.directory_group AS a_group,
-         a.licence_number AS a_licence_number, a.licence_verified AS a_licence_verified, a.licence_registry_name AS a_licence_registry_name,
+         a.licence_number AS a_licence_number, a.licence_verified AS a_licence_verified, a.licence_registry_name AS a_licence_registry_name, a.licence_check_result AS a_licence_check_result,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count,
@@ -662,7 +672,7 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
       group: mapGroup(row.a_group),
       // D51: only the registry-verified flag and holder name (public since D49); never the number.
       ...(() => {
-        const { licenceRegistryName, ...flag } = verifiedLicenceFields(row, 'a_');
+        const { licenceRegistryName, ...flag } = verifiedLicenceFields(row, 'a_') as { licenceRegistryName?: string };
         // The holder name only for a logged-in viewer, like the contacts below; anonymous callers get the flag only.
         return viewer && licenceRegistryName ? { ...flag, licenceRegistryName } : flag;
       })(),

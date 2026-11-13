@@ -3,6 +3,7 @@
 import { CRAFT_CATEGORIES } from '../../../src/lib/crafts.ts';
 import { formatRewardText } from '../../../src/lib/format.ts';
 import { MAX_DESCRIPTION } from '../../../src/lib/limits.ts';
+import { stripTitles } from '../../../src/lib/names.ts';
 import { phoneDigits } from '../../../src/lib/phone.ts';
 import { daysInRange } from '../../../src/lib/matching.ts';
 import { isIsoDate, jsonResponse, todayUtc } from '../_shared.ts';
@@ -113,6 +114,12 @@ export function normalizeWhatsapp(value: string): string | null {
  */
 export function validateNameParts(first: string, last: string, company: string): FieldErrors {
   const errors: FieldErrors = {};
+  // D52: the caller stores names with titles stripped; a part that is only a title becomes empty and is refused.
+  if (first !== '' && stripTitles(first) === '') errors.firstName = 'Jméno bez titulů.';
+  if (last !== '' && stripTitles(last) === '') errors.lastName = 'Jméno bez titulů.';
+  if (errors.firstName || errors.lastName) return errors;
+  first = stripTitles(first);
+  last = stripTitles(last);
   // Either a company name, or first + last name (owner decision D35).
   if (first.length < 1 && !company) errors.firstName = 'Vyplň jméno, nebo název firmy.';
   else if (first.length > 40) errors.firstName = 'Nejvýše 40 znaků.';

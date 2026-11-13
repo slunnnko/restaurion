@@ -10,11 +10,14 @@ import {
   parseDetail,
   parseListIds,
 } from '../functions/api/_lib/rrkp.ts';
+import { stripTitles } from '../src/lib/names.ts';
+import { validateNameParts } from '../functions/api/_lib/validate.ts';
 
 const fx = (n: string) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8');
 const LIST_ONE = fx('rrkp-list-one.html');
 const LIST_NONE = fx('rrkp-list-none.html');
 const DETAIL = fx('rrkp-detail.html');
+const DETAIL_TITLES = fx('rrkp-detail-titles.html');
 const BASE = 'http://rrkp.test';
 
 const page = (body: string, status = 200) => new Response(body, { status });
@@ -126,4 +129,29 @@ test('applyOwnership: a verified record held by another profile becomes taken', 
   assert.equal(applyOwnership(ok, false), ok);
   const nf = { result: 'not_found' as const };
   assert.equal(applyOwnership(nf, true), nf);
+});
+
+test('stripTitles: dotted tokens, dot-less list, commas, whitespace', () => {
+  assert.equal(stripTitles('Mgr. Radomír'), 'Radomír');
+  assert.equal(stripTitles('Surma, Ak. mal.'), 'Surma');
+  assert.equal(stripTitles('  Jan   Novák Ph.D., MBA '), 'Jan Novák');
+  assert.equal(stripTitles('Eva Nováková CSc'), 'Eva Nováková');
+  assert.equal(stripTitles('Ing.'), '');
+  assert.equal(stripTitles('Marie Anna'), 'Marie Anna');
+});
+
+test('nameMatches: titles typed into the profile name (D52, registry h1 with titles)', () => {
+  assert.equal(parseDetail(DETAIL_TITLES).name, 'Surma Radomír, Mgr., Ak. mal.');
+  const h1 = parseDetail(DETAIL_TITLES).name;
+  assert.equal(nameMatches(h1, 'Radomír', 'Surma'), true);
+  assert.equal(nameMatches(h1, 'Mgr. Radomír', 'Surma'), true);
+  assert.equal(nameMatches(h1, 'Radomír', 'Surma, Ak. mal.'), true);
+  assert.equal(nameMatches(h1, 'Radomír Ak. mal.', 'Surma'), true);
+  assert.equal(nameMatches(h1, 'Jan', 'Surma'), false);
+});
+
+test('validateNameParts: titles are ignored for length, a title-only part is refused', () => {
+  assert.deepEqual(validateNameParts('Mgr. Jan', 'Novák', ''), {});
+  assert.equal(validateNameParts('Ing.', 'Novák', '').firstName, 'Jméno bez titulů.');
+  assert.equal(validateNameParts('Jan', 'Ph.D.', '').lastName, 'Jméno bez titulů.');
 });

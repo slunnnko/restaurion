@@ -140,7 +140,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
           <X className="w-5 h-5" />
         </button>
 
-        <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} className="mb-3 pr-12" />
+        <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} unverified={job.poster.licenceUnverified === true} registryName={job.poster.licenceRegistryName} className="mb-3 pr-12" />
 
         <div className="flex items-start gap-3 mb-3">
           <IconTip text={typeInfo.label} className="mt-0.5">

@@ -1,5 +1,6 @@
 // Automatic licence check against the public MK ČR restorer registry (D49). Pure parsers + one check function.
 import type { Env } from '../_shared.ts';
+import { stripTitles } from '../../../src/lib/names.ts';
 
 export type LicenceCheckResult = 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'taken' | 'unavailable';
 
@@ -93,12 +94,17 @@ function nameTokens(s: string): string[] {
     .filter(Boolean);
 }
 
-/** Every token of the last name and of the first name must appear in the registry name (before the first comma). */
+/** Registry name as shown to people: the part before the first comma, titles stripped (D52). */
+export function registryDisplayName(registryName: string): string {
+  return stripTitles(registryName.split(',')[0] ?? '');
+}
+
+/** Every token of the last name and of the first name must appear in the registry name. Titles are ignored on both sides (D52). */
 export function nameMatches(registryName: string, firstName: string, lastName: string): boolean {
-  const first = nameTokens(firstName);
-  const last = nameTokens(lastName);
+  const first = nameTokens(stripTitles(firstName));
+  const last = nameTokens(stripTitles(lastName));
   if (first.length === 0 || last.length === 0) return false;
-  const reg = new Set(nameTokens(registryName.split(',')[0] ?? ''));
+  const reg = new Set(nameTokens(registryDisplayName(registryName)));
   return [...last, ...first].every((t) => reg.has(t));
 }
 
@@ -136,7 +142,7 @@ export async function checkLicence(args: {
       return { result: listHtml.includes(NO_RECORDS_MARKER) ? 'not_found' : 'unavailable' };
     }
     if (ids.length > MAX_LIST_IDS) return { result: 'ambiguous' };
-    let nameMismatch = false;
+    let nameMismatch: string | null = null;
     for (const id of ids) {
       const detail = parseDetail(await get(`${base}/rejstrik/${id}`));
       if (!detail.name || detail.permits.length === 0) return { result: 'unavailable' };
@@ -144,9 +150,9 @@ export async function checkLicence(args: {
       if (nameMatches(detail.name, args.firstName, args.lastName)) {
         return { result: 'verified', registryId: id, registryName: detail.name, scope: [...new Set(detail.permits.map((p) => p.scope))] };
       }
-      nameMismatch = true;
+      nameMismatch ??= detail.name;
     }
-    return { result: nameMismatch ? 'name_mismatch' : 'not_found' };
+    return nameMismatch ? { result: 'name_mismatch', registryName: nameMismatch } : { result: 'not_found' };
   } catch (err) {
     console.error('Kontrola licence selhala:', err);
     return { result: 'unavailable' };
@@ -219,7 +225,7 @@ export async function runLicenceCheck(
         o.result,
         ok ? JSON.stringify(o.scope ?? []) : null,
         ok ? o.registryId ?? null : null,
-        ok ? o.registryName ?? null : null,
+        ok || o.result === 'name_mismatch' ? o.registryName ?? null : null, // name_mismatch keeps the holder name for the owner's hint only (never public)
         ...guard
       )
       .run();

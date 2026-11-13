@@ -15,7 +15,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { NotificationsPanel } from '@/components/NotificationsPanel';
 import { ProfilePage } from '@/components/ProfilePage';
 import { LegalNoticeModal } from '@/components/LegalNoticeModal';
-import { ErrorBox, secondaryBtn } from '@/components/ui';
+import { BackToBoardButton, ErrorBox } from '@/components/ui';
 import { HammerLogo } from '@/components/HammerLogo';
 import { FilterState } from '@/types';
 import { OwnProfile, PublicJob, NotificationItem, DirectoryEntry, ThemePreference } from '@/types/api';
@@ -23,7 +23,7 @@ import { applyTheme, THEME_PREF_KEY } from '@/lib/theme';
 import { api, ApiError } from '@/lib/api';
 import { initials, plural } from '@/lib/format';
 import { jobMatchesText, jobMatchesTokens } from '@/lib/jobSearch';
-import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser, ArrowLeft } from 'lucide-react';
+import { Briefcase, CheckCircle2, Plus, ChevronDown, UserCheck, BookUser } from 'lucide-react';
 
 const initialFilters: FilterState = {
   searchQuery: '',
@@ -457,15 +457,7 @@ export default function Home() {
               {tab === 'directory' ? (
                 <div className="inline-flex items-center gap-3">
                   {/* D50: zpět na nástěnku, stejně jako v profilu (D39) */}
-                  <button
-                    type="button"
-                    onClick={goBoard}
-                    aria-label="Zpět na nástěnku"
-                    title="Zpět na nástěnku"
-                    className={`${secondaryBtn} w-10 !px-0`}
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
+                  <BackToBoardButton onClick={goBoard} />
                   <h2 className="inline-flex items-center gap-2.5 font-serif text-xl sm:text-2xl font-bold text-[#111111] dark:text-white">
                     <BookUser className="w-5 h-5 sm:w-6 sm:h-6" />
                     <span>Adresář</span>

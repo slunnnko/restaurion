@@ -1,5 +1,6 @@
 import { badJson, jsonResponse, loadOwnProfile, noDb, rateLimit, readJson, requireUser } from './_shared.ts';
 import type { PagesContext } from './_shared.ts';
+import { stripTitles } from '../../src/lib/names.ts';
 import {
   groupLicenceError,
   isDirectoryGroup,
@@ -68,6 +69,9 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
     if ('lastName' in body) last = str(body.lastName);
     if ('companyName' in body) company = str(body.companyName);
     Object.assign(errors, validateNameParts(first, last, company));
+    // D52: titles do not belong in names; company name stays untouched.
+    first = stripTitles(first);
+    last = stripTitles(last);
     set('first_name', first);
     set('last_name', last);
     set('company_name', company);

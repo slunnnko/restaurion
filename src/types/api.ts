@@ -40,6 +40,8 @@ export interface PublicPerson {
   licenceNumber?: string; // self-declared; checked automatically against the MK ČR registry (D49)
   /** Set only when the registry has the number AND the name matches (public data, also for anonymous viewers). */
   licenceVerified?: true;
+  /** D52: the last registry check definitively failed (not_found / name_mismatch / ambiguous / taken). Never set for unchecked or 'unavailable'. */
+  licenceUnverified?: true;
   licenceScope?: string[]; // permit scopes from the registry
   licenceRegistryUrl?: string; // `${base}/rejstrik/<id>`
   licenceRegistryName?: string; // holder name in the registry (only when verified)
@@ -119,7 +121,7 @@ export interface PublicJob {
     contactedAt?: string;
   };
   createdAt: string;
-  poster: { id: string; name: string; group: DirectoryGroup; licenceVerified?: true; licenceRegistryName?: string };
+  poster: { id: string; name: string; group: DirectoryGroup; licenceVerified?: true; licenceUnverified?: true; licenceRegistryName?: string };
   interestedCount: number; // pending + accepted engagements
   /** Author only (D43): declined + withdrawn engagements, which stay listed in `Zájemci`. */
   endedCount?: number;

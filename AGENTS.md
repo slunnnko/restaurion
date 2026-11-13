@@ -42,7 +42,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
 - Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
-- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Číslo povolení uvádí uživatel sám a server ho automaticky porovná s veřejným Rejstříkem restaurátorů MK ČR (číslo + jméno, D49; `functions/api/_lib/rrkp.ts`); výsledek je jen informativní (VOP §3).
+- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Číslo povolení uvádí uživatel sám a server ho automaticky porovná s veřejným Rejstříkem restaurátorů MK ČR (číslo + jméno, D49; `functions/api/_lib/rrkp.ts`); výsledek je jen informativní (VOP §3). Tituly nepatří do jmen (D52, `src/lib/names.ts` `stripTitles`: profil je ukládá bez titulů, porovnání je ignoruje). Značka `MK` na kartě a v adresáři: zelená jen při ověření v rejstříku, oranžová (`licenceUnverified`) při neúspěšné kontrole (`not_found`, `name_mismatch`, `ambiguous`, `taken`); neověřeno ani nedostupno nemá žádnou.
 
 ## 3. Struktura projektu
 
