@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  applyOwnership,
   checkLicence,
   licenceRecheckNeeded,
   nameMatches,
@@ -117,4 +118,12 @@ test('licenceRecheckNeeded: number, name and no-op saves', () => {
   const noNumber = { ...before, licenceNumber: null };
   assert.equal(licenceRecheckNeeded(noNumber, { ...noNumber, lastName: 'Novák' }), false, 'name changed without number');
   assert.equal(licenceRecheckNeeded(before, { ...before }), false, 'nothing changed');
+});
+
+test('applyOwnership: a verified record held by another profile becomes taken', () => {
+  const ok = { result: 'verified' as const, registryId: '1', registryName: 'X', scope: ['a'] };
+  assert.deepEqual(applyOwnership(ok, true), { result: 'taken' });
+  assert.equal(applyOwnership(ok, false), ok);
+  const nf = { result: 'not_found' as const };
+  assert.equal(applyOwnership(nf, true), nf);
 });

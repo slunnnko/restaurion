@@ -1,7 +1,7 @@
 // Automatic licence check against the public MK ČR restorer registry (D49). Pure parsers + one check function.
 import type { Env } from '../_shared.ts';
 
-export type LicenceCheckResult = 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'unavailable';
+export type LicenceCheckResult = 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'taken' | 'unavailable';
 
 export const DEFAULT_RRKP_BASE_URL = 'https://rrkp.mkcr.cz';
 const MAX_LIST_IDS = 5;
@@ -105,6 +105,7 @@ export function nameMatches(registryName: string, firstName: string, lastName: s
 export interface LicenceCheckOutcome {
   result: LicenceCheckResult;
   registryId?: string;
+  registryName?: string;
   scope?: string[];
 }
 
@@ -141,7 +142,7 @@ export async function checkLicence(args: {
       if (!detail.name || detail.permits.length === 0) return { result: 'unavailable' };
       if (!detail.permits.some((p) => licenceNumbersEqual(p.number, number))) continue;
       if (nameMatches(detail.name, args.firstName, args.lastName)) {
-        return { result: 'verified', registryId: id, scope: [...new Set(detail.permits.map((p) => p.scope))] };
+        return { result: 'verified', registryId: id, registryName: detail.name, scope: [...new Set(detail.permits.map((p) => p.scope))] };
       }
       nameMismatch = true;
     }
@@ -150,6 +151,11 @@ export async function checkLicence(args: {
     console.error('Kontrola licence selhala:', err);
     return { result: 'unavailable' };
   }
+}
+
+/** One registry record can be verified for one profile only: a 'verified' outcome whose record another profile already holds becomes 'taken'. */
+export function applyOwnership(out: LicenceCheckOutcome, takenByOther: boolean): LicenceCheckOutcome {
+  return out.result === 'verified' && takenByOther ? { result: 'taken' } : out;
 }
 
 /** Runs the check for one profile and stores the outcome. Never throws for registry problems. */
@@ -168,24 +174,36 @@ export async function runLicenceCheck(
     await db
       .prepare(
         `UPDATE profiles SET licence_verified = 0, licence_checked_at = NULL, licence_check_result = NULL,
-           licence_scope = NULL, licence_registry_id = NULL WHERE id = ?`
+           licence_scope = NULL, licence_registry_id = NULL, licence_registry_name = NULL WHERE id = ?`
       )
       .bind(userId)
       .run();
     return;
   }
-  const out = await checkLicence({
+  const checked = await checkLicence({
     number: row.licence_number,
     firstName: row.first_name ?? '',
     lastName: row.last_name ?? '',
     fetchFn,
     baseUrl: rrkpBase(env),
   });
+  let takenByOther = false;
+  if (checked.result === 'verified' && checked.registryId) {
+    const other = await db
+      .prepare(`SELECT id FROM profiles WHERE id <> ? AND licence_verified = 1 AND licence_registry_id = ? LIMIT 1`)
+      .bind(userId, checked.registryId)
+      .first<{ id: string }>();
+    takenByOther = Boolean(other);
+  }
+  const out = applyOwnership(checked, takenByOther);
+  // The writes are conditional on the values that were checked: a concurrent profile edit wins and the stale result is dropped.
+  const unchanged = `id = ? AND licence_number = ? AND first_name = ? AND last_name = ?`;
+  const guard = [userId, row.licence_number, row.first_name ?? '', row.last_name ?? ''];
   if (out.result === 'unavailable') {
     await db
       // licence_checked_at stays untouched, so the cron retries it on its next run.
-      .prepare(`UPDATE profiles SET licence_check_result = 'unavailable' WHERE id = ?`)
-      .bind(userId)
+      .prepare(`UPDATE profiles SET licence_check_result = 'unavailable' WHERE ${unchanged}`)
+      .bind(...guard)
       .run();
     return;
   }
@@ -193,8 +211,15 @@ export async function runLicenceCheck(
   await db
     .prepare(
       `UPDATE profiles SET licence_verified = ?, licence_check_result = ?, licence_scope = ?, licence_registry_id = ?,
-         licence_checked_at = datetime('now') WHERE id = ?`
+         licence_registry_name = ?, licence_checked_at = datetime('now') WHERE ${unchanged}`
     )
-    .bind(ok ? 1 : 0, out.result, ok ? JSON.stringify(out.scope ?? []) : null, ok ? out.registryId ?? null : null, userId)
+    .bind(
+      ok ? 1 : 0,
+      out.result,
+      ok ? JSON.stringify(out.scope ?? []) : null,
+      ok ? out.registryId ?? null : null,
+      ok ? out.registryName ?? null : null,
+      ...guard
+    )
     .run();
 }

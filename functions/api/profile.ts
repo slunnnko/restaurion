@@ -178,6 +178,7 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
         'licence_verified = 0',
         'licence_scope = NULL',
         'licence_registry_id = NULL',
+        'licence_registry_name = NULL',
         'licence_check_result = NULL',
         'licence_checked_at = NULL'
       );

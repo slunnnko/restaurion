@@ -42,6 +42,7 @@ export interface PublicPerson {
   licenceVerified?: true;
   licenceScope?: string[]; // permit scopes from the registry
   licenceRegistryUrl?: string; // `${base}/rejstrik/<id>`
+  licenceRegistryName?: string; // holder name in the registry (only when verified)
 }
 
 export interface ContactInfo {
@@ -175,10 +176,11 @@ export interface OwnProfile extends PublicPerson {
   facebook?: string;
   /** Result of the last registry check (only when a licence number is saved and was checked). */
   licenceCheck?: {
-    result: 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'unavailable';
+    result: 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'taken' | 'unavailable';
     checkedAt?: string;
     scope?: string[];
     registryUrl?: string;
+    registryName?: string;
   };
   blocks: UnavailabilityBlock[]; // only blocks with dateTo >= today
   booked: BookedJob[]; // accepted engagements with job dateTo >= today

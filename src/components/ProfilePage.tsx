@@ -585,6 +585,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       <BadgeCheck className="w-4 h-4 shrink-0" />
                       Nalezeno v rejstříku MK ČR
                     </span>
+                    {user.licenceCheck.registryName && (
+                      <p className="text-xs font-medium text-stone-700 dark:text-stone-300 break-words">
+                        Nalezeno v rejstříku MK ČR: {user.licenceCheck.registryName}
+                      </p>
+                    )}
                     {user.licenceCheck.registryUrl && (
                       <div>
                         <a
@@ -613,6 +618,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         ? 'Pro ověření vyplň jméno a příjmení restaurátora, na kterého je povolení vydané.'
                         : 'Číslo v rejstříku je, ale jméno nesouhlasí s profilem.')}
                     {user.licenceCheck.result === 'ambiguous' && 'Zadej celé číslo povolení (č.j.).'}
+                    {user.licenceCheck.result === 'taken' &&
+                      'Toto povolení už má v Restaurionu ověřený jiný profil. Pokud je to chyba, napiš nám.'}
                     {user.licenceCheck.result === 'unavailable' && 'Rejstřík teď neodpovídá, zkus to později.'}
                   </span>
                 )}

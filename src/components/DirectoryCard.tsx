@@ -95,6 +95,11 @@ export const DirectoryCard: React.FC<DirectoryCardProps> = ({ entry, onLogin }) 
                 'Nalezeno v rejstříku MK ČR'
               )}
             </span>
+            {entry.licenceRegistryName && (
+              <p className="text-stone-700 dark:text-stone-300 break-words">
+                Nalezeno v rejstříku MK ČR: {entry.licenceRegistryName}
+              </p>
+            )}
             {entry.licenceScope && entry.licenceScope.length > 0 && (
               <p className="text-stone-700 dark:text-stone-300 break-words">{entry.licenceScope.join('; ')}</p>
             )}

@@ -328,19 +328,20 @@ export interface ProfileRow {
   licence_verified?: number;
   licence_scope?: string | null;
   licence_registry_id?: string | null;
+  licence_registry_name?: string | null;
   licence_checked_at?: string | null;
   licence_check_result?: string | null;
 }
 
 export const PROFILE_COLUMNS =
-  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook, licence_verified, licence_scope, licence_registry_id, licence_checked_at, licence_check_result';
+  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook, licence_verified, licence_scope, licence_registry_id, licence_registry_name, licence_checked_at, licence_check_result';
 
 export function mapGroup(value: string | null | undefined): DirectoryGroup {
   return value === 'firm' || value === 'licensed' ? value : 'unlicensed';
 }
 
 function isLicenceCheckResult(v: unknown): v is LicenceCheckResult {
-  return v === 'verified' || v === 'not_found' || v === 'name_mismatch' || v === 'ambiguous' || v === 'unavailable';
+  return v === 'verified' || v === 'not_found' || v === 'name_mismatch' || v === 'ambiguous' || v === 'taken' || v === 'unavailable';
 }
 
 export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'>): PublicPerson {
@@ -358,6 +359,7 @@ export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'
           licenceVerified: true as const,
           licenceScope: safeJsonParse<string[]>(row.licence_scope ?? null, []),
           ...(row.licence_registry_id ? { licenceRegistryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
+          ...(row.licence_registry_name ? { licenceRegistryName: row.licence_registry_name } : {}),
         }
       : {}),
   };
@@ -499,6 +501,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
               ? {
                   scope: safeJsonParse<string[]>(row.licence_scope ?? null, []),
                   ...(row.licence_registry_id ? { registryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
+                  ...(row.licence_registry_name ? { registryName: row.licence_registry_name } : {}),
                 }
               : {}),
           },
