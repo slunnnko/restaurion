@@ -432,9 +432,8 @@ export default function Home() {
                 </button>
                 {isHeroInfoOpen && (
                   <p className="text-xs sm:text-base mb-4 sm:mb-5 text-stone-900 dark:text-stone-200 font-semibold leading-relaxed max-w-3xl">
-                    Restaurion propojuje licencované restaurátory a umělecké řemeslníky v ČR. Zadavatel vloží zakázku s
-                    termínem, každý řemeslník v oboru dostane upozornění a může se přihlásit. Můžeš se i nabídnout a
-                    v Adresáři najít firmy, restaurátory a řemeslníky. Kontakty vidí každý přihlášený.
+                    Licencovaní restaurátoři zde poptávají zručné subdodavatele, řemeslníci nacházejí odborné zaštítění
+                    dle památkového zákona. Propojujeme restaurátory napříč obory.
                   </p>
                 )}
 
