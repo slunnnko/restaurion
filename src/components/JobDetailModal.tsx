@@ -3,18 +3,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
-import { formatRange, rewardDisplay } from '@/lib/format';
+import { formatRange, placeLabel, rewardDisplay, rewardScopeItems } from '@/lib/format';
 import { jobPhotoList, LEGACY_PHOTO_ID } from '@/lib/photos';
 import { MAX_PHOTO_CAPTION } from '@/lib/limits';
 import { ApiError } from '@/lib/api';
 import { deleteJobPhoto, setJobPhotoCaption } from '@/lib/image';
-import { ContactsOrLogin } from './ui';
-import { MapPin, Calendar, Coins, Church, ArrowRight, ChevronLeft, ChevronRight, X, Trash2, Pencil } from 'lucide-react';
+import { ContactsOrLogin, IconTip, PosterByline } from './ui';
+import { MapPin, Calendar, Coins, Church, Check, ArrowRight, ChevronLeft, ChevronRight, X, Trash2, Pencil } from 'lucide-react';
 
 export interface JobDetailTypeInfo {
   label: string;
-  badgeClass: string;
-  iconColorClass: string;
+  tileClass: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
@@ -54,6 +53,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
   const [index, setIndex] = useState(Math.min(Math.max(startIndex, 0), Math.max(jobPhotoList(jobProp).length - 1, 0)));
   const isOffer = job.jobType === 'craftsman_available';
   const reward = rewardDisplay(job);
+  const scopeItems = rewardScopeItems(reward.scope);
   const BadgeIcon = typeInfo.icon;
   const isCulturalMonument = job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
   const created = formatCreated(job.createdAt);
@@ -138,29 +138,45 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex flex-wrap items-center gap-2 mb-3.5 pr-12">
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${typeInfo.badgeClass}`}>
-            <BadgeIcon className={`w-3.5 h-3.5 ${typeInfo.iconColorClass}`} />
-            <span>{typeInfo.label}</span>
-          </span>
-          {isCulturalMonument && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[#FEF08A] text-[#111111] border-2 border-[#111111]">
-              <Church className="w-3.5 h-3.5 text-[#111111] shrink-0" />
-              <span>{job.monumentStatus === 'national_monument' ? 'Národní kulturní památka' : 'Kulturní památka'}</span>
+        <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} className="mb-3 pr-12" />
+
+        <div className="flex items-start gap-3 mb-3">
+          <IconTip text={typeInfo.label} className="mt-0.5">
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${typeInfo.tileClass}`}>
+              <BadgeIcon className="w-[18px] h-[18px]" />
             </span>
-          )}
+          </IconTip>
+          <h2 id="job-detail-title" className="font-serif font-bold text-xl sm:text-2xl text-[#111111] dark:text-white leading-snug break-words min-w-0">
+            {job.title}
+          </h2>
         </div>
 
-        <h2 id="job-detail-title" className="font-serif font-bold text-xl sm:text-2xl text-[#111111] dark:text-white leading-snug break-words mb-3">
-          {job.title}
-        </h2>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {job.crafts.map((craft) => (
+            <span
+              key={craft}
+              className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-500"
+            >
+              {labelFor(craft)}
+            </span>
+          ))}
+        </div>
 
-        {job.monumentName && (
-          <div className="text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] bg-[#FEF08A]/50 dark:bg-[#FEF08A]/10 px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-[#FEF08A]/40 mb-3 flex flex-wrap items-center gap-1.5">
-            <Church className="w-3.5 h-3.5 shrink-0" />
-            <span className="break-words min-w-0">{job.monumentName}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-xs min-w-0 mb-4">
+          {isCulturalMonument ? (
+            <IconTip text={job.monumentStatus === 'national_monument' ? 'Národní kulturní památka' : 'Kulturní památka'}>
+              <span className="w-6 h-6 rounded-md flex items-center justify-center bg-[#FEF08A] border-2 border-[#111111] dark:border-[#FEF08A]/60">
+                <Church className="w-3.5 h-3.5 text-[#111111]" />
+              </span>
+            </IconTip>
+          ) : (
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
+          )}
+          <span className="font-extrabold text-[#111111] dark:text-white break-words min-w-0">
+            {placeLabel(job.monumentName, job.city)}
+            {job.region ? `, ${job.region}` : ''}
+          </span>
+        </div>
 
         {photos.length > 0 && (
           <div className="mb-4">
@@ -268,48 +284,37 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
           <p className="text-sm text-stone-800 dark:text-stone-300 mb-4 leading-relaxed font-medium whitespace-pre-line break-words">{job.description}</p>
         )}
 
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {job.crafts.map((craft) => (
-            <span
-              key={craft}
-              className="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-[#FFFDF7] dark:bg-[#262933] text-[#111111] dark:text-stone-200 border-2 border-[#111111] dark:border-stone-500"
-            >
-              {labelFor(craft)}
-            </span>
-          ))}
+        <div className="flex items-center gap-1.5 text-xs text-stone-800 dark:text-stone-300 mb-3">
+          <Calendar className="w-3.5 h-3.5 shrink-0" />
+          <span className="font-semibold">
+            {isOffer ? 'Volno' : 'Termín'}: {formatRange(job.dateFrom, job.dateTo)}
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-stone-800 dark:text-stone-300 mb-3">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-extrabold text-[#111111] dark:text-white">
-              {job.city}
-              {job.region ? `, ${job.region}` : ''}
-            </span>
+        <div className="rounded-xl border-2 border-[#111111] dark:border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/60 p-4 mb-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-emerald-300/80">{isOffer ? 'Moje sazba' : 'Odměna'}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 shrink-0" />
-            <span className="font-semibold">
-              {isOffer ? 'Volno' : 'Termín'}: {formatRange(job.dateFrom, job.dateTo)}
-            </span>
-          </div>
+          <div className="font-serif text-xl font-bold text-emerald-950 dark:text-emerald-200 break-words">{reward.headline}</div>
+          {scopeItems.length > 0 && (
+            <>
+              <div className="mt-3 mb-2 text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-emerald-300/80">Co je v ceně</div>
+              <ul className="flex flex-col gap-2">
+                {scopeItems.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-[13.5px] font-semibold leading-snug text-stone-900 dark:text-emerald-100/90">
+                    <span className="w-5 h-5 mt-px rounded-md border-2 border-[#111111] dark:border-stone-400 bg-white dark:bg-[#252834] flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3" />
+                    </span>
+                    <span className="break-words min-w-0">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
 
-        <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-[#111111] dark:border-emerald-500/50 text-xs mb-4">
-          <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
-          <div className="min-w-0 flex-1 leading-snug">
-            <span className="text-[11px] font-bold text-stone-600 dark:text-emerald-300/80 mr-1.5">{isOffer ? 'Moje sazba:' : 'Odměna:'}</span>
-            <span className="font-extrabold text-emerald-950 dark:text-emerald-200 break-words">{reward.headline}</span>
-            {reward.scope && (
-              <p className="mt-1 font-medium text-stone-800 dark:text-emerald-100/90 whitespace-pre-line break-words">{reward.scope}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-1 text-xs min-w-0">
-          <span className="font-extrabold text-[#111111] dark:text-white break-words">{job.poster.name}</span>
-          {created && <span className="ml-2 font-semibold text-stone-600 dark:text-stone-400">Přidáno {created}</span>}
-        </div>
+        {created && <div className="mb-1 text-xs font-semibold text-stone-600 dark:text-stone-400">Přidáno {created}</div>}
         {!job.isMine && (
           <div className="mt-2">
             <ContactsOrLogin contact={job.posterContact} onLogin={onLogin} />

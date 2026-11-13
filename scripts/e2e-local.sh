@@ -185,6 +185,12 @@ echo "$BODY" | grep -q '@'; eq "no '@' in unauthenticated /api/jobs" "$?" 1
 echo "$BODY" | grep -qE '777|603'; eq "no phone in unauthenticated /api/jobs" "$?" 1
 api w2 GET /api/jobs
 eq "logged-in worker sees poster contact without any acceptance" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .posterContact.email')" "poster@e2e.test"
+eq "job poster without a verified licence has no licenceVerified (D51)" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .poster | has("licenceVerified")')" false
+d1 --command "UPDATE profiles SET licence_number = '15.077/91', licence_verified = 1, licence_registry_name = 'Registr Jméno' WHERE email = 'poster@e2e.test';" > /dev/null
+api w2 GET /api/jobs
+eq "verified poster: licenceVerified + registry name on the job (D51)" "$(echo "$BODY" | jq -r '.jobs[] | select(.id=="'$J1'") | .poster | "\(.licenceVerified)/\(.licenceRegistryName)"')" "true/Registr Jméno"
+echo "$BODY" | grep -q '15.077/91'; eq "licence number not in /api/jobs (D51)" "$?" 1
+d1 --command "UPDATE profiles SET licence_number = NULL, licence_verified = 0, licence_registry_name = NULL WHERE email = 'poster@e2e.test';" > /dev/null
 
 api poster POST /api/engagements/$E1 '{"action":"accept"}'
 eq "poster accepts w1" "$CODE" 200

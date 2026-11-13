@@ -84,3 +84,22 @@ export function unreadLabel(n: number): string {
   if (n >= 2 && n <= 4) return `${n} nová upozornění`;
   return `${n} nových upozornění`;
 }
+
+const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** D51: place line of a card: the monument name, plus the city only when the name does not contain it yet. */
+export function placeLabel(monumentName: string | null | undefined, city: string): string {
+  const name = (monumentName ?? '').trim();
+  const town = (city ?? '').trim();
+  if (!name) return town;
+  if (!town || fold(name).includes(fold(town))) return name;
+  return `${name}, ${town}`;
+}
+
+/** D51: "Co je v ceně" as a list: one item per line; a single line with `;` is split by `;`. */
+export function rewardScopeItems(scope: string | null | undefined): string[] {
+  const clean = (parts: string[]) => parts.map((p) => p.trim()).filter(Boolean);
+  const lines = clean((scope ?? '').split(/\r?\n/));
+  if (lines.length === 1 && lines[0].includes(';')) return clean(lines[0].split(';'));
+  return lines;
+}

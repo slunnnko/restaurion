@@ -119,7 +119,7 @@ export interface PublicJob {
     contactedAt?: string;
   };
   createdAt: string;
-  poster: { id: string; name: string; group: DirectoryGroup };
+  poster: { id: string; name: string; group: DirectoryGroup; licenceVerified?: true; licenceRegistryName?: string };
   interestedCount: number; // pending + accepted engagements
   /** Author only (D43): declined + withdrawn engagements, which stay listed in `Zájemci`. */
   endedCount?: number;

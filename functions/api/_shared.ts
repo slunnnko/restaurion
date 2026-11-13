@@ -546,6 +546,9 @@ export interface JobRow {
   expires_at: string | null;
   a_name: string;
   a_group: string;
+  a_licence_number: string | null;
+  a_licence_verified: number | null;
+  a_licence_registry_name: string | null;
   a_email: string;
   a_phone: string | null;
   a_portfolio_url: string | null;
@@ -565,6 +568,7 @@ export const JOB_SELECT = `
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
          a.name AS a_name, a.directory_group AS a_group,
+         a.licence_number AS a_licence_number, a.licence_verified AS a_licence_verified, a.licence_registry_name AS a_licence_registry_name,
          a.email AS a_email, a.phone AS a_phone, a.portfolio_url AS a_portfolio_url, a.instagram AS a_instagram,
          a.whatsapp AS a_whatsapp, a.facebook AS a_facebook,
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count,
@@ -645,6 +649,10 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
       id: row.author_id,
       name: row.a_name,
       group: mapGroup(row.a_group),
+      // D51: only the registry-verified flag and holder name (public since D49); never the number.
+      ...(row.a_licence_verified && row.a_licence_number
+        ? { licenceVerified: true as const, ...(row.a_licence_registry_name ? { licenceRegistryName: row.a_licence_registry_name } : {}) }
+        : {}),
     },
     interestedCount: Number(row.interested_count ?? 0),
     ...(viewer

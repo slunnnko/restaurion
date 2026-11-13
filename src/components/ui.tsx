@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock, Handshake } from 'lucide-react';
 import { ContactInfo } from '@/types/api';
+import { initials } from '@/lib/format';
 
 // Sdílené třídy podle docs/UI-DESIGN.md (2px #111111 rámečky, tvrdé stíny, dark: varianty).
 export const inputCls =
@@ -294,3 +295,39 @@ export const UnreadBadge: React.FC<{ count: number }> = ({ count }) =>
       {count > 99 ? '99+' : count}
     </span>
   );
+
+/**
+ * D51: small tooltip for an icon (type tile, monument, licence mark). Focusable, so it opens on hover, keyboard focus
+ * and tap; `text` is also the accessible name. CSS only (group-hover / group-focus).
+ */
+export const IconTip: React.FC<{ text: string; children: React.ReactNode; className?: string }> = ({ text, children, className = '' }) => (
+  <span tabIndex={0} role="img" aria-label={text} className={`group/tip relative inline-flex shrink-0 outline-hidden focus-visible:ring-2 focus-visible:ring-[#FF5733] rounded-md ${className}`}>
+    {children}
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-max max-w-[16rem] rounded-lg border-2 border-[#111111] dark:border-stone-400 bg-[#111111] dark:bg-[#252834] px-2.5 py-1.5 text-left text-[11px] font-bold leading-snug text-white shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000] group-hover/tip:block group-focus/tip:block"
+    >
+      {text}
+    </span>
+  </span>
+);
+
+/** D51: byline of a listing: initials avatar, poster name and the MK mark only when the registry check found the licence (D49). */
+export const PosterByline: React.FC<{ name: string; verified?: boolean; registryName?: string; className?: string }> = ({ name, verified = false, registryName, className = '' }) => (
+  <div className={`flex items-center gap-2.5 min-w-0 ${className}`}>
+    <span
+      aria-hidden="true"
+      className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center bg-[#FEF08A] text-[#111111] border-2 border-[#111111] dark:border-stone-500 text-xs font-extrabold"
+    >
+      {initials(name)}
+    </span>
+    <span className="text-[15px] font-extrabold leading-tight text-[#111111] dark:text-white break-words min-w-0">{name}</span>
+    {verified && (
+      <IconTip text={`Nalezeno v rejstříku MK ČR${registryName ? `: ${registryName}` : ''}`}>
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-emerald-600 text-white border-2 border-[#111111] dark:border-stone-500 text-[10px] font-extrabold">
+          MK
+        </span>
+      </IconTip>
+    )}
+  </div>
+);

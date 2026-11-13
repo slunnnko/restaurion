@@ -5,8 +5,8 @@ import { PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { jobPhotoList } from '@/lib/photos';
-import { formatRange, formatShortDay, pluralDays, rewardDisplay } from '@/lib/format';
-import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, primaryBtn, secondaryBtn, dangerBtn } from './ui';
+import { formatRange, formatShortDay, placeLabel, pluralDays, rewardDisplay } from '@/lib/format';
+import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, IconTip, PosterByline, primaryBtn, secondaryBtn, dangerBtn } from './ui';
 import { engagementBadge } from './engagementStatus';
 import { ActionMenu, MenuAction, iconBtn } from './ActionMenu';
 import { InterestedList, PersonChip } from './InterestedList';
@@ -187,9 +187,6 @@ export const JobCard: React.FC<JobCardProps> = ({
   if (canDelete) {
     actions.push({ key: 'delete', label: 'Smazat', icon: Trash2, danger: true, onSelect: handleDelete, disabled: busy });
   }
-  // Místo vpravo nahoře pro ikonu, aby nepřekrývala odznaky.
-  const badgesPad = actions.length > 0 ? 'pr-11' : '';
-
   const endedBlock = endedEng ? (
     <div className="mb-2">
       <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1.5">Tvůj zájem</div>
@@ -229,11 +226,6 @@ export const JobCard: React.FC<JobCardProps> = ({
               : ''
       }`}
     >
-      {actions.length > 0 && (
-        <div className="absolute top-8 right-5 z-10">
-          <ActionMenu triggerIcon={Pencil} triggerLabel="Upravit inzerát" actions={actions} />
-        </div>
-      )}
       <div>
         <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
         {job.imageUrl && (
@@ -258,46 +250,18 @@ export const JobCard: React.FC<JobCardProps> = ({
           </button>
         )}
 
-        <div className="p-5 pb-0">
-          <div className={`flex flex-wrap items-center gap-2 mb-3.5 ${badgesPad}`}>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs ${info.badgeClass}`}>
-              <BadgeIcon className={`w-3.5 h-3.5 ${info.iconColorClass}`} />
-              <span>{info.label}</span>
-            </span>
-
-            {isCulturalMonument && (
-              <span
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-[#FEF08A] text-[#111111] border-2 border-[#111111]"
-                title="Vyžaduje odpovědnost a podpis licencovaného restaurátora dle zákona č. 20/1987 Sb."
-              >
-                <Church className="w-3.5 h-3.5 text-[#111111] shrink-0" />
-                <span>{job.monumentStatus === 'national_monument' ? 'Národní kulturní památka' : 'Kulturní památka'}</span>
-              </span>
-            )}
-
-            {myInterest && (
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold border-2 border-[#111111] dark:border-stone-400 ${
-                  myInterest === 'accepted'
-                    ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-950 dark:text-emerald-200'
-                    : 'bg-[#FEF08A] text-[#111111]'
-                }`}
-              >
-                {myInterest === 'accepted' ? (isOffer ? 'Poptáno' : 'Přijat') : isOffer ? 'Poptáno' : isInvitedToMe ? 'Pozvánka' : 'Mám zájem'}
-              </span>
-            )}
-
-            {job.isMine && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-white dark:bg-[#252834] text-[#111111] dark:text-white border-2 border-[#111111] dark:border-stone-400">
-                Můj inzerát
-              </span>
-            )}
+        <div className="p-5 pb-0 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <PosterByline name={job.poster.name} verified={job.poster.licenceVerified === true} registryName={job.poster.licenceRegistryName} className="flex-1" />
+            {actions.length > 0 && <ActionMenu triggerIcon={Pencil} triggerLabel="Upravit inzerát" actions={actions} />}
           </div>
 
-          <div className="flex items-start gap-3.5 mb-3">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${info.tileClass}`} title={info.label}>
-              <BadgeIcon className="w-5 h-5" />
-            </div>
+          <div className="flex items-start gap-3">
+            <IconTip text={info.label} className="mt-0.5">
+              <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${info.tileClass}`}>
+                <BadgeIcon className="w-[18px] h-[18px]" />
+              </span>
+            </IconTip>
             <h3 className="font-serif font-bold text-lg text-[#111111] dark:text-white leading-snug break-words min-w-0">
               <button type="button" onClick={() => setDetail({ index: 0 })} className="text-left hover:underline cursor-pointer">
                 {job.title}
@@ -305,27 +269,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             </h3>
           </div>
 
-          {job.monumentName && (
-            <div className="text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] bg-[#FEF08A]/50 dark:bg-[#FEF08A]/10 px-3 py-1.5 rounded-xl border-2 border-[#111111] dark:border-[#FEF08A]/40 mb-3 flex flex-wrap items-center gap-1.5">
-              <Church className="w-3.5 h-3.5 shrink-0 text-[#111111] dark:text-[#FEF08A]" />
-              <span>{job.monumentName}</span>
-            </div>
-          )}
-
-          {job.description?.trim() && (
-            <div className="mb-4">
-              <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 leading-relaxed font-medium">{job.description}</p>
-              <button
-                type="button"
-                onClick={() => setDetail({ index: 0 })}
-                className="mt-1 text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] underline underline-offset-2 cursor-pointer"
-              >
-                Zobrazit celý inzerát
-              </button>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-1.5 mb-4">
+          <div className="flex flex-wrap gap-1.5">
             {job.crafts.map((craft) => (
               <span
                 key={craft}
@@ -335,21 +279,41 @@ export const JobCard: React.FC<JobCardProps> = ({
               </span>
             ))}
           </div>
+
+          <div className="flex items-center gap-2 text-xs min-w-0">
+            {isCulturalMonument ? (
+              <IconTip text={job.monumentStatus === 'national_monument' ? 'Národní kulturní památka' : 'Kulturní památka'}>
+                <span className="w-6 h-6 rounded-md flex items-center justify-center bg-[#FEF08A] border-2 border-[#111111] dark:border-[#FEF08A]/60">
+                  <Church className="w-3.5 h-3.5 text-[#111111]" />
+                </span>
+              </IconTip>
+            ) : (
+              <MapPin className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
+            )}
+            <span className="font-extrabold text-[#111111] dark:text-white break-words min-w-0">{placeLabel(job.monumentName, job.city)}</span>
+          </div>
+
+          {job.description?.trim() && (
+            <div className="mb-4">
+              <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-2 leading-relaxed font-medium">{job.description}</p>
+              <button
+                type="button"
+                onClick={() => setDetail({ index: 0 })}
+                className="mt-1 text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] underline underline-offset-2 cursor-pointer"
+              >
+                Zobrazit celý inzerát
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="p-5 pt-3.5 border-t-2 border-[#111111]/15 dark:border-stone-700 bg-[#FFFDF7]/60 dark:bg-[#15171E]">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 text-xs text-stone-800 dark:text-stone-300 mb-2.5">
-          <div className="flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
-            <span className="font-extrabold text-[#111111] dark:text-white">{job.city}</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
-            <span className="font-semibold">
-              {isOffer ? 'Volno' : 'Termín'}: {formatRange(job.dateFrom, job.dateTo)}
-            </span>
-          </div>
+        <div className="flex items-center gap-1.5 text-xs text-stone-800 dark:text-stone-300 mb-2.5">
+          <Calendar className="w-3.5 h-3.5 text-[#111111] dark:text-stone-400 shrink-0" />
+          <span className="font-semibold">
+            {isOffer ? 'Volno' : 'Termín'}: {formatRange(job.dateFrom, job.dateTo)}
+          </span>
         </div>
 
         {!isOffer && !job.isMine && job.myBusyDays !== undefined && job.myBusyDays > 0 && (
@@ -358,7 +322,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
 
-        {/* Odměna – vždy plně čitelná, nikdy se nezkracuje */}
+        {/* D51: na kartě jen suma, rozsah („Co je v ceně“) je v detailu */}
         <div className="flex items-start gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border-2 border-[#111111] dark:border-emerald-500/50 text-xs mb-3.5">
           <Coins className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
           <div className="min-w-0 flex-1 leading-snug">
@@ -366,14 +330,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <span className="font-extrabold text-emerald-950 dark:text-emerald-200 break-words">
               {reward.headline}
             </span>
-            {reward.scope && (
-              <p className="mt-1 font-medium text-stone-800 dark:text-emerald-100/90 whitespace-pre-line break-words">{reward.scope}</p>
-            )}
           </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 mb-2.5 text-xs min-w-0">
-          <span className="font-extrabold text-[#111111] dark:text-white truncate">{job.poster.name}</span>
         </div>
 
         {/* Kontakty zadavatele: přihlášený je vidí hned, anonym dostane tlačítko přihlášení */}

@@ -576,7 +576,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 </label>
                 <textarea
                   id="job-reward-scope"
-                  rows={3}
+                  rows={4}
                   required={rewardType === 'fixed'}
                   minLength={rewardType === 'fixed' ? 20 : undefined}
                   maxLength={1000}
@@ -585,6 +585,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                   onChange={(e) => setRewardScope(e.target.value)}
                   className={textareaCls}
                 />
+                <p className="mt-1 text-[11px] font-semibold text-stone-600 dark:text-stone-400">Každou položku napiš na nový řádek.</p>
                 <FieldError message={fieldErrors.rewardScope} />
               </div>
             </div>
