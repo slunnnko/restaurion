@@ -1,4 +1,4 @@
-import { JOB_SELECT, jsonResponse, mapJobRow, noDb } from '../../../_shared.ts';
+import { JOB_SELECT, jsonResponse, mapJobRow, noDb, rateLimit } from '../../../_shared.ts';
 import type { JobRow, PagesContext } from '../../../_shared.ts';
 import { NO_BUCKET, loadOwnJob, removeObject } from '../../../_lib/jobPhotos.ts';
 import { LEGACY_PHOTO_ID } from '../../../../../src/lib/photos.ts';
@@ -58,9 +58,13 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   } catch {
     return jsonResponse({ error: 'Neplatné tělo požadavku.' }, 400);
   }
+  if (!(await rateLimit(db, 'photo-caption-user', auth.userId, 60, 60))) {
+    return jsonResponse({ error: 'Příliš mnoho změn popisků. Zkus to za hodinu.' }, 429);
+  }
   const raw = (body as { caption?: unknown } | null)?.caption;
   if (typeof raw !== 'string') return validationResponse({ caption: 'Popisek musí být text.' });
-  const caption = raw.trim();
+  // eslint-disable-next-line no-control-regex
+  const caption = raw.replace(/[\u0000-\u001F\u007F]/g, ' ').trim();
   if (caption.length > MAX_PHOTO_CAPTION) return validationResponse({ caption: `Popisek může mít nejvýše ${MAX_PHOTO_CAPTION} znaků.` });
 
   const jobId = String(params.id);

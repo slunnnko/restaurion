@@ -21,9 +21,8 @@ import {
   secondaryBtn,
 } from './ui';
 import { INVITE_RESPOND_DAYS } from '@/lib/matching';
-import { MAX_DESCRIPTION, MAX_JOB_PHOTOS } from '@/lib/limits';
+import { MAX_DESCRIPTION, MAX_JOB_PHOTOS, MAX_PHOTO_CAPTION } from '@/lib/limits';
 import { jobPhotoList, LEGACY_PHOTO_ID } from '@/lib/photos';
-import { MAX_PHOTO_CAPTION } from '@/lib/limits';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, CheckCircle2, UserCheck, X } from 'lucide-react';
 
@@ -173,14 +172,28 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const syncPhotos = async (jobId: string): Promise<string> => {
     try {
       for (const id of removedIds) await deleteJobPhoto(jobId, id);
-      for (const p of changedCaptions) await setJobPhotoCaption(jobId, p.id, captionOf(p));
-      for (const p of newPhotos) {
-        const job = await uploadJobPhoto(jobId, p.blob);
-        const caption = p.caption.trim();
-        const added = job.photos?.[job.photos.length - 1];
-        if (caption && added) await setJobPhotoCaption(jobId, added.id, caption);
+      let captionFailed = false;
+      for (const p of changedCaptions) {
+        try {
+          await setJobPhotoCaption(jobId, p.id, captionOf(p));
+        } catch {
+          captionFailed = true;
+        }
       }
-      return '';
+      for (const p of newPhotos) {
+        const { photoId } = await uploadJobPhoto(jobId, p.blob);
+        // Uploaded: drop it from the pending list now, so a retry never uploads it twice.
+        setNewPhotos((cur) => cur.filter((x) => x.key !== p.key));
+        const caption = p.caption.trim();
+        if (caption && photoId) {
+          try {
+            await setJobPhotoCaption(jobId, photoId, caption);
+          } catch {
+            captionFailed = true;
+          }
+        }
+      }
+      return captionFailed ? 'Inzerát je uložený, popisek některé fotky se nepodařilo uložit.' : '';
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) return err.message;
       return 'Inzerát je uložený, fotku se nepodařilo nahrát.';
@@ -593,16 +606,16 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
-{p.id !== LEGACY_PHOTO_ID && (
-                <input
-                  type="text"
-                  value={captionOf(p)}
-                  onChange={(e) => setCaptionEdits((cur) => ({ ...cur, [p.id]: e.target.value }))}
-                  maxLength={MAX_PHOTO_CAPTION}
-                  placeholder="Popisek (nepovinné)"
-                  aria-label="Popisek fotky"
-                  className="mt-1.5 w-24 sm:w-40 h-8 px-2 rounded-lg border-2 border-[#111111] dark:border-stone-500 bg-white dark:bg-[#252834] text-xs font-semibold text-[#111111] dark:text-white"
-                />
+                {p.id !== LEGACY_PHOTO_ID && (
+                  <input
+                    type="text"
+                    value={captionOf(p)}
+                    onChange={(e) => setCaptionEdits((cur) => ({ ...cur, [p.id]: e.target.value }))}
+                    maxLength={MAX_PHOTO_CAPTION}
+                    placeholder="Popisek (nepovinné)"
+                    aria-label="Popisek fotky"
+                    className="mt-1.5 w-24 sm:w-40 h-8 px-2 rounded-lg border-2 border-[#111111] dark:border-stone-500 bg-white dark:bg-[#252834] text-xs font-semibold text-[#111111] dark:text-white"
+                  />
                 )}
               </div>
             ))}

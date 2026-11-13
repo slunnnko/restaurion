@@ -317,7 +317,7 @@ export interface NotificationItem {
 //   fieldErrors.reason, D46). Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
 //   accepted workers get 'job_closed'; the author gets 'job_removed' with the reason (not when the admin is the author).
 //   Idempotent: an already deleted job → 200 (before the reason is checked). Owner PATCH on it → 404.
-// POST /api/jobs/:id/photos  (raw image bytes, owner) → { job }  adds ONE photo (D45): JPEG/PNG/WebP by magic bytes (else 400),
+// POST /api/jobs/:id/photos  (raw image bytes, owner) → { job, photoId }  adds ONE photo (photoId = the new photo's id, D47) (D45): JPEG/PNG/WebP by magic bytes (else 400),
 //   max 5 MB (413), max 6 photos per listing (409 'Inzerát už má 6 fotek.'), closed or deleted job 409, 401/403/404 like PATCH,
 //   429 (30/h), 503 { error } when R2 is not enabled.
 // DELETE /api/jobs/:id/photos/:photoId (owner) → { job } without that photo; unknown photo 404. 503 without R2.

@@ -34,6 +34,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   if (!type) return jsonResponse({ error: 'Povolené formáty jsou JPEG, PNG a WebP.' }, 400);
 
   const key = `jobs/${jobId}/${crypto.randomUUID()}.${PHOTO_EXT[type]}`;
+  const photoId = crypto.randomUUID().replace(/-/g, '');
   try {
     await bucket.put(key, bytes, { httpMetadata: { contentType: type } });
     try {
@@ -46,7 +47,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
              SELECT ?, ?, ?, COALESCE((SELECT MAX(position) + 1 FROM job_photos WHERE job_id = ?), 0)
              WHERE (SELECT COUNT(*) FROM job_photos WHERE job_id = ?) < ?`,
           )
-          .bind(crypto.randomUUID().replace(/-/g, ''), jobId, `${PHOTO_PREFIX}${key}`, jobId, jobId, MAX_JOB_PHOTOS),
+          .bind(photoId, jobId, `${PHOTO_PREFIX}${key}`, jobId, jobId, MAX_JOB_PHOTOS),
         // Touch only when the guarded INSERT really added the row (a refused 7th upload must not bump updated_at).
         db
           .prepare(`UPDATE jobs SET updated_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM job_photos WHERE job_id = ? AND url = ?)`)
@@ -61,7 +62,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       throw err;
     }
     const row = await db.prepare(`${JOB_SELECT} WHERE j.id = ?`).bind(jobId).first<JobRow>();
-    return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }) });
+    return jsonResponse({ job: mapJobRow(row as JobRow, { userId: auth.userId }), photoId });
   } catch (err) {
     console.error('Chyba při POST /api/jobs/:id/photos:', err);
     return jsonResponse({ error: 'Nepodařilo se uložit fotku.' }, 500);

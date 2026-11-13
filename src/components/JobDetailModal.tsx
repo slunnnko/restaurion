@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PublicJob } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, rewardDisplay } from '@/lib/format';
@@ -45,6 +45,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
   const [fresh, setFresh] = useState<{ base: PublicJob; job: PublicJob } | null>(null);
   const job = fresh && fresh.base === jobProp ? fresh.job : jobProp;
   const photos = jobPhotoList(job);
+  const captionInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,7 +62,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return; // the caption input handles its own Enter / Esc
+      if (captionInputRef.current && e.target === captionInputRef.current) return; // the caption input handles its own Enter / Esc
       if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowLeft') step(-1);
       else if (e.key === 'ArrowRight') step(1);
@@ -70,8 +71,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, step]);
 
-  const safeIndex = Math.min(index, Math.max(photos.length - 1, 0));
-  const current = photos[safeIndex];
+  const current = photos[index];
   const caption = current?.caption ?? '';
   const canCaption = canEdit && current !== undefined && current.id !== LEGACY_PHOTO_ID;
 
@@ -85,7 +85,9 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
     setBusy(true);
     setPhotoError('');
     try {
-      applyJob(await deleteJobPhoto(job.id, current.id));
+      const updated = await deleteJobPhoto(job.id, current.id);
+      setIndex((i) => Math.min(i, Math.max(jobPhotoList(updated).length - 1, 0)));
+      applyJob(updated);
       setEditing(false);
     } catch (err) {
       setPhotoError(errorText(err));
@@ -164,7 +166,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
           <div className="mb-4">
             <div className="relative rounded-2xl border-2 border-[#111111] dark:border-stone-500 bg-stone-200 dark:bg-[#252834] overflow-hidden flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={current?.url} alt={caption || job.title} className="max-h-[70vh] w-full object-contain" />
+              <img src={current?.url} alt={`${caption || job.title}${photos.length > 1 ? ` (${index + 1}/${photos.length})` : ''}`} className="max-h-[70vh] w-full object-contain" />
               {canEdit && (
                 <button
                   type="button"
@@ -190,6 +192,7 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job: jobProp, ty
             {editing ? (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <input
+                  ref={captionInputRef}
                   type="text"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}

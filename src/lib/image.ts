@@ -37,26 +37,31 @@ export async function downscaleImage(file: File): Promise<Blob> {
   return blob;
 }
 
-async function photoRequest(url: string, init: RequestInit): Promise<PublicJob> {
+async function photoRequestFull(url: string, init: RequestInit): Promise<{ job: PublicJob; photoId?: string }> {
   let res: Response;
   try {
     res = await fetch(url, { ...init, credentials: 'same-origin', cache: 'no-store' });
   } catch {
     throw new ApiError(0, 'Server není dostupný. Zkontroluj připojení a zkus to znovu.');
   }
-  let data: { job?: PublicJob; error?: string } | null = null;
+  let data: { job?: PublicJob; photoId?: string; error?: string } | null = null;
   try {
     data = await res.json();
   } catch {
     // prázdné tělo
   }
   if (!res.ok || !data?.job) throw new ApiError(res.status, data?.error || `Chyba serveru (${res.status}).`);
-  return data.job;
+  return { job: data.job, photoId: data.photoId };
+}
+
+async function photoRequest(url: string, init: RequestInit): Promise<PublicJob> {
+  return (await photoRequestFull(url, init)).job;
 }
 
 /** Raw bytes with the blob's own Content-Type (the server decides by magic bytes anyway). */
+/** Resolves with the new photo's id as well (D47). */
 export const uploadJobPhoto = (jobId: string, blob: Blob) =>
-  photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos`, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
+  photoRequestFull(`/api/jobs/${encodeURIComponent(jobId)}/photos`, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
 
 export const setJobPhotoCaption = (jobId: string, photoId: string, caption: string) =>
   photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos/${encodeURIComponent(photoId)}`, {
