@@ -65,7 +65,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
       auth.userId,
       jobOpen
     ),
-    worker: mapPublicPerson(r),
+    worker: mapPublicPerson(r, env),
     workerContact: mapContact(r),
   }));
   return jsonResponse({ engagements });

@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql migrations/0015_*.sql migrations/0016_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql migrations/0015_*.sql migrations/0016_*.sql migrations/0017_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -29,7 +29,7 @@ d1 --command "UPDATE profiles SET accepting_jobs = 0" > /dev/null
 
 echo "== start wrangler pages dev on :$PORT"
 # admin@e2e.test is the only administrator (ADMIN_EMAILS).
-npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --r2 JOB_PHOTOS --binding ADMIN_EMAILS=admin@e2e.test > "$LOG" 2>&1 &
+npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --r2 JOB_PHOTOS --binding ADMIN_EMAILS=admin@e2e.test --binding RRKP_BASE_URL=http://127.0.0.1:9 > "$LOG" 2>&1 &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null; pkill -P $SERVER 2>/dev/null; rm -rf "$JARS"' EXIT
 for _ in $(seq 1 60); do curl -s -o /dev/null "$BASE/api/jobs" && break; sleep 1; done
@@ -282,6 +282,22 @@ eq "directory_visible=0 profile is absent (logged in)" "$(echo "$BODY" | jq -r '
 api w6 PUT /api/profile '{"directoryVisible":true}'
 api - GET /api/directory
 eq "opting back in lists the profile again" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest")] | length')" 1
+
+echo "== licence check (D49): registry unreachable -> 'unavailable', nothing verified"
+api w6 PUT /api/profile '{"licenceNumber":"15.077/91"}'
+eq "PUT licence number -> 200, check unavailable" "$CODE/$(echo "$BODY" | jq -r '.profile.licenceCheck.result')" "200/unavailable"
+api - GET /api/directory
+eq "directory entry has no licenceVerified" "$(echo "$BODY" | jq -r '[.entries[] | select(.name == "Worker Sest") | has("licenceVerified")] | .[0]')" false
+api - POST /api/profile/licence-check
+eq "anonymous licence-check -> 401" "$CODE" 401
+# the PUT above used one of the 5 shared attempts
+for i in 1 2 3 4; do api w6 POST /api/profile/licence-check; done
+eq "4th licence-check (5th shared attempt) -> 200" "$CODE" 200
+api w6 POST /api/profile/licence-check
+eq "next licence-check -> 429" "$CODE" 429
+d1 --command "DELETE FROM rate_limit_events" >/dev/null
+api w6 PUT /api/profile '{"licenceNumber":""}'
+eq "clearing the number clears licenceCheck" "$CODE/$(echo "$BODY" | jq -r '.profile.licenceCheck == null')" "200/true"
 
 api w6 PUT /api/profile '{"group":"licensed"}'
 eq "group licensed without a licence number -> 400" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.licenceNumber != null')" "400/true"
@@ -817,7 +833,7 @@ eq "6th request -> 429" "$CODE" 429
 
 echo "== TEST_LOGIN_ECHO=1 returns testCode (Resend unset)"
 kill $SERVER 2>/dev/null; pkill -P $SERVER 2>/dev/null; sleep 2
-npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --binding ADMIN_EMAILS=admin@e2e.test --binding TEST_LOGIN_ECHO=1 > "$LOG.echo" 2>&1 &
+npx wrangler pages dev "$STUB" --port $PORT --d1 DB=4aab6ba2-9391-49b4-8f52-d57792274bb9 --binding ADMIN_EMAILS=admin@e2e.test --binding TEST_LOGIN_ECHO=1 --binding RRKP_BASE_URL=http://127.0.0.1:9 > "$LOG.echo" 2>&1 &
 SERVER=$!
 for _ in $(seq 1 60); do curl -s -o /dev/null "$BASE/api/jobs" && break; sleep 1; done
 api - POST /api/auth/request-code '{"email":"echo@e2e.test"}'

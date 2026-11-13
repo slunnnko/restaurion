@@ -59,7 +59,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
 
     const loggedIn = Boolean(await getAuthenticatedUserId(request, db));
     const entries: DirectoryEntry[] = matching.slice(0, LIMIT).map((r) => ({
-      ...mapPublicPerson(r),
+      ...mapPublicPerson(r, env),
       ...(loggedIn ? { contact: mapContact(r) } : {}),
     }));
     return jsonResponse({ entries, total: matching.length });

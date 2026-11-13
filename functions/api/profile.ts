@@ -1,4 +1,4 @@
-import { badJson, jsonResponse, loadOwnProfile, noDb, readJson, requireUser } from './_shared.ts';
+import { badJson, jsonResponse, loadOwnProfile, noDb, rateLimit, readJson, requireUser } from './_shared.ts';
 import type { PagesContext } from './_shared.ts';
 import {
   groupLicenceError,
@@ -17,6 +17,13 @@ import {
   validationResponse,
 } from './_lib/validate.ts';
 import type { FieldErrors } from './_lib/validate.ts';
+import {
+  LICENCE_CHECK_BUCKET,
+  LICENCE_CHECK_MAX,
+  LICENCE_CHECK_WINDOW_MIN,
+  licenceRecheckNeeded,
+  runLicenceCheck,
+} from './_lib/rrkp.ts';
 
 /** GET /api/profile → vlastní profil (jen relace) */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
@@ -145,12 +152,52 @@ export async function onRequestPut(context: PagesContext): Promise<Response> {
   }
   if (Object.keys(errors).length > 0) return validationResponse(errors);
 
+  // D49: a changed licence number, or a changed name while a number is set, invalidates the verification.
+  let recheck = false;
+  if ('licenceNumber' in body || 'firstName' in body || 'lastName' in body || 'name' in body) {
+    const before = await db
+      .prepare(`SELECT licence_number, first_name, last_name FROM profiles WHERE id = ?`)
+      .bind(auth.userId)
+      .first<{ licence_number: string | null; first_name: string; last_name: string }>();
+    const idx = (col: string) => binds[sets.indexOf(`${col} = ?`)];
+    const pick = (col: string, stored: string | null | undefined) =>
+      sets.includes(`${col} = ?`) ? (idx(col) as string | null) : stored ?? null;
+    const beforeId = {
+      licenceNumber: before?.licence_number ?? null,
+      firstName: before?.first_name ?? '',
+      lastName: before?.last_name ?? '',
+    };
+    const afterId = {
+      licenceNumber: pick('licence_number', before?.licence_number),
+      firstName: pick('first_name', before?.first_name) ?? '',
+      lastName: pick('last_name', before?.last_name) ?? '',
+    };
+    if (licenceRecheckNeeded(beforeId, afterId)) {
+      recheck = true;
+      sets.push(
+        'licence_verified = 0',
+        'licence_scope = NULL',
+        'licence_registry_id = NULL',
+        'licence_check_result = NULL',
+        'licence_checked_at = NULL'
+      );
+    }
+  }
+
   try {
     if (sets.length > 0) {
       await db
         .prepare(`UPDATE profiles SET ${sets.join(', ')}, updated_at = datetime('now') WHERE id = ?`)
         .bind(...binds, auth.userId)
         .run();
+    }
+    // The inline check shares the rate limit of POST /api/profile/licence-check; when it is hit the row stays reset.
+    if (recheck && (await rateLimit(db, LICENCE_CHECK_BUCKET, auth.userId, LICENCE_CHECK_MAX, LICENCE_CHECK_WINDOW_MIN))) {
+      try {
+        await runLicenceCheck(db, auth.userId, env);
+      } catch (err) {
+        console.error('Kontrola licence po uložení profilu selhala:', err);
+      }
     }
     const profile = await loadOwnProfile(db, auth.userId, env);
     return jsonResponse({ profile });

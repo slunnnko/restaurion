@@ -2,6 +2,8 @@
 // Mapování řádků na veřejné typy je jen zde. Kontakty (mapContact) dostává jen přihlášený;
 // anonymní odpověď nikdy neobsahuje e-mail ani telefon.
 
+import { rrkpBase } from './_lib/rrkp.ts';
+import type { LicenceCheckResult } from './_lib/rrkp.ts';
 import type {
   BookedJob,
   ContactInfo,
@@ -53,6 +55,8 @@ export interface Env {
   APP_URL?: string;
   /** Test only: with this set to '1' and Resend NOT configured, request-code returns the code in the response. */
   TEST_LOGIN_ECHO?: string;
+  /** Test only: base URL of the licence registry (default https://rrkp.mkcr.cz, D49). */
+  RRKP_BASE_URL?: string;
 }
 
 export interface PagesContext<P extends Record<string, string | string[]> = Record<string, string | string[]>> {
@@ -321,16 +325,26 @@ export interface ProfileRow {
   instagram: string | null;
   whatsapp: string | null;
   facebook: string | null;
+  licence_verified?: number;
+  licence_scope?: string | null;
+  licence_registry_id?: string | null;
+  licence_checked_at?: string | null;
+  licence_check_result?: string | null;
 }
 
 export const PROFILE_COLUMNS =
-  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook';
+  'id, email, name, region, phone, crafts, experience_text, portfolio_url, licence_number, email_digest, accepting_jobs, directory_group, directory_visible, instagram, whatsapp, facebook, licence_verified, licence_scope, licence_registry_id, licence_checked_at, licence_check_result';
 
 export function mapGroup(value: string | null | undefined): DirectoryGroup {
   return value === 'firm' || value === 'licensed' ? value : 'unlicensed';
 }
 
-export function mapPublicPerson(row: ProfileRow): PublicPerson {
+function isLicenceCheckResult(v: unknown): v is LicenceCheckResult {
+  return v === 'verified' || v === 'not_found' || v === 'name_mismatch' || v === 'ambiguous' || v === 'unavailable';
+}
+
+export function mapPublicPerson(row: ProfileRow, env?: Pick<Env, 'RRKP_BASE_URL'>): PublicPerson {
+  const verified = Boolean(row.licence_verified) && Boolean(row.licence_number);
   return {
     id: row.id,
     name: row.name,
@@ -339,6 +353,13 @@ export function mapPublicPerson(row: ProfileRow): PublicPerson {
     crafts: safeJsonParse<string[]>(row.crafts, []),
     experienceText: row.experience_text ?? '',
     ...(row.licence_number ? { licenceNumber: row.licence_number } : {}),
+    ...(verified
+      ? {
+          licenceVerified: true as const,
+          licenceScope: safeJsonParse<string[]>(row.licence_scope ?? null, []),
+          ...(row.licence_registry_id ? { licenceRegistryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
+        }
+      : {}),
   };
 }
 
@@ -451,7 +472,7 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
     posterContact: mapContactPrefixed(b, 'p'),
   }));
   return {
-    ...mapPublicPerson(row),
+    ...mapPublicPerson(row, env),
     firstName: row.first_name ?? '',
     lastName: row.last_name ?? '',
     companyName: row.company_name ?? '',
@@ -468,6 +489,21 @@ export async function loadOwnProfile(db: D1Database, userId: string, env?: Env):
     ...(row.instagram ? { instagram: row.instagram } : {}),
     ...(row.whatsapp ? { whatsapp: row.whatsapp } : {}),
     ...(row.facebook ? { facebook: row.facebook } : {}),
+    ...(row.licence_number && isLicenceCheckResult(row.licence_check_result)
+      ? {
+          licenceCheck: {
+            result: row.licence_check_result,
+            // Absent for 'unavailable': that result does not set the check time, so the cron retries it.
+            ...(row.licence_checked_at ? { checkedAt: row.licence_checked_at } : {}),
+            ...(row.licence_check_result === 'verified'
+              ? {
+                  scope: safeJsonParse<string[]>(row.licence_scope ?? null, []),
+                  ...(row.licence_registry_id ? { registryUrl: `${rrkpBase(env)}/rejstrik/${row.licence_registry_id}` } : {}),
+                }
+              : {}),
+          },
+        }
+      : {}),
     blocks: blocks.results.map(mapBlock),
     booked: bookedJobs,
   };

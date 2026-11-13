@@ -440,6 +440,7 @@ export default function Home() {
                 <div className="flex flex-wrap items-center justify-start gap-3 sm:gap-4 pt-1 text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white">
                   {[
                     'Poptávky subdodávek a zaštítění',
+                    'Ověřování licencí MK ČR',
                     'Přímý kontakt',
                   ].map((text) => (
                     <div key={text} className={badgeCls}>

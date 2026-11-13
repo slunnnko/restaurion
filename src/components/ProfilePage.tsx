@@ -26,7 +26,7 @@ import {
 } from './ui';
 import { MyListings } from './MyListings';
 import { InvitationsList } from './InvitationsList';
-import { ArrowLeft, Ban, Bell, BookUser, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Ban, Bell, BookUser, Pencil, Trash2 } from 'lucide-react';
 
 interface ProfilePageProps {
   user: OwnProfile;
@@ -113,6 +113,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [pwError, setPwError] = useState('');
   const [pwSaved, setPwSaved] = useState(false);
   const [pwFieldErrors, setPwFieldErrors] = useState<Record<string, string>>({});
+  const [licBusy, setLicBusy] = useState(false);
+  const [licError, setLicError] = useState('');
   const [themeError, setThemeError] = useState('');
   const [themeBusy, setThemeBusy] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
@@ -139,6 +141,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       setThemeError(err instanceof ApiError ? err.message : 'Vzhled se nepodařilo uložit.');
     } finally {
       setThemeBusy(false);
+    }
+  };
+
+  const recheckLicence = async () => {
+    if (licBusy) return;
+    setLicError('');
+    setLicBusy(true);
+    try {
+      const data = await api<{ profile: OwnProfile }>('/api/profile/licence-check', { method: 'POST' });
+      onUserChange(data.profile);
+    } catch (err) {
+      setLicError(err instanceof ApiError ? err.message : 'Povolení se nepodařilo ověřit.');
+    } finally {
+      setLicBusy(false);
     }
   };
 
@@ -555,7 +571,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           </div>
           <div>
             <label htmlFor="pf-licence" className={labelCls}>
-              Číslo povolení MK ČR (uvádíš sám, neověřujeme)
+              Číslo povolení MK ČR
             </label>
             <input
               id="pf-licence"
@@ -564,7 +580,59 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               onChange={(e) => setLicenceNumber(e.target.value)}
               className={inputCls}
             />
+            <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+              Ověříme ho v Rejstříku restaurátorů MK ČR (číslo a jméno).
+            </p>
             <FieldError message={fieldErrors.licenceNumber} />
+            {user.licenceNumber && user.licenceCheck && (
+              <div className="mt-2 text-sm font-semibold text-[#111111] dark:text-white" aria-live="polite">
+                {user.licenceCheck.result === 'verified' ? (
+                  <div className="space-y-1">
+                    <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-extrabold">
+                      <BadgeCheck className="w-4 h-4 shrink-0" />
+                      Nalezeno v rejstříku MK ČR
+                    </span>
+                    {user.licenceCheck.registryUrl && (
+                      <div>
+                        <a
+                          href={user.licenceCheck.registryUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline font-bold text-[#111111] dark:text-white"
+                        >
+                          Záznam v rejstříku
+                        </a>
+                      </div>
+                    )}
+                    {user.licenceCheck.scope && user.licenceCheck.scope.length > 0 && (
+                      <ul className="list-disc pl-5 text-xs font-medium text-stone-700 dark:text-stone-300 break-words">
+                        {user.licenceCheck.scope.map((sc) => (
+                          <li key={sc}>{sc}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : (
+                  <span>
+                    {user.licenceCheck.result === 'not_found' && 'Číslo jsme v rejstříku nenašli.'}
+                    {user.licenceCheck.result === 'name_mismatch' &&
+                      (!user.firstName?.trim() || !user.lastName?.trim()
+                        ? 'Pro ověření vyplň jméno a příjmení restaurátora, na kterého je povolení vydané.'
+                        : 'Číslo v rejstříku je, ale jméno nesouhlasí s profilem.')}
+                    {user.licenceCheck.result === 'ambiguous' && 'Zadej celé číslo povolení (č.j.).'}
+                    {user.licenceCheck.result === 'unavailable' && 'Rejstřík teď neodpovídá, zkus to později.'}
+                  </span>
+                )}
+              </div>
+            )}
+            {user.licenceNumber && user.licenceCheck?.result !== 'verified' && (
+              <div className="mt-2">
+                <button type="button" onClick={recheckLicence} disabled={licBusy} className={secondaryBtn}>
+                  {licBusy ? 'Ověřuji…' : 'Ověřit znovu'}
+                </button>
+                {licError && <p className="mt-1 text-xs font-bold text-red-700 dark:text-red-400">{licError}</p>}
+              </div>
+            )}
           </div>
         </div>
 

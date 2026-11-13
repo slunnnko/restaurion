@@ -182,3 +182,5 @@ Use `--registry https://registry.npmjs.org/` for every `npm`/`npx` install on th
 - The directory returns at most 200 entries and has no pagination.
 - Any logged-in user can read all contacts (owner decision).
 - No photo upload, no admin UI, no reviews. Licences are self-declared and not verified (D25). Rewards are structured (`reward_type`, `reward_amount`, `reward_currency`, `reward_scope`, migration 0009; `budget_note` is derived).
+
+- D49: licence check. `functions/api/_lib/rrkp.ts` searches `rrkp.mkcr.cz/rejstrik` by number, reads up to 5 detail pages and verifies number + name; `PUT /api/profile` re-checks on a changed number or name, `POST /api/profile/licence-check` on demand, a separate cron of the digest worker (03:30 UTC, 5 profiles per run, never checked first, then older than 30 days). Columns in migration 0017; `RRKP_BASE_URL` overrides the host in tests.

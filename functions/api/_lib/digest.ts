@@ -3,6 +3,7 @@
 
 import { DAILY_EMAIL_BUDGET, emailsSentToday, escapeHtml, resendConfigured, sendEmailViaResend } from '../_shared.ts';
 import type { Env } from '../_shared.ts';
+import { runLicenceCheck } from './rrkp.ts';
 
 export const LOGIN_CODE_RESERVE = 10;
 
@@ -69,6 +70,33 @@ export function buildDigestHtml(items: NotificationRow[], appUrl: string): strin
 export async function cleanupOldRows(db: NonNullable<Env['DB']>): Promise<void> {
   await db.prepare(`DELETE FROM rate_limit_events WHERE created_at < datetime('now', '-2 days')`).run();
   await db.prepare(`DELETE FROM login_codes WHERE expires_at < datetime('now', '-1 day')`).run();
+}
+
+/** Profiles per recheck run: 1 list + up to 5 detail requests each stays within the 50-subrequest cap (5 × 6 = 30). */
+export const RECHECK_BATCH = 5;
+
+/** D49: up to 5 profiles whose licence was never checked or not for 30 days (never-checked first); catches revoked permits.
+ *  Runs from its own cron (workers/digest/index.ts), not from runDigest. Never throws. */
+export async function recheckLicences(env: Env): Promise<void> {
+  if (!env.DB) return;
+  try {
+    const due = await env.DB
+      .prepare(
+        `SELECT id FROM profiles WHERE licence_number IS NOT NULL AND licence_number <> ''
+           AND (licence_checked_at IS NULL OR licence_checked_at < datetime('now', '-30 days'))
+         ORDER BY licence_checked_at IS NOT NULL, licence_checked_at LIMIT ${RECHECK_BATCH}`
+      )
+      .all<{ id: string }>();
+    for (const r of due.results) {
+      try {
+        await runLicenceCheck(env.DB, r.id, env);
+      } catch (err) {
+        console.error('Opakovaná kontrola licence selhala:', err);
+      }
+    }
+  } catch (err) {
+    console.error('Výběr profilů k opakované kontrole licence selhal:', err);
+  }
 }
 
 /** Vrací počet odeslaných souhrnů. Nejdřív úklid; bez RESEND_API_KEY a RESEND_FROM pak nic neposílá. */

@@ -3,7 +3,7 @@
   "name": "restaurion-digest",
   "main": "index.ts",
   "compatibility_date": "2026-09-01",
-  "triggers": { "crons": ["0 6 * * *"] },
+  "triggers": { "crons": ["0 6 * * *", "30 3 * * *"] },
   "vars": { "APP_URL": "https://restaurion.pages.dev" },
   "d1_databases": [
     {

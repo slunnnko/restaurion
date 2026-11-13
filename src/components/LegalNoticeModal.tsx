@@ -89,7 +89,7 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
               3. Údaje uvádějí uživatelé sami
             </h3>
             <p>
-              Údaje v profilech a inzerátech, včetně čísla povolení MK ČR, uvádějí uživatelé sami. Restaurion je neověřuje a za jejich pravdivost neodpovídá. Ověření si každý udělá sám, například vyžádáním rozhodnutí MK ČR od protistrany.
+              Údaje v profilech a inzerátech uvádějí uživatelé sami. Číslo povolení MK ČR automaticky porovnáváme s veřejným Rejstříkem restaurátorů kulturních památek (shoda čísla a jména). Ověření je jen informativní: rejstřík nevedeme, za jeho správnost ani za rozsah povolení neodpovídáme. Před svěřením práce na kulturní památce si rozsah povolení ověř sám.
             </p>
           </div>
 

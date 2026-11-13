@@ -4,7 +4,7 @@ import React from 'react';
 import { DirectoryEntry, DirectoryGroup } from '@/types/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { ContactsOrLogin } from './ui';
-import { MapPin, ShieldCheck, Building2, UserRound } from 'lucide-react';
+import { BadgeCheck, MapPin, ShieldCheck, Building2, UserRound } from 'lucide-react';
 
 export const GROUP_LABEL: Record<DirectoryGroup, string> = {
   firm: 'Firma',
@@ -70,13 +70,36 @@ export const DirectoryCard: React.FC<DirectoryCardProps> = ({ entry, onLogin }) 
               {entry.region}
             </span>
           )}
-          {entry.licenceNumber && (
-            <span className="font-semibold">
+          {entry.licenceNumber && entry.licenceVerified ? (
+            <span className="font-semibold break-words">
               Číslo povolení MK ČR: {entry.licenceNumber}
-              <span className="text-stone-500 dark:text-stone-400"> (uvádí sám)</span>
             </span>
+          ) : (
+            entry.licenceNumber && (
+              <span className="font-semibold">
+                Číslo povolení MK ČR: {entry.licenceNumber}
+                <span className="text-stone-500 dark:text-stone-400"> (uvádí sám, neověřeno)</span>
+              </span>
+            )
           )}
         </div>
+        {entry.licenceNumber && entry.licenceVerified && (
+          <div className="text-xs space-y-0.5">
+            <span className="inline-flex items-center gap-1.5 font-extrabold text-emerald-700 dark:text-emerald-400">
+              <BadgeCheck className="w-3.5 h-3.5 shrink-0" />
+              {entry.licenceRegistryUrl ? (
+                <a href={entry.licenceRegistryUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                  Nalezeno v rejstříku MK ČR
+                </a>
+              ) : (
+                'Nalezeno v rejstříku MK ČR'
+              )}
+            </span>
+            {entry.licenceScope && entry.licenceScope.length > 0 && (
+              <p className="text-stone-700 dark:text-stone-300 break-words">{entry.licenceScope.join('; ')}</p>
+            )}
+          </div>
+        )}
         <ContactsOrLogin contact={entry.contact} onLogin={onLogin} />
       </div>
     </article>

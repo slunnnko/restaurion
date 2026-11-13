@@ -42,7 +42,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - **Pravidlo párování** (obor, dostupnost, částečný překryv) existuje jen v `src/lib/matching.ts`. Nekopíruj ho jinam, volej `evaluateMatch` / `countBusyDays`.
 - Obsazené dny počítají jen přijaté engagementy zakázek (`subcontract_needed`, `guarantor_needed`) se `status = 'active'`. Přijetí zakázky stále zablokuje termíny a pošle upozornění.
 - Kontrakt API je `src/types/api.ts`; změna endpointu = změna kontraktu, testů a `scripts/e2e-local.sh`.
-- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Licence se neověřují (D25): číslo povolení uvádí uživatel sám.
+- Do gitu nepatří žádné secrets (jen názvy: `RESEND_API_KEY`, `RESEND_FROM`, `APP_URL`, `TEST_LOGIN_ECHO`, `ADMIN_EMAILS`).. Číslo povolení uvádí uživatel sám a server ho automaticky porovná s veřejným Rejstříkem restaurátorů MK ČR (číslo + jméno, D49; `functions/api/_lib/rrkp.ts`); výsledek je jen informativní (VOP §3).
 
 ## 3. Struktura projektu
 
@@ -51,10 +51,11 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - `src/lib/` – `api.ts` (fetch wrapper), `matching.ts` (párování), `crafts.ts` (obory), `regions.ts`, `format.ts`.
 - `src/types/api.ts` – kontrakt API; `src/types/index.ts` – typy UI.
 - `functions/api/` – Cloudflare Pages Functions: `auth/` (request-code, verify-code, login-password, password, me, logout), `directory.ts`, `jobs.ts`, `jobs/[id].ts`, `jobs/[id]/respond.ts`, `jobs/[id]/engagements.ts`, `engagements/[id].ts`, `profile.ts`, `availability/`, `notifications/`.
+- Kontrola licence (D49): `functions/api/_lib/rrkp.ts` (parsery + `checkLicence` / `runLicenceCheck`), `functions/api/profile/licence-check.ts` (`POST /api/profile/licence-check`), fixtury `tests/fixtures/rrkp-*.html`.
 - `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`, `photo.ts`).
 - Fotky inzerátu (D34, D45, D47, až 6): `functions/api/jobs/[id]/photos.ts` (POST přidá jednu, vlastník), `functions/api/jobs/[id]/photos/[photoId].ts` (DELETE, PATCH popisku D47), `functions/api/_lib/jobPhotos.ts` (kontrola vlastníka), `src/lib/limits.ts` (`MAX_JOB_PHOTOS`, `MAX_DESCRIPTION`, `MAX_PHOTO_CAPTION`), `src/components/JobDetailModal.tsx` (detail inzerátu, D44), `functions/api/photos/[[path]].ts` (veřejné čtení z R2, binding `JOB_PHOTOS`), `src/lib/image.ts` (zmenšení v prohlížeči). Binding je jen na nejvyšší úrovni `wrangler.json`; produkční se přidá po zapnutí R2.
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
-- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0016` (0006, 0007, 0009–0016 se pouští jednou; 0013 = `notifications.reason`, 0014 = pozvánky D40 včetně přestavby `notifications`, 0015 = krok Kontakt navázán D41 včetně přestavby `notifications` bez CHECK na `type`; 0016 = `engagements.ended_by` D43 a tabulka `job_photos` D45 s přenosem `jobs.image_url`; 0013–0016 musí běžet na vzdálené D1 před nasazením Pages).
+- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0017` (0006, 0007, 0009–0017 se pouští jednou; 0017 = kontrola licence D49; 0013 = `notifications.reason`, 0014 = pozvánky D40 včetně přestavby `notifications`, 0015 = krok Kontakt navázán D41 včetně přestavby `notifications` bez CHECK na `type`; 0016 = `engagements.ended_by` D43 a tabulka `job_photos` D45 s přenosem `jobs.image_url`; 0013–0017 musí běžet na vzdálené D1 před nasazením Pages).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
 - `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (endpointy a migrace).
 - **Nová session začíná v [`docs/STATUS.md`](docs/STATUS.md)** (co je nasazené, rizika, další kroky), pak [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a [`docs/DECISIONS.md`](docs/DECISIONS.md). Při změně stavu aktualizuj `STATUS.md`, při novém rozhodnutí přidej řádek do `DECISIONS.md`.

@@ -37,7 +37,11 @@ export interface PublicPerson {
   region: string;
   crafts: string[]; // craft category ids from src/lib/crafts.ts
   experienceText: string;
-  licenceNumber?: string; // self-declared, never verified by Restaurion
+  licenceNumber?: string; // self-declared; checked automatically against the MK ČR registry (D49)
+  /** Set only when the registry has the number AND the name matches (public data, also for anonymous viewers). */
+  licenceVerified?: true;
+  licenceScope?: string[]; // permit scopes from the registry
+  licenceRegistryUrl?: string; // `${base}/rejstrik/<id>`
 }
 
 export interface ContactInfo {
@@ -169,6 +173,13 @@ export interface OwnProfile extends PublicPerson {
   instagram?: string;
   whatsapp?: string;
   facebook?: string;
+  /** Result of the last registry check (only when a licence number is saved and was checked). */
+  licenceCheck?: {
+    result: 'verified' | 'not_found' | 'name_mismatch' | 'ambiguous' | 'unavailable';
+    checkedAt?: string;
+    scope?: string[];
+    registryUrl?: string;
+  };
   blocks: UnavailabilityBlock[]; // only blocks with dateTo >= today
   booked: BookedJob[]; // accepted engagements with job dateTo >= today
 }
@@ -308,7 +319,10 @@ export interface NotificationItem {
 //                    emailDigest?, acceptingJobs?, group?, directoryVisible?, instagram?, whatsapp? (digits or '@username', stored normalized), facebook?,
 //                    themePreference? ('system'|'light'|'dark', else 400 fieldErrors.themePreference)}
 //                                           → { profile: OwnProfile }
-//   group 'licensed' requires a licence number.
+//   group 'licensed' requires a licence number. A changed licence number (or name while a number is set) resets the verification and
+//   re-checks it in the registry (D49); a failing check never fails the save → OwnProfile.licenceCheck.
+// POST /api/profile/licence-check           → { profile: OwnProfile } re-checks the saved number in the MK ČR registry (D49); no saved number 400;
+//                                           429 after 5 per hour; 401 without session. 'unavailable' keeps an earlier verification.
 // POST /api/availability {dateFrom, dateTo, note?} → 201 { block }
 // PUT  /api/availability/:id {dateFrom, dateTo, note?} → { block } (owner only; foreign or missing id → 404;
 //                                           same validation as POST, 400 with fieldErrors)
