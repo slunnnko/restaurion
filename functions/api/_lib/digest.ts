@@ -79,6 +79,7 @@ export async function runDigest(env: Env): Promise<number> {
       `SELECT p.id AS profileId, p.email AS email, MIN(n.created_at) AS oldestUnread
        FROM profiles p JOIN notifications n ON n.profile_id = p.id
        WHERE p.email_digest = 1 AND p.consent_at IS NOT NULL AND n.read_at IS NULL AND n.emailed_at IS NULL
+         AND n.type NOT IN ('contacted', 'no_deal')
        GROUP BY p.id, p.email ORDER BY oldestUnread ASC LIMIT ?`
     )
     .bind(budget)
@@ -89,7 +90,7 @@ export async function runDigest(env: Env): Promise<number> {
     const items = await db
       .prepare(
         `SELECT n.id, n.type, j.title FROM notifications n LEFT JOIN jobs j ON j.id = n.job_id AND (j.visibility IN ('public', 'direct') OR n.type = 'job_closed')
-         WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL ORDER BY n.created_at LIMIT 50`
+         WHERE n.profile_id = ? AND n.read_at IS NULL AND n.emailed_at IS NULL AND n.type NOT IN ('contacted', 'no_deal') ORDER BY n.created_at LIMIT 50`
       )
       .bind(r.profileId)
       .all<NotificationRow>();

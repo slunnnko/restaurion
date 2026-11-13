@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange } from '@/lib/format';
 import { ModalShell, ErrorBox, FieldError, textareaCls, labelCls, primaryBtn, secondaryBtn } from './ui';
+import { engagementBadge } from './engagementStatus';
 import { Calendar } from 'lucide-react';
 
 const MAX_MESSAGE = 500;
@@ -77,7 +78,10 @@ export const InviteModal: React.FC<InviteModalProps> = ({ offer, onClose, onSent
     if (!inv) return null;
     if (inv.status === 'declined') return { label: 'Odmítl', again: false };
     if (inv.status === 'accepted') return { label: 'Potvrzeno', again: false };
-    if (inv.status === 'pending') return inv.unconfirmed ? { label: 'Nepotvrzeno', again: true } : { label: 'Čeká na potvrzení', again: false };
+    if (inv.status === 'pending') {
+      const badge = engagementBadge({ status: 'pending', initiatedBy: 'poster', unconfirmed: inv.unconfirmed, contactedAt: inv.contactedAt });
+      return { label: badge.label, again: inv.unconfirmed };
+    }
     return null; // withdrawn / cancelled: can be sent again like a new one
   };
 

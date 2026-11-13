@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock } from 'lucide-react';
+import { X, ChevronDown, Phone, Mail, Globe, AtSign, MessageCircle, Link2, Lock, Handshake } from 'lucide-react';
 import { ContactInfo } from '@/types/api';
 
 // Sdílené třídy podle docs/UI-DESIGN.md (2px #111111 rámečky, tvrdé stíny, dark: varianty).
@@ -53,6 +53,46 @@ export const secondaryBtn =
   'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-stone-100 bg-white dark:bg-[#252834] border-2 border-[#111111] dark:border-stone-400 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:bg-stone-100 dark:hover:bg-[#323644] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
 export const dangerBtn =
   'inline-flex items-center justify-center gap-1.5 min-h-10 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-[#111111] dark:text-white bg-rose-100 dark:bg-rose-950 hover:bg-rose-200 dark:hover:bg-rose-900 border-2 border-[#111111] dark:border-rose-400/70 shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed';
+/** D41: „Kontakt navázán“ – jedno kliknutí, bez potvrzování. */
+export const ContactButton: React.FC<{ onClick: () => void; disabled?: boolean; small?: boolean }> = ({ onClick, disabled, small }) => (
+  <button type="button" disabled={disabled} onClick={onClick} className={`${secondaryBtn} ${small ? '!min-h-8 !px-2.5 !py-1' : ''}`}>
+    <Handshake className="w-3.5 h-3.5" />
+    <span>Kontakt navázán</span>
+  </button>
+);
+
+/** D41: „Nedohodli jsme se“ s krátkým potvrzením přímo v místě (bez window.confirm). */
+export const NoDealButton: React.FC<{ onConfirm: () => void; disabled?: boolean; small?: boolean }> = ({ onConfirm, disabled, small }) => {
+  const [asking, setAsking] = useState(false);
+  const size = small ? '!min-h-8 !px-2.5 !py-1' : '';
+  if (!asking) {
+    return (
+      <button type="button" disabled={disabled} onClick={() => setAsking(true)} className={`${dangerBtn} ${size}`}>
+        Nedohodli jsme se
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span className="text-xs font-extrabold text-[#111111] dark:text-stone-100">Opravdu ukončit?</span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+        className={`${dangerBtn} ${size}`}
+      >
+        Ano, nedohodli jsme se
+      </button>
+      <button type="button" disabled={disabled} onClick={() => setAsking(false)} className={`${secondaryBtn} ${size}`}>
+        Zpět
+      </button>
+    </span>
+  );
+};
+
 export const cardCls =
   'bg-white dark:bg-[#1C1E26] rounded-2xl border-2 border-[#111111] dark:border-stone-500 shadow-[5px_5px_0px_#111111] dark:shadow-[5px_5px_0px_#000000]';
 

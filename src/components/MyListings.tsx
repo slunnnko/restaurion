@@ -5,6 +5,7 @@ import { MvpJobType, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { formatRange } from '@/lib/format';
 import { ErrorBox, secondaryBtn } from './ui';
+import { engagementBadge } from './engagementStatus';
 import { CreateJobModal } from './CreateJobModal';
 import { ActionMenu } from './ActionMenu';
 import { InterestedList } from './InterestedList';
@@ -38,7 +39,8 @@ const DirectActions: React.FC<{ job: PublicJob; onChanged: () => void }> = ({ jo
   const waiting = di.status === 'pending' && !di.unconfirmed;
   const canPublish = !waiting && di.status !== 'accepted';
   const canResend = (di.status === 'pending' && di.unconfirmed) || di.status === 'withdrawn';
-  if (!canPublish && !canResend && di.status !== 'declined') return null;
+  if (!canPublish && !canResend && di.status !== 'declined' && di.status !== 'pending') return null;
+  const badge = di.status === 'pending' ? engagementBadge({ status: 'pending', initiatedBy: 'poster', unconfirmed: di.unconfirmed, contactedAt: di.contactedAt }) : null;
 
   const run = async (fn: () => Promise<unknown>, fallback: string) => {
     setBusy(true);
@@ -66,6 +68,11 @@ const DirectActions: React.FC<{ job: PublicJob; onChanged: () => void }> = ({ jo
   return (
     <div className="mt-3 space-y-2">
       {error && <ErrorBox message={error} />}
+      {badge && (
+        <span className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${badge.cls}`}>
+          {badge.label}
+        </span>
+      )}
       {di.status === 'declined' && <p className="text-xs font-bold text-stone-500 dark:text-stone-400">Odmítl</p>}
       <div className="flex flex-wrap gap-2">
         {canPublish && (

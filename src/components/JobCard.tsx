@@ -5,7 +5,8 @@ import { PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, formatShortDay, pluralDays, rewardDisplay } from '@/lib/format';
-import { ContactsOrLogin, ErrorBox, primaryBtn, dangerBtn } from './ui';
+import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, primaryBtn, dangerBtn } from './ui';
+import { engagementBadge } from './engagementStatus';
 import { ActionMenu, MenuAction, iconBtn } from './ActionMenu';
 import { InterestedList, PersonChip } from './InterestedList';
 import { WithdrawModal } from './WithdrawModal';
@@ -90,6 +91,9 @@ export const JobCard: React.FC<JobCardProps> = ({
   // D40: pozvánka od zadavatele (initiatedBy 'poster'); po lhůtě je „Nepotvrzeno“ a nepočítá se jako zájem.
   const isInvitedToMe = !job.isMine && !isOffer && eng?.initiatedBy === 'poster' && engStatus === 'pending';
   const inviteExpired = isInvitedToMe && eng?.unconfirmed === true;
+  const contacted = engStatus === 'pending' && !!eng?.contactedAt;
+  // D41: contact was established and then ended ("Nedohodli jsme se") by either side.
+  const noDeal = !job.isMine && !isOffer && !!eng?.contactedAt && (engStatus === 'declined' || engStatus === 'withdrawn');
   const invites = job.myInvites ?? [];
   const inviteState: 'pending' | 'accepted' | null = !isOffer
     ? null
@@ -112,7 +116,7 @@ export const JobCard: React.FC<JobCardProps> = ({
     }
   };
 
-  const decideInvite = (action: 'accept' | 'decline') =>
+  const decideInvite = (action: 'accept' | 'decline' | 'contact' | 'no_deal') =>
     run(async () => {
       setActionError('');
       try {
@@ -300,30 +304,54 @@ export const JobCard: React.FC<JobCardProps> = ({
           <InterestedList job={job} onChanged={onChanged} showHeading />
         ) : engStatus === 'declined' ? (
           // D40: odmítnutý zájem (z obou stran) nemá čip ani tlačítko; opakovaná reakce by skončila 409.
-          <div className="text-xs font-bold text-stone-500 dark:text-stone-400">Zadavatel u tohoto inzerátu vybral jinak.</div>
+          <div className="text-xs font-bold text-stone-500 dark:text-stone-400">
+            {noDeal ? 'Nedohodli jste se.' : 'Zadavatel u tohoto inzerátu vybral jinak.'}
+          </div>
         ) : isInvitedToMe ? (
           <div>
             <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1.5">
               Pozvánka od zadavatele
             </div>
             {inviteExpired ? (
-              <div className="text-xs font-bold text-stone-600 dark:text-stone-400">
-                Nepotvrzeno – lhůta vypršela. Ozvi se zadavateli.
-              </div>
+              <>
+                <div className="mb-2 text-xs font-bold text-stone-600 dark:text-stone-400">
+                  Nepotvrzeno – lhůta vypršela. Ozvi se zadavateli.
+                </div>
+                <ContactButton disabled={busy} onClick={() => void decideInvite('contact')} />
+              </>
             ) : (
               <>
-                {eng?.respondBy && (
-                  <div className="mb-2 text-xs font-extrabold text-[#111111] dark:text-stone-100">
-                    Potvrď do {formatShortDay(eng.respondBy)}
+                {contacted ? (
+                  <div className="mb-2">
+                    <span
+                      className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${
+                        engagementBadge({ status: 'pending', contactedAt: eng?.contactedAt }).cls
+                      }`}
+                    >
+                      Kontakt navázán
+                    </span>
                   </div>
+                ) : (
+                  eng?.respondBy && (
+                    <div className="mb-2 text-xs font-extrabold text-[#111111] dark:text-stone-100">
+                      Potvrď do {formatShortDay(eng.respondBy)}
+                    </div>
+                  )
                 )}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button type="button" disabled={busy} onClick={() => void decideInvite('accept')} className={primaryBtn}>
                     Přijmout
                   </button>
-                  <button type="button" disabled={busy} onClick={() => void decideInvite('decline')} className={dangerBtn}>
-                    Odmítnout
-                  </button>
+                  {contacted ? (
+                    <NoDealButton disabled={busy} onConfirm={() => void decideInvite('no_deal')} />
+                  ) : (
+                    <>
+                      <button type="button" disabled={busy} onClick={() => void decideInvite('decline')} className={dangerBtn}>
+                        Odmítnout
+                      </button>
+                      <ContactButton disabled={busy} onClick={() => void decideInvite('contact')} />
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -369,14 +397,10 @@ export const JobCard: React.FC<JobCardProps> = ({
                       <span className="truncate max-w-[11rem]">{i.jobTitle}</span>
                       <span
                         className={`px-2 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[10px] font-extrabold ${
-                          i.status === 'accepted'
-                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-950 dark:text-emerald-200'
-                            : i.unconfirmed
-                              ? 'bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300'
-                              : 'bg-[#FEF08A] text-[#111111]'
+                          engagementBadge({ ...i, initiatedBy: 'poster' }).cls
                         }`}
                       >
-                        {i.status === 'accepted' ? 'Potvrzeno' : i.unconfirmed ? 'Nepotvrzeno' : 'Čeká na potvrzení'}
+                        {engagementBadge({ ...i, initiatedBy: 'poster' }).label}
                       </span>
                     </li>
                   ))}
@@ -398,31 +422,44 @@ export const JobCard: React.FC<JobCardProps> = ({
               Tvůj zájem
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <PersonChip name={viewerName || 'Ty'} status={engStatus} />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setWithdrawOpen(true)}
-                aria-label="Odstoupit"
-                title="Odstoupit"
-                className={`${iconBtn} bg-white dark:bg-[#252834] hover:bg-red-100 dark:hover:bg-red-950/60 text-[#111111] dark:text-white`}
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <PersonChip name={viewerName || 'Ty'} badge={engagementBadge({ status: engStatus, contactedAt: eng?.contactedAt })} />
+              {engStatus === 'pending' && !contacted && <ContactButton small disabled={busy} onClick={() => void decideInvite('contact')} />}
+              {contacted ? (
+                <NoDealButton small disabled={busy} onConfirm={() => void decideInvite('no_deal')} />
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setWithdrawOpen(true)}
+                  aria-label="Odstoupit"
+                  title="Odstoupit"
+                  className={`${iconBtn} bg-white dark:bg-[#252834] hover:bg-red-100 dark:hover:bg-red-950/60 text-[#111111] dark:text-white`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
             </div>
+            {actionError && (
+              <div className="mt-2">
+                <ErrorBox message={actionError} />
+              </div>
+            )}
             {engStatus === 'accepted' && (
               <div className="mt-1.5 text-xs font-extrabold text-emerald-800 dark:text-emerald-300">Zadavatel tě přijal</div>
             )}
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => onRespond(job)}
-            className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
-          >
-            <span>Mám zájem</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+          <div>
+            {noDeal && <div className="mb-2 text-xs font-bold text-stone-500 dark:text-stone-400">Nedohodli jste se.</div>}
+            <button
+              type="button"
+              onClick={() => onRespond(job)}
+              className="inline-flex items-center justify-center gap-1.5 w-full min-h-12 px-4 py-2 rounded-xl text-sm sm:text-base font-extrabold text-[#111111] bg-[#FEF08A] hover:bg-[#FDE047] border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#111111] active:scale-95 transition-all cursor-pointer"
+            >
+              <span>Mám zájem</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
       </div>
       {withdrawOpen && (

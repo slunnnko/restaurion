@@ -53,7 +53,7 @@ Před jakoukoliv úpravou komponent v `src/components/` nebo `src/app/` si **vž
 - `functions/api/_shared.ts` (mapování řádků, rate limit, e-mail), `functions/api/_lib/` (`data.ts`, `validate.ts`, `digest.ts`, `password.ts`, `photo.ts`).
 - Fotka inzerátu (D34): `functions/api/jobs/[id]/photo.ts` (POST/DELETE, vlastník), `functions/api/photos/[[path]].ts` (veřejné čtení z R2, binding `JOB_PHOTOS`), `src/lib/image.ts` (zmenšení v prohlížeči). Binding je jen na nejvyšší úrovni `wrangler.json`; produkční se přidá po zapnutí R2.
 - `workers/digest/` – plánovaný Worker (denní souhrn, úklid starých řádků).
-- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0014` (0006, 0007, 0009–0014 se pouští jednou; 0013 = `notifications.reason`, 0014 = pozvánky D40 včetně přestavby `notifications`; obě musí běžet na vzdálené D1 před nasazením Pages).
+- `migrations/` – D1 migrace `0001`–`0007`, `0009`–`0015` (0006, 0007, 0009–0015 se pouští jednou; 0013 = `notifications.reason`, 0014 = pozvánky D40 včetně přestavby `notifications`, 0015 = krok Kontakt navázán D41 včetně přestavby `notifications` bez CHECK na `type`; 0013–0015 musí běžet na vzdálené D1 před nasazením Pages).
 - `tests/` – unit testy (`npm test`); `scripts/e2e-local.sh` – end-to-end test API proti lokální D1.
 - `docs/UI-DESIGN.md` (design, zákaz měnit UI bez pokynu), `docs/BACKEND-PLAN.md` (endpointy a migrace).
 - **Nová session začíná v [`docs/STATUS.md`](docs/STATUS.md)** (co je nasazené, rizika, další kroky), pak [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) a [`docs/DECISIONS.md`](docs/DECISIONS.md). Při změně stavu aktualizuj `STATUS.md`, při novém rozhodnutí přidej řádek do `DECISIONS.md`.

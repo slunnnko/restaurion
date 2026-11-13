@@ -49,9 +49,9 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     );
 
     const engs = await db
-      .prepare(`SELECT id, job_id, status, initiated_by, respond_by FROM engagements WHERE worker_id = ?`)
+      .prepare(`SELECT id, job_id, status, initiated_by, respond_by, contacted_at FROM engagements WHERE worker_id = ?`)
       .bind(offer.authorId)
-      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: string; respond_by: string | null }>();
+      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: string; respond_by: string | null; contacted_at: string | null }>();
     const engByJob = new Map(engs.results.map((e) => [e.job_id, e]));
 
     const jobs: InviteOptionJob[] = fitting.map((r) => {
@@ -63,7 +63,16 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
         dateTo: r.date_to,
         crafts: jobRowCrafts(r),
         visibility: r.visibility === 'direct' ? 'direct' : 'public',
-        ...(e ? { invite: { engagementId: e.id, status: e.status, unconfirmed: isUnconfirmed(e, today) } } : {}),
+        ...(e
+          ? {
+              invite: {
+                engagementId: e.id,
+                status: e.status,
+                unconfirmed: isUnconfirmed(e, today),
+                ...(e.status === 'pending' && e.contacted_at ? { contactedAt: e.contacted_at } : {}),
+              },
+            }
+          : {}),
       };
     });
     return jsonResponse({ offer: { id: offer.id, authorName: offer.authorName }, jobs });

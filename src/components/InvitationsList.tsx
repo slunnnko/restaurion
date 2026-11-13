@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Invitation, MvpJobType } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { formatRange, formatShortDay, rewardDisplay } from '@/lib/format';
-import { ErrorBox, ContactLinks, primaryBtn, secondaryBtn, dangerBtn } from './ui';
+import { ErrorBox, ContactLinks, ContactButton, NoDealButton, primaryBtn, secondaryBtn, dangerBtn } from './ui';
+import { engagementBadge } from './engagementStatus';
 import { WithdrawModal } from './WithdrawModal';
 import { HammerLogo } from './HammerLogo';
 import { ShieldCheck, UserCheck, Calendar, MapPin, Coins } from 'lucide-react';
@@ -47,7 +48,7 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
     void load();
   }, [load]);
 
-  const decide = async (inv: Invitation, action: 'accept' | 'decline') => {
+  const decide = async (inv: Invitation, action: 'accept' | 'decline' | 'contact' | 'no_deal') => {
     setBusyId(inv.engagementId);
     setError('');
     try {
@@ -85,6 +86,7 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
           const info = TYPE_INFO[job.jobType] ?? TYPE_INFO.subcontract_needed;
           const Icon = info.icon;
           const reward = rewardDisplay(job);
+          const contacted = inv.status === 'pending' && !!inv.contactedAt;
           const confirmable = inv.status === 'pending' && !inv.unconfirmed;
           return (
             <li
@@ -130,6 +132,14 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
               <div className="mt-2.5 text-xs font-extrabold text-[#111111] dark:text-stone-100">
                 {inv.status === 'accepted' ? (
                   <span className="text-emerald-800 dark:text-emerald-300">Potvrzeno</span>
+                ) : contacted ? (
+                  <span
+                    className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${
+                      engagementBadge({ status: 'pending', contactedAt: inv.contactedAt }).cls
+                    }`}
+                  >
+                    Kontakt navázán
+                  </span>
                 ) : inv.unconfirmed ? (
                   <span className="text-stone-600 dark:text-stone-400">Nepotvrzeno – lhůta vypršela</span>
                 ) : (
@@ -143,16 +153,25 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
                 </div>
               )}
 
-              {(confirmable || inv.status === 'accepted') && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {confirmable ? (
+              {(inv.status === 'pending' || inv.status === 'accepted') && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {inv.status === 'pending' && inv.unconfirmed ? (
+                    <ContactButton disabled={busyId !== null} onClick={() => void decide(inv, 'contact')} />
+                  ) : confirmable ? (
                     <>
                       <button type="button" disabled={busyId !== null} onClick={() => void decide(inv, 'accept')} className={primaryBtn}>
                         Přijmout
                       </button>
-                      <button type="button" disabled={busyId !== null} onClick={() => void decide(inv, 'decline')} className={dangerBtn}>
-                        Odmítnout
-                      </button>
+                      {contacted ? (
+                        <NoDealButton disabled={busyId !== null} onConfirm={() => void decide(inv, 'no_deal')} />
+                      ) : (
+                        <>
+                          <button type="button" disabled={busyId !== null} onClick={() => void decide(inv, 'decline')} className={dangerBtn}>
+                            Odmítnout
+                          </button>
+                          <ContactButton disabled={busyId !== null} onClick={() => void decide(inv, 'contact')} />
+                        </>
+                      )}
                     </>
                   ) : (
                     <button type="button" disabled={busyId !== null} onClick={() => setWithdrawing(inv)} className={secondaryBtn}>

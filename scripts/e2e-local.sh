@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql migrations/0015_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -545,6 +545,87 @@ api w6 POST /api/jobs/$RJ/respond '{}'
 eq "w6 re-respond after decline -> 409 with the text" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Zadavatel už vybral jinak."
 api w6 GET /api/jobs
 eq "w6 board shows the declined engagement (card text, no button)" "$(echo "$BODY" | jq -r --arg j "$RJ" '.jobs[] | select(.id==$j) | .myEngagement.status')" "declined"
+
+echo "== D41 contact step (Kontakt navázán): worker flow"
+mk_inv_job "Kontakt zakazka" "$(dd 6)" "$(dd 12)" '["kámen"]'; KJ=$JOBID
+api w6 POST /api/jobs/$KJ/respond '{}'
+KE=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/engagements/$KE '{"action":"no_deal"}'
+eq "no_deal without contact -> 409" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Nejdřív potvrďte navázání kontaktu."
+api w5 POST /api/engagements/$KE '{"action":"contact"}'
+eq "a third user cannot confirm contact -> 403" "$CODE" 403
+api - POST /api/engagements/$KE '{"action":"contact"}'
+eq "contact without a session -> 401" "$CODE" 401
+api w6 POST /api/engagements/$KE '{"action":"contact"}'
+eq "worker confirms contact -> 200 pending with contactedAt" "$CODE/$(echo "$BODY" | jq -r '.engagement.status + "/" + (.engagement.contactedAt | length > 0 | tostring)')" "200/pending/true"
+api poster GET /api/jobs/$KJ/engagements
+eq "poster's engagements show contactedAt" "$(echo "$BODY" | jq -r --arg e "$KE" '.engagements[] | select(.id==$e) | (.contactedAt | length > 0) | tostring')" "true"
+api poster GET /api/notifications
+eq "poster got 'contacted' with the actor name" "$(echo "$BODY" | jq -r --arg e "$KE" '[.items[] | select(.type=="contacted" and .engagementId==$e and (.actorName | length) > 0 and .jobTitle=="Kontakt zakazka")] | length')" 1
+api w6 POST /api/engagements/$KE '{"action":"contact"}'
+eq "second contact -> 409 'Kontakt už je potvrzený.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Kontakt už je potvrzený."
+api poster POST /api/engagements/$KE '{"action":"contact"}'
+eq "contact from the other side after contact -> 409" "$CODE" 409
+api w6 GET /api/jobs
+eq "worker's myEngagement is pending with contactedAt" "$(echo "$BODY" | jq -r --arg j "$KJ" '.jobs[] | select(.id==$j) | .myEngagement | .status + "/" + (.contactedAt | length > 0 | tostring)')" "pending/true"
+api poster POST /api/engagements/$KE '{"action":"no_deal"}'
+eq "poster no_deal after contact -> 200 declined" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/declined"
+api poster GET /api/jobs/$KJ/engagements
+eq "no_deal engagement is hidden from the poster's list" "$(echo "$BODY" | jq -r --arg e "$KE" '[.engagements[] | select(.id==$e)] | length')" 0
+api w6 GET /api/jobs
+eq "worker's myEngagement is declined and keeps contactedAt" "$(echo "$BODY" | jq -r --arg j "$KJ" '.jobs[] | select(.id==$j) | .myEngagement | .status + "/" + (.contactedAt | length > 0 | tostring)')" "declined/true"
+api w6 GET /api/notifications
+eq "worker got 'no_deal'" "$(echo "$BODY" | jq -r --arg e "$KE" '[.items[] | select(.type=="no_deal" and .engagementId==$e)] | length')" 1
+api w6 POST /api/engagements/$KE '{"action":"no_deal"}'
+eq "no_deal on a finished engagement -> 409" "$CODE" 409
+mk_inv_job "Kontakt a prijeti" "$(dd 6)" "$(dd 12)" '["kámen"]'; KJ2=$JOBID
+api w6 POST /api/jobs/$KJ2/respond '{}'
+KE2=$(echo "$BODY" | jq -r '.engagement.id')
+api poster POST /api/engagements/$KE2 '{"action":"contact"}'
+eq "poster confirms contact -> 200" "$CODE" 200
+api w6 GET /api/notifications
+eq "worker got 'contacted' from the poster" "$(echo "$BODY" | jq -r --arg e "$KE2" '[.items[] | select(.type=="contacted" and .engagementId==$e)] | length')" 1
+api poster POST /api/engagements/$KE2 '{"action":"accept"}'
+eq "accept after contact works" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/accepted"
+api w6 POST /api/engagements/$KE2 '{"action":"no_deal"}'
+eq "no_deal on an accepted engagement -> 409" "$CODE" 409
+eq "'contacted' / 'no_deal' rows are never e-mailed" "$(d1 --json --command "SELECT COUNT(*) AS n FROM notifications WHERE type IN ('contacted','no_deal') AND emailed_at IS NOT NULL" | jq -r '.[0].results[0].n')" 0
+
+echo "== D41 contact step: invitation flow (poster2 = offerer O)"
+mk_inv_job "Kontakt pozvanka" "$(dd 6)" "$(dd 12)" '["kámen"]'; KI=$JOBID
+api poster POST /api/jobs/$KI/invite "{\"offerId\":\"$OFFER\"}"
+eq "invite for the contact test -> 201" "$CODE" 201
+KIE=$(echo "$BODY" | jq -r '.engagement.id')
+d1 --command "UPDATE engagements SET respond_by = '$YEST' WHERE id = '$KIE'" > /dev/null
+api poster2 GET /api/invitations
+eq "the invitation is unconfirmed after the deadline" "$(echo "$BODY" | jq -r --arg j "$KI" '.invitations[] | select(.job.id==$j) | .unconfirmed | tostring')" "true"
+api poster2 POST /api/engagements/$KIE '{"action":"contact"}'
+eq "O confirms contact on an unconfirmed invitation -> 200" "$CODE" 200
+api poster2 GET /api/invitations
+eq "the contacted invitation is no longer unconfirmed and carries contactedAt" "$(echo "$BODY" | jq -r --arg j "$KI" '.invitations[] | select(.job.id==$j) | [(.unconfirmed | tostring), (.contactedAt | length > 0 | tostring), .status] | join("|")')" "false|true|pending"
+api poster GET /api/jobs/$KI/engagements
+eq "poster sees the engagement contacted and not unconfirmed" "$(echo "$BODY" | jq -r '.engagements[0] | [(.unconfirmed // false | tostring), (.contactedAt | length > 0 | tostring)] | join("|")')" "false|true"
+api poster GET /api/jobs/$OFFER/invite-options
+eq "invite-options carries contactedAt of the invite" "$(echo "$BODY" | jq -r --arg j "$KI" '.jobs[] | select(.id==$j) | .invite | [(.unconfirmed | tostring), (.contactedAt | length > 0 | tostring)] | join("|")')" "false|true"
+api poster2 POST /api/engagements/$KIE '{"action":"accept"}'
+eq "O accepts the contacted invitation past respond_by" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/accepted"
+mk_inv_job "Kontakt pozvanka 2" "$(dd 6)" "$(dd 12)" '["kámen"]'; KI2=$JOBID
+api poster POST /api/jobs/$KI2/invite "{\"offerId\":\"$OFFER\"}"
+KIE2=$(echo "$BODY" | jq -r '.engagement.id')
+api poster2 POST /api/engagements/$KIE2 '{"action":"contact"}'
+eq "O confirms contact on a fresh invitation" "$CODE" 200
+api poster POST /api/engagements/$KIE2 '{"action":"decline"}'
+eq "poster cancel on a contacted invitation -> 409 'Použij Nedohodli jsme se.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Použij Nedohodli jsme se."
+api poster2 POST /api/engagements/$KIE2 '{"action":"no_deal"}'
+eq "O no_deal -> 200 withdrawn" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/withdrawn"
+api poster2 GET /api/invitations
+eq "no_deal invitation is hidden from O's list" "$(echo "$BODY" | jq -r --arg j "$KI2" '[.invitations[] | select(.job.id==$j)] | length')" 0
+api poster GET /api/notifications
+eq "poster got 'no_deal' from O" "$(echo "$BODY" | jq -r --arg e "$KIE2" '[.items[] | select(.type=="no_deal" and .engagementId==$e)] | length')" 1
+api poster POST /api/jobs/$KI2/invite "{\"offerId\":\"$OFFER\"}"
+eq "re-invite after no_deal -> 201" "$CODE" 201
+api poster2 GET /api/invitations
+eq "re-invite clears contactedAt" "$(echo "$BODY" | jq -r --arg j "$KI2" '.invitations[] | select(.job.id==$j) | [.status, (.contactedAt // "none")] | join("|")')" "pending|none"
 
 echo "== login code brute force and second code request"
 SQL="INSERT INTO login_codes (email, code_hash, expires_at) VALUES ('bf@e2e.test', '$(sha "bf@e2e.test:654321")', datetime('now','+1 hour'));"

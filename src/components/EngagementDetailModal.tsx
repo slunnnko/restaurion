@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { ContactInfo, EngagementForPoster, EngagementStatus, PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
-import { ModalShell, ErrorBox, ContactLinks, primaryBtn, secondaryBtn, dangerBtn } from './ui';
+import { ModalShell, ErrorBox, ContactLinks, ContactButton, NoDealButton, primaryBtn, secondaryBtn, dangerBtn } from './ui';
 import { iconBtn } from './ActionMenu';
 import { DirectoryCard } from './DirectoryCard';
-import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
-import { invitationChip } from './InterestedList';
+import { engagementBadge } from './engagementStatus';
+import { formatShortDay } from '@/lib/format';
 import { ArrowLeft, UserRound } from 'lucide-react';
 
 interface EngagementDetailModalProps {
@@ -25,16 +25,25 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
   const isOffer = job.jobType === 'craftsman_available';
   const x = engagement;
   const isInvite = x.initiatedBy === 'poster';
+  const badge = engagementBadge(x);
+  const contacted = x.status === 'pending' && !!x.contactedAt;
 
-  const decide = async (action: 'accept' | 'decline') => {
+  const decide = async (action: 'accept' | 'decline' | 'contact' | 'no_deal') => {
     setBusy(true);
     setActionError('');
     try {
-      const data = await api<{ engagement: { id: string; status: EngagementStatus }; contact?: ContactInfo }>(
+      const data = await api<{ engagement: { id: string; status: EngagementStatus; contactedAt?: string }; contact?: ContactInfo }>(
         `/api/engagements/${encodeURIComponent(x.id)}`,
         { method: 'POST', body: { action } }
       );
-      onDecided({ ...x, status: data.engagement.status, workerContact: data.contact ?? x.workerContact });
+      onDecided({
+        ...x,
+        status: data.engagement.status,
+        workerContact: data.contact ?? x.workerContact,
+        ...(data.engagement.contactedAt ? { contactedAt: data.engagement.contactedAt } : {}),
+        // contact revives an unconfirmed invitation
+        ...(action === 'contact' ? { unconfirmed: false } : {}),
+      });
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Akci se nepodařilo provést.');
     } finally {
@@ -79,9 +88,9 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
           {!isOffer && (
             <div>
               <span
-                className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${STATUS_CLS[x.status]}`}
+                className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${badge.cls}`}
               >
-                {invitationChip(x).label ?? STATUS_LABEL[x.status]}
+                {badge.label}
               </span>
             </div>
           )}
@@ -92,21 +101,30 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
             </blockquote>
           )}
 
-          {isInvite && x.status === 'pending' && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button type="button" disabled={busy} onClick={() => void decide('decline')} className={dangerBtn}>
-                Zrušit poptávku
-              </button>
-            </div>
+          {contacted && x.contactedAt && (
+            <p className="text-xs font-semibold text-stone-600 dark:text-stone-400">Kontakt navázán {formatShortDay(x.contactedAt.slice(0, 10))}</p>
           )}
 
-          {!isInvite && x.status === 'pending' && (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {!isOffer && (
+          {x.status === 'pending' && !isOffer && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {!contacted && <ContactButton disabled={busy} onClick={() => void decide('contact')} />}
+              {!isInvite && (
                 <button type="button" disabled={busy} onClick={() => void decide('accept')} className={primaryBtn}>
                   Přijmout
                 </button>
               )}
+              {contacted ? (
+                <NoDealButton disabled={busy} onConfirm={() => void decide('no_deal')} />
+              ) : (
+                <button type="button" disabled={busy} onClick={() => void decide('decline')} className={dangerBtn}>
+                  {isInvite ? 'Zrušit poptávku' : 'Odmítnout'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {x.status === 'pending' && isOffer && !isInvite && (
+            <div className="flex flex-wrap gap-2 pt-1">
               <button type="button" disabled={busy} onClick={() => void decide('decline')} className={dangerBtn}>
                 Odmítnout
               </button>

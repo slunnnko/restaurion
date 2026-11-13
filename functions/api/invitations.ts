@@ -11,6 +11,7 @@ interface EngRow {
   created_at: string;
   initiated_by: string;
   respond_by: string | null;
+  contacted_at: string | null;
 }
 
 /**
@@ -30,7 +31,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   try {
     const engs = await db
       .prepare(
-        `SELECT e.id, e.job_id, e.status, e.message, e.created_at, e.initiated_by, e.respond_by
+        `SELECT e.id, e.job_id, e.status, e.message, e.created_at, e.initiated_by, e.respond_by, e.contacted_at
          FROM engagements e JOIN jobs j ON j.id = e.job_id
          WHERE e.worker_id = ? AND e.initiated_by = 'poster' AND e.status IN ('pending', 'accepted')
            AND j.status = 'active' AND j.visibility IN ('public', 'direct')
@@ -63,6 +64,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
         createdAt: e.created_at,
         respondBy: e.respond_by ?? '',
         unconfirmed,
+        ...(e.status === 'pending' && e.contacted_at ? { contactedAt: e.contacted_at } : {}),
         job: mapJobRow(row, {
           userId: auth.userId,
           engagement: {
@@ -71,6 +73,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
             initiatedBy: 'poster',
             ...(e.respond_by ? { respondBy: e.respond_by } : {}),
             ...(unconfirmed ? { unconfirmed: true } : {}),
+            ...(e.status === 'pending' && e.contacted_at ? { contactedAt: e.contacted_at } : {}),
           },
         }),
       });

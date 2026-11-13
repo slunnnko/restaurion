@@ -48,20 +48,20 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     const today = todayUtc();
     const busy = await loadBusySlots(db, userId, today);
     const mine = await db
-      .prepare(`SELECT id, job_id, status, initiated_by, respond_by FROM engagements WHERE worker_id = ?`)
+      .prepare(`SELECT id, job_id, status, initiated_by, respond_by, contacted_at FROM engagements WHERE worker_id = ?`)
       .bind(userId)
-      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: 'worker' | 'poster'; respond_by: string | null }>();
+      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: 'worker' | 'poster'; respond_by: string | null; contacted_at: string | null }>();
     const engByJob = new Map(mine.results.map((e) => [e.job_id, e]));
     // Invitations the viewer sent (as poster), grouped by the invited offerer; shown on that person's offer cards.
     const sent = await db
       .prepare(
-        `SELECT e.id, e.job_id, e.worker_id, e.status, e.respond_by, e.initiated_by, j.title
+        `SELECT e.id, e.job_id, e.worker_id, e.status, e.respond_by, e.contacted_at, e.initiated_by, j.title
          FROM engagements e JOIN jobs j ON j.id = e.job_id
          WHERE j.author_id = ? AND e.initiated_by = 'poster' AND e.status IN ('pending', 'accepted')
            AND j.status = 'active' AND j.visibility IN ('public', 'direct') ORDER BY e.created_at DESC`
       )
       .bind(userId)
-      .all<{ id: string; job_id: string; worker_id: string; status: EngagementStatus; respond_by: string | null; initiated_by: string; title: string; }>();
+      .all<{ id: string; job_id: string; worker_id: string; status: EngagementStatus; respond_by: string | null; contacted_at: string | null; initiated_by: string; title: string; }>();
     const invitesByWorker = new Map<string, MyInvite[]>();
     for (const i of sent.results) {
       const list = invitesByWorker.get(i.worker_id) ?? [];
@@ -71,6 +71,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
         jobTitle: i.title,
         status: i.status,
         unconfirmed: isUnconfirmed(i, today),
+        ...(i.status === 'pending' && i.contacted_at ? { contactedAt: i.contacted_at } : {}),
         ...(i.respond_by ? { respondBy: i.respond_by } : {}),
       });
       invitesByWorker.set(i.worker_id, list);
@@ -92,6 +93,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
                 initiatedBy: e.initiated_by,
                 ...(e.initiated_by === 'poster' && e.respond_by ? { respondBy: e.respond_by } : {}),
                 ...(isUnconfirmed(e, today) ? { unconfirmed: true } : {}),
+                ...(e.contacted_at && e.status !== 'accepted' ? { contactedAt: e.contacted_at } : {}),
               } satisfies MyEngagement,
             }
           : {}),

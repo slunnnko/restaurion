@@ -21,7 +21,11 @@ export type NotificationType =
   | 'invited' // poster sent an invitation ("Poptat spolupráci") to the offerer (to offerer)
   | 'invite_accepted' // offerer confirmed the invitation (to poster)
   | 'invite_declined' // offerer declined the invitation (to poster)
-  | 'invite_cancelled'; // poster cancelled the invitation (to offerer)
+  | 'invite_cancelled' // poster cancelled the invitation (to offerer)
+  | 'contacted' // the other side confirmed "Kontakt navázán" (D41, to the other side)
+  | 'no_deal'; // the other side ended it with "Nedohodli jsme se" (D41, to the other side)
+/** POST /api/engagements/:id actions ('contact' and 'no_deal' since D41). */
+export type EngagementAction = 'accept' | 'decline' | 'withdraw' | 'contact' | 'no_deal';
 
 /** Public summary of a person. Never contains contacts or availability. */
 export interface PublicPerson {
@@ -54,8 +58,10 @@ export interface MyEngagement {
   initiatedBy: 'worker' | 'poster';
   /** Invitations only: last day to confirm ('YYYY-MM-DD'). */
   respondBy?: string;
-  /** Invitation still 'pending' after `respondBy` (derived, no extra status). */
+  /** Invitation still 'pending' after `respondBy` (derived, no extra status). Never set when contact was confirmed. */
   unconfirmed?: boolean;
+  /** D41: contact confirmed by either side. Set for 'pending'; also for 'declined'/'withdrawn' (= "Nedohodli jste se"). */
+  contactedAt?: string;
 }
 
 /** On an offer card: the viewer's invitation (job of the viewer sent to this offer's author). */
@@ -66,6 +72,8 @@ export interface MyInvite {
   status: EngagementStatus;
   unconfirmed: boolean;
   respondBy?: string;
+  /** D41: contact confirmed (pending only). */
+  contactedAt?: string;
 }
 
 export interface PublicJob {
@@ -94,6 +102,8 @@ export interface PublicJob {
     status: 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'none';
     unconfirmed: boolean;
     respondBy?: string;
+    /** D41: contact confirmed (pending only). */
+    contactedAt?: string;
   };
   createdAt: string;
   poster: { id: string; name: string; group: DirectoryGroup };
@@ -163,6 +173,8 @@ export interface EngagementForPoster {
   /** Invitations only (D40). */
   respondBy?: string;
   unconfirmed?: boolean;
+  /** D41: contact confirmed (pending only). */
+  contactedAt?: string;
   worker: PublicPerson;
   workerContact: ContactInfo;
 }
@@ -175,6 +187,8 @@ export interface Invitation {
   createdAt: string;
   respondBy: string;
   unconfirmed: boolean;
+  /** D41: contact confirmed (pending only). */
+  contactedAt?: string;
   job: PublicJob;
 }
 
@@ -185,7 +199,7 @@ export interface InviteOptionJob {
   dateTo: string;
   crafts: string[];
   visibility: 'public' | 'direct';
-  invite?: { engagementId: string; status: EngagementStatus; unconfirmed: boolean };
+  invite?: { engagementId: string; status: EngagementStatus; unconfirmed: boolean; contactedAt?: string };
 }
 
 export interface NotificationItem {
@@ -202,6 +216,8 @@ export interface NotificationItem {
   reason?: string;
   /** For invited: name of the poster who sent the invitation. */
   posterName?: string;
+  /** For contacted (D41): name of the person who confirmed the contact. */
+  actorName?: string;
 }
 
 // ---- Endpoints ----
@@ -251,10 +267,16 @@ export interface NotificationItem {
 //                                             withdrawn or unconfirmed → re-opened with a new deadline). Notification 'invited'.
 // GET  /api/invitations                     → { invitations: Invitation[] } (session; poster-initiated engagements where I am the
 //                                             worker, pending/accepted incl. unconfirmed, newest first; job.posterContact = contacts)
-// POST /api/engagements/:id {action: 'accept'|'decline'} (poster, jobs only; 409 on an offer)
+// POST /api/engagements/:id {action: 'contact'} (D41; the job author OR the worker of the engagement, else 403; engagement 'pending' without
+//                                             contacted_at, else 409; not on an offer; also allowed on an unconfirmed invitation, which it
+//                                             revives) → { engagement: { id, status: 'pending', contactedAt } }. Notification 'contacted' to the other side.
+//                                           | {action: 'no_deal'} (D41; author or worker, 'pending' WITH contacted_at, else 409) → worker: status
+//                                             'withdrawn', author: 'declined'; hidden from lists; notification 'no_deal' to the other side.
+//                                           | {action: 'accept'|'decline'} (poster, jobs only; 409 on an offer)
 //                                           | {action: 'accept'|'decline'} (the INVITED worker of a poster-initiated engagement, pending,
 //                                             not unconfirmed; after respond_by → 409 'Lhůta na potvrzení vypršela. Ozvi se zadavateli.')
-//                                           | {action: 'decline'} (the poster cancels his own pending invitation → status 'withdrawn')
+//                                           | {action: 'decline'} (the poster cancels his own pending, NOT contacted invitation → status 'withdrawn';
+//                                             contacted → 409 'Použij Nedohodli jsme se.')
 //                                           | {action: 'withdraw', reason?: string (≤ 500)} (interested user)
 //                                           → { engagement: { id, status }, contact?: ContactInfo }
 //   Accepting books the worker's dates (busy days) and notifies; contacts do not depend on it.

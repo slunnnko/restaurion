@@ -20,6 +20,9 @@ import { countBusyDays, daysInRange } from '../../../src/lib/matching.ts';
  * accept|decline: jen zadavatel, jen z `pending`; u nabídky jen decline. U pozvánky (initiated_by 'poster', D40) rozhoduje
  * pozvaný řemeslník (accept|decline, do respond_by), zadavatel ji může jen zrušit (decline → 'withdrawn'). withdraw: jen zájemce, z `pending`/`accepted`,
  * volitelně s `reason` (max 500 znaků, D38).
+ * contact (D41): zadavatel i zájemce potvrdí „Kontakt navázán“ (z `pending`, jednou; ruší lhůtu pozvánky), druhá strana dostane upozornění.
+ * no_deal (D41): po navázání kontaktu kterákoli strana ukončí „Nedohodli jsme se“ (zájemce → withdrawn, zadavatel → declined).
+ * U pozvánky s navázaným kontaktem zadavatel nemůže použít decline (zrušení), jen no_deal.
  */
 export async function onRequestPost(context: PagesContext): Promise<Response> {
   const { request, env, params } = context;
@@ -33,8 +36,8 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   const body = await readJson<{ action?: unknown; reason?: unknown }>(request);
   if (!body) return badJson();
   const action = body.action;
-  if (action !== 'accept' && action !== 'decline' && action !== 'withdraw') {
-    return jsonResponse({ error: 'Neznámá akce.', fieldErrors: { action: 'accept, decline nebo withdraw' } }, 400);
+  if (action !== 'accept' && action !== 'decline' && action !== 'withdraw' && action !== 'contact' && action !== 'no_deal') {
+    return jsonResponse({ error: 'Neznámá akce.', fieldErrors: { action: 'accept, decline, withdraw, contact nebo no_deal' } }, 400);
   }
 
   try {
@@ -52,7 +55,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     const eng = await db
       .prepare(
         `SELECT e.id, e.status, e.worker_id, e.job_id, j.author_id, j.status AS j_status, j.expires_at AS j_expires,
-                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type, e.initiated_by, e.respond_by,
+                j.date_from AS j_from, j.date_to AS j_to, j.job_type AS j_type, e.initiated_by, e.respond_by, e.contacted_at,
                 ${contactSelect('w', 'w')}
          FROM engagements e JOIN jobs j ON j.id = e.job_id JOIN profiles w ON w.id = e.worker_id
          WHERE e.id = ?`
@@ -71,6 +74,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         j_type: string;
         initiated_by: string;
         respond_by: string | null;
+        contacted_at: string | null;
         w_name: string;
         w_email: string;
         w_phone: string | null;
@@ -81,6 +85,28 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       }>();
     if (!eng) return jsonResponse({ error: 'Zájem nenalezen.' }, 404);
 
+    if (action === 'contact' || action === 'no_deal') {
+      const isAuthor = eng.author_id === auth.userId;
+      if (!isAuthor && eng.worker_id !== auth.userId) return jsonResponse({ error: 'Jen zadavatel nebo zájemce.' }, 403);
+      const otherId = isAuthor ? eng.worker_id : eng.author_id;
+      if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
+      if (action === 'contact') {
+        if (eng.j_type === 'craftsman_available') return jsonResponse({ error: 'U nabídky se kontakt nepotvrzuje.' }, 409);
+        if (eng.contacted_at) return jsonResponse({ error: 'Kontakt už je potvrzený.' }, 409);
+        await db
+          .prepare(`UPDATE engagements SET contacted_at = datetime('now'), contacted_by = ? WHERE id = ?`)
+          .bind(auth.userId, id)
+          .run();
+        await insertNotification(db, { profileId: otherId, type: 'contacted', jobId: eng.job_id, engagementId: id });
+        const row = await db.prepare(`SELECT contacted_at FROM engagements WHERE id = ?`).bind(id).first<{ contacted_at: string }>();
+        return jsonResponse({ engagement: { id, status: 'pending', contactedAt: row?.contacted_at } });
+      }
+      if (!eng.contacted_at) return jsonResponse({ error: 'Nejdřív potvrďte navázání kontaktu.' }, 409);
+      const result = isAuthor ? 'declined' : 'withdrawn';
+      await db.prepare(`UPDATE engagements SET status = ?, responded_at = datetime('now') WHERE id = ?`).bind(result, id).run();
+      await insertNotification(db, { profileId: otherId, type: 'no_deal', jobId: eng.job_id, engagementId: id });
+      return jsonResponse({ engagement: { id, status: result } });
+    }
     if (action === 'withdraw') {
       if (eng.worker_id !== auth.userId) return jsonResponse({ error: 'Odstoupit může jen přihlášený řemeslník.' }, 403);
       if (eng.status !== 'pending' && eng.status !== 'accepted') return jsonResponse({ error: 'Z tohoto stavu nelze odstoupit.' }, 409);
@@ -101,6 +127,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         // The poster cancels his own pending invitation: hidden for both, re-invite stays possible.
         if (action !== 'decline') return jsonResponse({ error: 'Pozvánku přijímá pozvaný řemeslník.' }, 409);
         if (eng.status !== 'pending') return jsonResponse({ error: 'O tomto zájmu už bylo rozhodnuto.' }, 409);
+        if (eng.contacted_at) return jsonResponse({ error: 'Použij Nedohodli jsme se.' }, 409);
         await db.prepare(`UPDATE engagements SET status = 'withdrawn', responded_at = datetime('now') WHERE id = ?`).bind(id).run();
         await insertNotification(db, { profileId: eng.worker_id, type: 'invite_cancelled', jobId: eng.job_id, engagementId: id });
         return jsonResponse({ engagement: { id, status: 'withdrawn' } });

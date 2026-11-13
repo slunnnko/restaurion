@@ -10,6 +10,7 @@ interface Row extends ProfileRow {
   eng_created_at: string;
   eng_initiated_by: 'worker' | 'poster';
   eng_respond_by: string | null;
+  eng_contacted_at: string | null;
 }
 
 /** GET /api/jobs/:id/engagements (jen zadavatel) → zájemci s kontakty (zadavatel je přihlášený). */
@@ -31,7 +32,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   const cols = PROFILE_COLUMNS.split(', ').map((c) => `p.${c}`).join(', ');
   const rows = await db
     .prepare(
-      `SELECT e.id AS eng_id, e.status AS eng_status, e.message AS eng_message, e.created_at AS eng_created_at, e.initiated_by AS eng_initiated_by, e.respond_by AS eng_respond_by, ${cols}
+      `SELECT e.id AS eng_id, e.status AS eng_status, e.message AS eng_message, e.created_at AS eng_created_at, e.initiated_by AS eng_initiated_by, e.respond_by AS eng_respond_by, e.contacted_at AS eng_contacted_at, ${cols}
        FROM engagements e JOIN profiles p ON p.id = e.worker_id
        WHERE e.job_id = ? AND e.status IN ('pending', 'accepted') ORDER BY e.created_at`
     )
@@ -46,7 +47,8 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     createdAt: r.eng_created_at,
     initiatedBy: r.eng_initiated_by,
     ...(r.eng_initiated_by === 'poster' && r.eng_respond_by ? { respondBy: r.eng_respond_by } : {}),
-    ...(isUnconfirmed({ initiated_by: r.eng_initiated_by, status: r.eng_status, respond_by: r.eng_respond_by }, today) ? { unconfirmed: true } : {}),
+    ...(isUnconfirmed({ initiated_by: r.eng_initiated_by, status: r.eng_status, respond_by: r.eng_respond_by, contacted_at: r.eng_contacted_at }, today) ? { unconfirmed: true } : {}),
+    ...(r.eng_status === 'pending' && r.eng_contacted_at ? { contactedAt: r.eng_contacted_at } : {}),
     worker: mapPublicPerson(r),
     workerContact: mapContact(r),
   }));

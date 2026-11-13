@@ -81,9 +81,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
     if (!fit.fits) return jsonResponse({ error: 'Zakázka se k nabídce nehodí (obor, termín nebo stav).' }, 409);
 
     const existing = await db
-      .prepare(`SELECT id, status, initiated_by, respond_by FROM engagements WHERE job_id = ? AND worker_id = ?`)
+      .prepare(`SELECT id, status, initiated_by, respond_by, contacted_at FROM engagements WHERE job_id = ? AND worker_id = ?`)
       .bind(jobId, offer.authorId)
-      .first<{ id: string; status: string; initiated_by: string; respond_by: string | null }>();
+      .first<{ id: string; status: string; initiated_by: string; respond_by: string | null; contacted_at: string | null }>();
 
     const respondBy = respondByFrom(today);
     let engagementId: string;
@@ -97,7 +97,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       await db.batch([
         db
           .prepare(
-            `UPDATE engagements SET status = 'pending', initiated_by = 'poster', message = ?, respond_by = ?, responded_at = NULL WHERE id = ?`
+            `UPDATE engagements SET status = 'pending', initiated_by = 'poster', message = ?, respond_by = ?, contacted_at = NULL, contacted_by = NULL, responded_at = NULL WHERE id = ?`
           )
           .bind(msg.message || null, respondBy, engagementId),
         invitedNotification(db, offer.authorId, jobId, engagementId),

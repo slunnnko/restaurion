@@ -13,9 +13,12 @@ export interface InvitableOffer {
   crafts: string[];
 }
 
-/** Pozvánka je „nepotvrzená“: zadavatelova, stále pending a lhůta uplynula (odvozený stav, bez nového statusu). */
-export function isUnconfirmed(e: { initiated_by: string; status: string; respond_by: string | null }, today: string): boolean {
-  return e.initiated_by === 'poster' && e.status === 'pending' && !!e.respond_by && e.respond_by < today;
+/** Pozvánka je „nepotvrzená“: zadavatelova, stále pending, bez navázaného kontaktu (D41) a lhůta uplynula (odvozený stav, bez nového statusu). */
+export function isUnconfirmed(
+  e: { initiated_by: string; status: string; respond_by: string | null; contacted_at?: string | null },
+  today: string
+): boolean {
+  return e.initiated_by === 'poster' && e.status === 'pending' && !e.contacted_at && !!e.respond_by && e.respond_by < today;
 }
 
 export function respondByFrom(today: string): string {

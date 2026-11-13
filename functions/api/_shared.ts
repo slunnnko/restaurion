@@ -500,6 +500,7 @@ export interface JobRow {
   di_id: string | null;
   di_status: string | null;
   di_respond_by: string | null;
+  di_contacted_at: string | null;
   created_at: string;
   expires_at: string | null;
   a_name: string;
@@ -524,7 +525,8 @@ export const JOB_SELECT = `
          (SELECT COUNT(*) FROM engagements e WHERE e.job_id = j.id AND e.status IN ('pending', 'accepted')) AS interested_count,
          (SELECT e.id FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_id,
          (SELECT e.status FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_status,
-         (SELECT e.respond_by FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_respond_by
+         (SELECT e.respond_by FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_respond_by,
+         (SELECT e.contacted_at FROM engagements e WHERE e.job_id = j.id AND e.worker_id = j.direct_to) AS di_contacted_at
   FROM jobs j JOIN profiles a ON a.id = j.author_id LEFT JOIN profiles dt ON dt.id = j.direct_to`;
 
 export interface JobViewer {
@@ -546,7 +548,8 @@ function directInviteOf(row: JobRow): NonNullable<PublicJob['directInvite']> {
   return {
     ...(row.di_id ? { engagementId: row.di_id } : {}),
     status,
-    unconfirmed: status === 'pending' && !!row.di_respond_by && row.di_respond_by < todayUtc(),
+    unconfirmed: status === 'pending' && !row.di_contacted_at && !!row.di_respond_by && row.di_respond_by < todayUtc(),
+    ...(status === 'pending' && row.di_contacted_at ? { contactedAt: row.di_contacted_at } : {}),
     ...(row.di_respond_by ? { respondBy: row.di_respond_by } : {}),
   };
 }

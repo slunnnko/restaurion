@@ -6,8 +6,7 @@ import { api, ApiError } from '@/lib/api';
 import { formatShortDay, initials } from '@/lib/format';
 import { ErrorBox } from './ui';
 import { EngagementDetailModal } from './EngagementDetailModal';
-import { STATUS_CLS, STATUS_LABEL } from './engagementStatus';
-import type { EngagementStatus } from '@/types/api';
+import { engagementBadge } from './engagementStatus';
 
 interface InterestedListProps {
   job: PublicJob;
@@ -22,14 +21,13 @@ const chipBase =
 /** Čip osoby (iniciály, jméno, volitelně stavový štítek); s `onClick` je to tlačítko, jinak jen popisek. */
 export const PersonChip: React.FC<{
   name: string;
-  status?: EngagementStatus;
+  /** Stavový štítek (`engagementBadge`: „Kontakt navázán“, „Čeká na potvrzení“, „Nepotvrzeno“, …). */
+  badge?: { label: string; cls: string };
   muted?: boolean;
-  /** Přepíše text stavového štítku (pozvánky: „Čeká na potvrzení“, „Nepotvrzeno“). */
-  label?: string;
   /** Doplňující řádek pod štítkem v čipu (např. „do 15. 11.“). */
   note?: string;
   onClick?: () => void;
-}> = ({ name, status, muted = false, label, note, onClick }) => {
+}> = ({ name, badge, muted = false, note, onClick }) => {
   const cls = `${chipBase} ${muted ? 'opacity-60' : ''}`;
   const content = (
     <>
@@ -37,11 +35,11 @@ export const PersonChip: React.FC<{
         {initials(name)}
       </span>
       <span className="truncate max-w-[11rem]">{name}</span>
-      {status && (
+      {badge && (
         <span
-          className={`px-2 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[10px] font-extrabold ${STATUS_CLS[status]}`}
+          className={`px-2 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[10px] font-extrabold ${badge.cls}`}
         >
-          {label ?? STATUS_LABEL[status]}
+          {badge.label}
         </span>
       )}
       {note && <span className="text-[10px] font-bold text-stone-600 dark:text-stone-400">{note}</span>}
@@ -61,16 +59,11 @@ export const PersonChip: React.FC<{
   );
 };
 
-/** D40: stav pozvánky („Poptat spolupráci“) pro zadavatele; ostatní zájmy mají běžné štítky. */
-export function invitationChip(x: EngagementForPoster): { label?: string; note?: string } {
-  if (x.initiatedBy !== 'poster') return {};
-  if (x.status === 'accepted') return { label: 'Přijat' };
-  if (x.status === 'pending') {
-    return x.unconfirmed
-      ? { label: 'Nepotvrzeno' }
-      : { label: 'Čeká na potvrzení', ...(x.respondBy ? { note: `do ${formatShortDay(x.respondBy)}` } : {}) };
-  }
-  return {};
+/** D40: u čekající pozvánky bez navázaného kontaktu je v čipu i lhůta („do 15. 11.“). */
+function inviteNote(x: EngagementForPoster): string | undefined {
+  return x.initiatedBy === 'poster' && x.status === 'pending' && !x.unconfirmed && !x.contactedAt && x.respondBy
+    ? `do ${formatShortDay(x.respondBy)}`
+    : undefined;
 }
 
 const mutedCls = 'text-xs font-semibold text-stone-600 dark:text-stone-400';
@@ -121,8 +114,8 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
             <li key={x.id}>
               <PersonChip
                 name={x.worker.name}
-                status={isOffer ? undefined : x.status}
-                {...(isOffer ? {} : invitationChip(x))}
+                badge={isOffer ? undefined : engagementBadge(x)}
+                note={isOffer ? undefined : inviteNote(x)}
                 muted={x.status === 'declined' || x.status === 'withdrawn'}
                 onClick={() => setSelected(x)}
               />

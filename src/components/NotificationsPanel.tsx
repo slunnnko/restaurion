@@ -42,6 +42,10 @@ export function notificationText(n: NotificationItem): string {
       return `Poptávku ${title} řemeslník odmítl`;
     case 'invite_cancelled':
       return `Poptávka ${title} byla zrušena`;
+    case 'contacted':
+      return n.actorName ? `${n.actorName} potvrdil navázání kontaktu: ${title}` : `Navázání kontaktu potvrzeno: ${title}`;
+    case 'no_deal':
+      return `Nedohodli jste se: ${title}`;
     default:
       return title;
   }
