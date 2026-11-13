@@ -1,4 +1,4 @@
-import { EngagementStatus } from '@/types/api';
+import type { EngagementStatus } from '@/types/api';
 
 export const STATUS_LABEL: Record<EngagementStatus, string> = {
   pending: 'Čeká na rozhodnutí',
@@ -15,17 +15,25 @@ export const STATUS_CLS: Record<EngagementStatus, string> = {
 
 const CONTACTED_CLS = 'bg-sky-100 dark:bg-sky-950 text-sky-950 dark:text-sky-200';
 
-/** Label and colour of an engagement's status pill (D41: contact established, D40: invitation states). */
+/** Label and colour of an engagement's status pill (D41: contact established, D40: invitation states, D43: ended rows). */
 export function engagementBadge(e: {
   status: EngagementStatus;
   unconfirmed?: boolean;
   contactedAt?: string;
   initiatedBy?: 'worker' | 'poster';
+  endedBy?: 'worker' | 'poster';
 }): { label: string; cls: string } {
   if (e.status === 'pending') {
     if (e.contactedAt) return { label: 'Kontakt navázán', cls: CONTACTED_CLS };
     if (e.unconfirmed) return { label: 'Nepotvrzeno', cls: STATUS_CLS.declined };
     if (e.initiatedBy === 'poster') return { label: 'Čeká na potvrzení', cls: STATUS_CLS.pending };
+  }
+  if (e.status === 'declined' || e.status === 'withdrawn') {
+    // D43: an ended row says how it ended. After a confirmed contact it is always "Nedohodli jsme se".
+    if (e.contactedAt) return { label: 'Nedohodli jsme se', cls: STATUS_CLS[e.status] };
+    if (e.initiatedBy === 'poster') {
+      return { label: e.status === 'declined' ? 'Odmítl pozvánku' : 'Zrušeno', cls: STATUS_CLS[e.status] };
+    }
   }
   return { label: STATUS_LABEL[e.status], cls: STATUS_CLS[e.status] };
 }

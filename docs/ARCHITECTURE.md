@@ -99,7 +99,11 @@ stateDiagram-v2
   pending --> withdrawn: worker withdraw (withdrawn → poster)
   accepted --> withdrawn: worker "Odstoupit"
   withdrawn --> pending: worker responds again
+  declined --> pending: reopen by the ending side (D43)
+  withdrawn --> pending: reopen by the ending side (D43)
 ```
+
+- D43: declined and withdrawn rows stay visible to both participants. `engagements.ended_by` (migration 0016) records who ended it; legacy rows derive the side in `src/lib/engagementEnd.ts`. `reopen` (`POST /api/engagements/:id`) is allowed only for that side while the listing is active, and sends `reopened`.
 
 - Accept is allowed only on an active, unexpired job. It returns 409 when the worker's busy days (excluding this job) cover the whole range.
 - Accept on an offer returns 409. Decline on an offer is allowed.
@@ -128,7 +132,7 @@ Legacy tables from `0001`–`0005` (`profiles`, `jobs`, `auth_sessions`, `job_re
 | `profiles` | user | `crafts` (JSON ids), `experience_text`, `portfolio_url`, `licence_number`, `licence_verified` (unused since D25, column kept), `email_digest`, `accepting_jobs`, `consent_at`, `directory_group`, `directory_visible`, `instagram`, `whatsapp`, `facebook` |
 | `jobs` | job or offer | `job_type`, `date_from`, `date_to`, `visibility`, `expires_at`, `status` (`active` / `archived`) |
 | `unavailability_blocks` | private busy ranges | `profile_id`, `date_from`, `date_to` |
-| `engagements` | interest and acceptance | `job_id`, `worker_id`, `status`, `UNIQUE(job_id, worker_id)` |
+| `engagements` | interest and acceptance | `job_id`, `worker_id`, `status`, `ended_by` (D43), `UNIQUE(job_id, worker_id)` |
 | `notifications` | in-app + digest | `type`, `read_at`, `emailed_at` |
 | `login_codes` | email login | `code_hash`, `expires_at`, `attempts` |
 | `rate_limit_events` | rate limiting | `bucket`, `key_hash`, `created_at` |

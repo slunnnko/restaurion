@@ -15,6 +15,7 @@ import { loadBusySlots, notifyJobMatches } from './_lib/data.ts';
 import { fitsOffer, inviteMessage, isUnconfirmed, loadInvitableOffer, newInviteStatements, respondByFrom } from './_lib/invitations.ts';
 import { profileNameMissing, profileNameResponse, validateNewJob, validationResponse } from './_lib/validate.ts';
 import { countBusyDays } from '../../src/lib/matching.ts';
+import { endedFields } from '../../src/lib/engagementEnd.ts';
 import type { EngagementStatus, MyEngagement, MyInvite } from '../../src/types/api.ts';
 
 const BOARD_WHERE = `j.date_from IS NOT NULL AND j.date_to IS NOT NULL AND j.status = 'active'
@@ -48,9 +49,9 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     const today = todayUtc();
     const busy = await loadBusySlots(db, userId, today);
     const mine = await db
-      .prepare(`SELECT id, job_id, status, initiated_by, respond_by, contacted_at FROM engagements WHERE worker_id = ?`)
+      .prepare(`SELECT id, job_id, status, initiated_by, respond_by, contacted_at, ended_by FROM engagements WHERE worker_id = ?`)
       .bind(userId)
-      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: 'worker' | 'poster'; respond_by: string | null; contacted_at: string | null }>();
+      .all<{ id: string; job_id: string; status: EngagementStatus; initiated_by: 'worker' | 'poster'; respond_by: string | null; contacted_at: string | null; ended_by: string | null }>();
     const engByJob = new Map(mine.results.map((e) => [e.job_id, e]));
     // Invitations the viewer sent (as poster), grouped by the invited offerer; shown on that person's offer cards.
     const sent = await db
@@ -94,6 +95,11 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
                 ...(e.initiated_by === 'poster' && e.respond_by ? { respondBy: e.respond_by } : {}),
                 ...(isUnconfirmed(e, today) ? { unconfirmed: true } : {}),
                 ...(e.contacted_at && e.status !== 'accepted' ? { contactedAt: e.contacted_at } : {}),
+                ...endedFields(
+                  { status: e.status, initiated_by: e.initiated_by, ended_by: e.ended_by, worker_id: userId, author_id: r.author_id, contacted_at: e.contacted_at },
+                  userId,
+                  r.status === 'active' && !!r.expires_at && r.expires_at >= today
+                ),
               } satisfies MyEngagement,
             }
           : {}),

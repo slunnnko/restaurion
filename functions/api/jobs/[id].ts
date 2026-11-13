@@ -205,6 +205,7 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
  * DELETE /api/jobs/:id (jen správce z ADMIN_EMAILS): měkké smazání cizího i vlastního inzerátu.
  * Řádek zůstane v D1 (visibility = 'deleted', status = 'archived'), zmizí z nástěnky i ze „Moje inzeráty“.
  * Zájemci s pending/accepted dostanou `job_closed`. Opakované smazání vrací 200.
+ * Tělo `{ reason }` (3–500 znaků, D46) je povinné; autor inzerátu dostane `job_removed` s důvodem (ne když je správce autor).
  * Obnova ručně: UPDATE jobs SET visibility = 'public', status = 'active' WHERE id = ?;
  */
 export async function onRequestDelete(context: PagesContext): Promise<Response> {
@@ -217,11 +218,19 @@ export async function onRequestDelete(context: PagesContext): Promise<Response> 
   if ('response' in auth) return auth.response;
 
   const existing = await db
-    .prepare(`SELECT status, visibility FROM jobs WHERE id = ?`)
+    .prepare(`SELECT status, visibility, author_id FROM jobs WHERE id = ?`)
     .bind(jobId)
-    .first<{ status: string; visibility: string }>();
+    .first<{ status: string; visibility: string; author_id: string }>();
   if (!existing) return jsonResponse({ error: 'Zakázka nenalezena.' }, 404);
   if (existing.visibility === 'deleted') return jsonResponse({ ok: true });
+
+  const body = await readJson<{ reason?: unknown }>(request);
+  const reason = str(body?.reason);
+  const reasonLen = [...reason].length; // code points, same as the UI counter
+  if (reasonLen < 3 || reasonLen > 500) {
+    const message = 'Důvod pro autora musí mít 3 až 500 znaků.';
+    return jsonResponse({ error: message, fieldErrors: { reason: message } }, 400);
+  }
 
   try {
     // Workers of an already closed job were notified when it was closed.
@@ -231,6 +240,13 @@ export async function onRequestDelete(context: PagesContext): Promise<Response> 
         .prepare(`UPDATE jobs SET visibility = 'deleted', status = 'archived', updated_at = datetime('now') WHERE id = ?`)
         .bind(jobId),
       ...notifications,
+      ...(existing.author_id !== auth.userId
+        ? [
+            db
+              .prepare(`INSERT INTO notifications (id, profile_id, type, job_id, reason, actor_id) VALUES (?, ?, 'job_removed', ?, ?, ?)`)
+              .bind(`n-${crypto.randomUUID()}`, existing.author_id, jobId, reason, auth.userId),
+          ]
+        : []),
     ]);
     return jsonResponse({ ok: true });
   } catch (err) {

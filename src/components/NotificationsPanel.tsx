@@ -46,6 +46,10 @@ export function notificationText(n: NotificationItem): string {
       return n.actorName ? `${n.actorName} potvrdil navázání kontaktu: ${title}` : `Navázání kontaktu potvrzeno: ${title}`;
     case 'no_deal':
       return n.actorName ? `${n.actorName}: nedohodli jste se – ${title}` : `Nedohodli jste se: ${title}`;
+    case 'reopened':
+      return n.actorName ? `${n.actorName} vrátil(a) jednání o „${title}“ zpět.` : `Jednání o „${title}“ bylo vráceno zpět.`;
+    case 'job_removed':
+      return `Správce odstranil tvůj inzerát „${title}“.${n.reason ? ` Důvod: ${n.reason}` : ''}`;
     default:
       return title;
   }
@@ -105,11 +109,11 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({ onClose,
             <li key={n.id}>
               <button
                 type="button"
-                disabled={!n.jobId && !INVITE_TYPES.includes(n.type)}
+                disabled={n.type === 'job_removed' || (!n.jobId && !INVITE_TYPES.includes(n.type))}
                 onClick={() => (INVITE_TYPES.includes(n.type) ? onOpenProfile() : n.jobId && onOpenJob(n.jobId))}
                 className={`w-full text-left p-3 rounded-xl border-2 border-[#111111] dark:border-stone-500 text-xs font-bold text-[#111111] dark:text-stone-100 transition-all ${
                   n.read ? 'bg-[#FFFDF7] dark:bg-[#121318]' : 'bg-[#FEF08A]/60 dark:bg-[#FEF08A]/15'
-                } ${n.jobId || INVITE_TYPES.includes(n.type) ? 'hover:bg-[#FEF08A] dark:hover:bg-[#323644] cursor-pointer' : 'cursor-default'}`}
+                } ${n.type !== 'job_removed' && (n.jobId || INVITE_TYPES.includes(n.type)) ? 'hover:bg-[#FEF08A] dark:hover:bg-[#323644] cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="break-words">{notificationText(n)}</div>
                 {n.type === 'job_match' && n.busyDays !== undefined && n.busyDays > 0 && (

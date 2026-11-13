@@ -95,7 +95,16 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
 
           <div>
             <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
-              4. Osobní údaje
+              4. Obsah inzerátů
+            </h3>
+            <p>
+              Inzerát se musí týkat restaurování, řemesel nebo péče o historické stavby: práce, spolupráce, nabídka služeb, materiál, nářadí nebo vzdělávání. Propagace je v pořádku, pokud k tématu patří. Správce může odstranit inzerát, který s tématem nesouvisí, uvádí v omyl, je duplicitní, je spam nebo odporuje zákonu či dobrým mravům. Autor se v upozornění v aplikaci dozví důvod.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
+              5. Osobní údaje
             </h3>
             <p>
               Tvé kontakty (e-mail, telefon, web, Instagram, WhatsApp, Facebook) vidí každý přihlášený uživatel, nikdy anonymní návštěvník. Profil s tvým jménem, obory a zkušenostmi je zveřejněný v Adresáři, dokud to v profilu nevypneš. Termíny nedostupnosti a obsazené dny nevidí nikdo jiný. Smazání účtu zajistíme na vyžádání e-mailem.
@@ -104,7 +113,7 @@ export const LegalNoticeModal: React.FC<LegalNoticeModalProps> = ({
 
           <div>
             <h3 className="font-serif font-bold text-base text-[#111111] dark:text-white mb-1">
-              5. Závěrečná ustanovení
+              6. Závěrečná ustanovení
             </h3>
             <p className="text-stone-600 dark:text-stone-400 text-xs">
               Tyto VOP se řídí právem České republiky. Využíváním platformy potvrzujete, že těmto srozumitelným pravidlům rozumíte a bez výhrad s nimi souhlasíte.

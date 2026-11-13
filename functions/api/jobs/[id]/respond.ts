@@ -45,7 +45,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       if (existing.status !== 'withdrawn') return jsonResponse({ error: 'Zájem jste už projevili.' }, 409);
       engagementId = existing.id;
       await db
-        .prepare(`UPDATE engagements SET status = 'pending', initiated_by = 'worker', respond_by = NULL, contacted_at = NULL, contacted_by = NULL, message = ?, responded_at = NULL WHERE id = ?`)
+        .prepare(`UPDATE engagements SET status = 'pending', initiated_by = 'worker', respond_by = NULL, contacted_at = NULL, contacted_by = NULL, ended_by = NULL, message = ?, responded_at = NULL WHERE id = ?`)
         .bind(message || null, engagementId)
         .run();
     } else {

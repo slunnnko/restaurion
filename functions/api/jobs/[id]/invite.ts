@@ -97,7 +97,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
       await db.batch([
         db
           .prepare(
-            `UPDATE engagements SET status = 'pending', initiated_by = 'poster', message = ?, respond_by = ?, contacted_at = NULL, contacted_by = NULL, responded_at = NULL WHERE id = ?`
+            `UPDATE engagements SET status = 'pending', initiated_by = 'poster', message = ?, respond_by = ?, contacted_at = NULL, contacted_by = NULL, ended_by = NULL, responded_at = NULL WHERE id = ?`
           )
           .bind(msg.message || null, respondBy, engagementId),
         invitedNotification(db, offer.authorId, jobId, engagementId),

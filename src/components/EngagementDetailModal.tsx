@@ -27,20 +27,35 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
   const isInvite = x.initiatedBy === 'poster';
   const badge = engagementBadge(x);
   const contacted = x.status === 'pending' && !!x.contactedAt;
+  const ended = x.status === 'declined' || x.status === 'withdrawn';
 
-  const decide = async (action: 'accept' | 'decline' | 'contact' | 'no_deal') => {
+  const decide = async (action: 'accept' | 'decline' | 'contact' | 'no_deal' | 'reopen') => {
+    if (action === 'decline') {
+      const text = isInvite
+        ? `Opravdu zrušit poptávku pro ${x.worker.name}? Dostane upozornění.`
+        : `Opravdu odmítnout ${x.worker.name}? Dostane upozornění.`;
+      if (!window.confirm(text)) return;
+    }
+    if (action === 'reopen' && !window.confirm(`Vrátit jednání s ${x.worker.name} zpět? Dostane upozornění.`)) return;
     setBusy(true);
     setActionError('');
     try {
-      const data = await api<{ engagement: { id: string; status: EngagementStatus; contactedAt?: string }; contact?: ContactInfo }>(
+      const data = await api<{ engagement: { id: string; status: EngagementStatus; contactedAt?: string; respondBy?: string }; contact?: ContactInfo }>(
         `/api/engagements/${encodeURIComponent(x.id)}`,
         { method: 'POST', body: { action } }
       );
+      const { endedBy: _endedBy, canReopen: _canReopen, ...rest } = x;
+      void _endedBy;
+      void _canReopen;
+      const nowEnded = data.engagement.status === 'declined' || data.engagement.status === 'withdrawn';
       onDecided({
-        ...x,
+        ...rest,
         status: data.engagement.status,
+        // D43: the viewer (poster) ended it, so he may take it back
+        ...(nowEnded ? { endedBy: 'poster' as const, canReopen: true as const } : {}),
         workerContact: data.contact ?? x.workerContact,
         ...(data.engagement.contactedAt ? { contactedAt: data.engagement.contactedAt } : {}),
+        ...(data.engagement.respondBy ? { respondBy: data.engagement.respondBy } : {}),
         // contact revives an unconfirmed invitation
         ...(action === 'contact' ? { unconfirmed: false } : {}),
       });
@@ -85,7 +100,7 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
         <div className="space-y-3">
           {actionError && <ErrorBox message={actionError} />}
 
-          {!isOffer && (
+          {(!isOffer || ended) && (
             <div>
               <span
                 className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${badge.cls}`}
@@ -120,6 +135,14 @@ export const EngagementDetailModal: React.FC<EngagementDetailModalProps> = ({ jo
                   {isInvite ? 'Zrušit poptávku' : 'Odmítnout'}
                 </button>
               )}
+            </div>
+          )}
+
+          {ended && x.canReopen && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button type="button" disabled={busy} onClick={() => void decide('reopen')} className={secondaryBtn}>
+                Vrátit do jednání
+              </button>
             </div>
           )}
 

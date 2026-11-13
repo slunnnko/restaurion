@@ -1,22 +1,26 @@
 import { JOB_SELECT, jsonResponse, mapJobRow, noDb, requireUser, todayUtc } from './_shared.ts';
 import type { JobRow, PagesContext } from './_shared.ts';
 import { isUnconfirmed } from './_lib/invitations.ts';
-import type { Invitation } from '../../src/types/api.ts';
+import { endedFields } from '../../src/lib/engagementEnd.ts';
+import type { EngagementStatus, Invitation } from '../../src/types/api.ts';
 
 interface EngRow {
   id: string;
   job_id: string;
-  status: 'pending' | 'accepted';
+  status: EngagementStatus;
   message: string | null;
   created_at: string;
   initiated_by: string;
   respond_by: string | null;
   contacted_at: string | null;
+  ended_by: string | null;
+  author_id: string;
+  j_expires: string | null;
 }
 
 /**
  * GET /api/invitations → pozvánky („Poptat spolupráci“) pro přihlášeného nabízejícího: zadavatelem založené
- * engagementy s jeho worker_id, pending a accepted (odmítnuté jsou skryté), i nepotvrzené po lhůtě.
+ * engagementy s jeho worker_id, všechny stavy (D43: odmítnuté a zrušené zůstávají, ztlumené), i nepotvrzené po lhůtě.
  * Kontakty zadavatele jsou v job.posterContact (přihlášený je vidí vždy).
  */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
@@ -31,9 +35,9 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
   try {
     const engs = await db
       .prepare(
-        `SELECT e.id, e.job_id, e.status, e.message, e.created_at, e.initiated_by, e.respond_by, e.contacted_at
+        `SELECT e.id, e.job_id, e.status, e.message, e.created_at, e.initiated_by, e.respond_by, e.contacted_at, e.ended_by, j.author_id, j.expires_at AS j_expires
          FROM engagements e JOIN jobs j ON j.id = e.job_id
-         WHERE e.worker_id = ? AND e.initiated_by = 'poster' AND e.status IN ('pending', 'accepted')
+         WHERE e.worker_id = ? AND e.initiated_by = 'poster'
            AND j.status = 'active' AND j.visibility IN ('public', 'direct')
          ORDER BY e.created_at DESC, e.rowid DESC LIMIT 100`
       )
@@ -57,6 +61,12 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
       const row = rowById.get(e.job_id);
       if (!row) continue;
       const unconfirmed = isUnconfirmed(e, today);
+      const ended = endedFields(
+        { status: e.status, initiated_by: e.initiated_by, ended_by: e.ended_by, worker_id: auth.userId, author_id: e.author_id, contacted_at: e.contacted_at },
+        auth.userId,
+        !!e.j_expires && e.j_expires >= today // the query already keeps active jobs only
+      );
+      const contactedAt = e.status !== 'accepted' && e.contacted_at ? { contactedAt: e.contacted_at } : {};
       invitations.push({
         engagementId: e.id,
         status: e.status,
@@ -64,7 +74,8 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
         createdAt: e.created_at,
         respondBy: e.respond_by ?? '',
         unconfirmed,
-        ...(e.status === 'pending' && e.contacted_at ? { contactedAt: e.contacted_at } : {}),
+        ...contactedAt,
+        ...ended,
         job: mapJobRow(row, {
           userId: auth.userId,
           engagement: {
@@ -73,7 +84,8 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
             initiatedBy: 'poster',
             ...(e.respond_by ? { respondBy: e.respond_by } : {}),
             ...(unconfirmed ? { unconfirmed: true } : {}),
-            ...(e.status === 'pending' && e.contacted_at ? { contactedAt: e.contacted_at } : {}),
+            ...contactedAt,
+            ...ended,
           },
         }),
       });

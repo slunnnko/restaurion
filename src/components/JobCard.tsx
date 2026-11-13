@@ -5,11 +5,12 @@ import { PublicJob } from '@/types/api';
 import { api, ApiError } from '@/lib/api';
 import { CRAFT_CATEGORIES } from '@/lib/crafts';
 import { formatRange, formatShortDay, pluralDays, rewardDisplay } from '@/lib/format';
-import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, primaryBtn, dangerBtn } from './ui';
+import { ContactsOrLogin, ErrorBox, ContactButton, NoDealButton, primaryBtn, secondaryBtn, dangerBtn } from './ui';
 import { engagementBadge } from './engagementStatus';
 import { ActionMenu, MenuAction, iconBtn } from './ActionMenu';
 import { InterestedList, PersonChip } from './InterestedList';
 import { WithdrawModal } from './WithdrawModal';
+import { DeleteJobModal } from './DeleteJobModal';
 import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, UserCheck, Pencil, Trash2, X } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
@@ -27,7 +28,8 @@ interface JobCardProps {
   viewerName?: string;
   /** Správce (ADMIN_EMAILS) smí smazat jakýkoli inzerát. */
   isAdmin?: boolean;
-  onDeleteJob?: (job: PublicJob) => Promise<void>;
+  /** D46: správce zadává důvod, který dostane autor. Při chybě vyhodí výjimku (modal ji ukáže). */
+  onDeleteJob?: (job: PublicJob, reason: string) => Promise<void>;
 }
 
 const tileShadowBorder = 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
@@ -78,6 +80,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const isCulturalMonument =
     job.monumentStatus === 'cultural_monument' || job.monumentStatus === 'national_monument';
@@ -94,6 +97,8 @@ export const JobCard: React.FC<JobCardProps> = ({
   const contacted = engStatus === 'pending' && !!eng?.contactedAt;
   // D41: contact was established and then ended ("Nedohodli jsme se") by either side.
   const noDeal = !job.isMine && !isOffer && !!eng?.contactedAt && (engStatus === 'declined' || engStatus === 'withdrawn');
+  // D43: an ended engagement stays visible as a muted chip in the "Tvůj zájem" section; the ending side may take it back.
+  const endedEng = !job.isMine && !isOffer && eng && (eng.status === 'declined' || eng.status === 'withdrawn') ? eng : null;
   const invites = job.myInvites ?? [];
   const inviteState: 'pending' | 'accepted' | null = !isOffer
     ? null
@@ -116,8 +121,10 @@ export const JobCard: React.FC<JobCardProps> = ({
     }
   };
 
-  const decideInvite = (action: 'accept' | 'decline' | 'contact' | 'no_deal') =>
+  const decideInvite = (action: 'accept' | 'decline' | 'contact' | 'no_deal' | 'reopen') =>
     run(async () => {
+      if (action === 'decline' && !window.confirm(`Opravdu odmítnout pozvánku na „${job.title}“? Zadavatel dostane upozornění.`)) return;
+      if (action === 'reopen' && !window.confirm(`Vrátit jednání o „${job.title}“ zpět? Zadavatel dostane upozornění.`)) return;
       setActionError('');
       try {
         await api(`/api/engagements/${encodeURIComponent(eng?.id ?? '')}`, { method: 'POST', body: { action } });
@@ -134,8 +141,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const handleDelete = () => {
     if (!onDeleteJob) return;
-    if (!window.confirm('Smazat inzerát? Zájemci dostanou upozornění.')) return;
-    void run(() => onDeleteJob(job));
+    setDeleteOpen(true);
   };
 
   const canDelete = isAdmin && Boolean(onDeleteJob);
@@ -150,6 +156,30 @@ export const JobCard: React.FC<JobCardProps> = ({
   }
   // Místo vpravo nahoře pro ikonu, aby nepřekrývala odznaky.
   const badgesPad = actions.length > 0 ? 'pr-11' : '';
+
+  const endedBlock = endedEng ? (
+    <div className="mb-2">
+      <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-600 dark:text-stone-400 mb-1.5">Tvůj zájem</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <PersonChip name={viewerName || 'Ty'} muted badge={engagementBadge(endedEng)} />
+        {endedEng.canReopen && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void decideInvite('reopen')}
+            className={`${secondaryBtn} !min-h-8 !px-2.5 !py-1`}
+          >
+            Vrátit
+          </button>
+        )}
+      </div>
+      {actionError && (
+        <div className="mt-2">
+          <ErrorBox message={actionError} />
+        </div>
+      )}
+    </div>
+  ) : null;
 
   const labelFor = (id: string) => CRAFT_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 
@@ -303,9 +333,12 @@ export const JobCard: React.FC<JobCardProps> = ({
         {job.isMine ? (
           <InterestedList job={job} onChanged={onChanged} showHeading />
         ) : engStatus === 'declined' ? (
-          // D40: odmítnutý zájem (z obou stran) nemá čip ani tlačítko; opakovaná reakce by skončila 409.
-          <div className="text-xs font-bold text-stone-500 dark:text-stone-400">
-            {noDeal ? 'Nedohodli jste se.' : 'Zadavatel u tohoto inzerátu vybral jinak.'}
+          // D40: odmítnutý zájem (z obou stran) nemá tlačítko „Mám zájem“ (opakovaná reakce by skončila 409); D43: zůstává čip s popiskem.
+          <div>
+            {endedBlock}
+            {!noDeal && eng?.initiatedBy !== 'poster' && (
+              <div className="text-xs font-bold text-stone-500 dark:text-stone-400">Zadavatel u tohoto inzerátu vybral jinak.</div>
+            )}
           </div>
         ) : isInvitedToMe ? (
           <div>
@@ -450,7 +483,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         ) : (
           <div>
-            {noDeal && <div className="mb-2 text-xs font-bold text-stone-500 dark:text-stone-400">Nedohodli jste se.</div>}
+            {endedBlock}
             <button
               type="button"
               onClick={() => onRespond(job)}
@@ -462,6 +495,9 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
       </div>
+      {deleteOpen && onDeleteJob && (
+        <DeleteJobModal title={job.title} onClose={() => setDeleteOpen(false)} onConfirm={(reason) => onDeleteJob(job, reason)} />
+      )}
       {withdrawOpen && (
         <WithdrawModal
           isOffer={isOffer}

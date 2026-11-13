@@ -23,9 +23,11 @@ export type NotificationType =
   | 'invite_declined' // offerer declined the invitation (to poster)
   | 'invite_cancelled' // poster cancelled the invitation (to offerer)
   | 'contacted' // the other side confirmed "Kontakt navázán" (D41, to the other side)
-  | 'no_deal'; // the other side ended it with "Nedohodli jsme se" (D41, to the other side)
-/** POST /api/engagements/:id actions ('contact' and 'no_deal' since D41). */
-export type EngagementAction = 'accept' | 'decline' | 'withdraw' | 'contact' | 'no_deal';
+  | 'no_deal' // the other side ended it with "Nedohodli jsme se" (D41, to the other side)
+  | 'reopened' // the side that ended the engagement took it back (D43, to the other side)
+  | 'job_removed'; // an administrator removed the listing, with a reason (D46, to the author)
+/** POST /api/engagements/:id actions ('contact' and 'no_deal' since D41, 'reopen' since D43). */
+export type EngagementAction = 'accept' | 'decline' | 'withdraw' | 'contact' | 'no_deal' | 'reopen';
 
 /** Public summary of a person. Never contains contacts or availability. */
 export interface PublicPerson {
@@ -62,6 +64,10 @@ export interface MyEngagement {
   unconfirmed?: boolean;
   /** D41: contact confirmed by either side. Set for 'pending'; also for 'declined'/'withdrawn' (= "Nedohodli jste se"). */
   contactedAt?: string;
+  /** D43, ended rows only: who ended it (absent for a legacy no-deal row where nobody recorded it). */
+  endedBy?: 'worker' | 'poster';
+  /** D43, ended rows only: the viewer ended it (or it is a legacy no-deal row) and the listing is still open. */
+  canReopen?: true;
 }
 
 /** On an offer card: the viewer's invitation (job of the viewer sent to this offer's author). */
@@ -173,8 +179,11 @@ export interface EngagementForPoster {
   /** Invitations only (D40). */
   respondBy?: string;
   unconfirmed?: boolean;
-  /** D41: contact confirmed (pending only). */
+  /** D41: contact confirmed (pending, and ended rows: = "Nedohodli jsme se"). */
   contactedAt?: string;
+  /** D43, ended rows (declined / withdrawn) only. */
+  endedBy?: 'worker' | 'poster';
+  canReopen?: true;
   worker: PublicPerson;
   workerContact: ContactInfo;
 }
@@ -182,13 +191,17 @@ export interface EngagementForPoster {
 /** One invitation as the invited offerer sees it (GET /api/invitations). Contacts: job.posterContact. */
 export interface Invitation {
   engagementId: string;
-  status: 'pending' | 'accepted';
+  /** D43: declined / withdrawn invitations stay in the list (muted). */
+  status: EngagementStatus;
   message?: string;
   createdAt: string;
   respondBy: string;
   unconfirmed: boolean;
-  /** D41: contact confirmed (pending only). */
+  /** D41: contact confirmed (pending, and ended rows: = "Nedohodli jsme se"). */
   contactedAt?: string;
+  /** D43, ended rows only. */
+  endedBy?: 'worker' | 'poster';
+  canReopen?: true;
   job: PublicJob;
 }
 
@@ -212,11 +225,11 @@ export interface NotificationItem {
   engagementId?: string;
   /** For job_match: days of the job range the recipient has busy (> 0 → show the note). */
   busyDays?: number;
-  /** For withdrawn: the worker's optional reason (D38). */
+  /** For withdrawn: the worker's optional reason (D38). For job_removed: the administrator's reason (D46). */
   reason?: string;
   /** For invited: name of the poster who sent the invitation. */
   posterName?: string;
-  /** For contacted / no_deal (D41): name of the person who caused the event. */
+  /** For contacted / no_deal (D41) and reopened (D43): name of the person who caused the event. */
   actorName?: string;
 }
 
@@ -257,8 +270,8 @@ export interface NotificationItem {
 //   jobType is immutable (400 if sent and different). A closed job is read-only (409). Editing sends NO new
 //   match notifications (job_match only on create). Closing notifies workers with a pending/accepted engagement.
 // POST /api/jobs/:id/respond {message?}     → 201 { engagement: { id, status } }  (not own job; 409 on an offer: use the invitation flow, D40)
-// GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts; pending and
-//                                             accepted only, declined and withdrawn are hidden)
+// GET  /api/jobs/:id/engagements            → { engagements: EngagementForPoster[] } (owner only, with contacts; all four statuses,
+//                                             pending/accepted first, then ended rows (D43) with endedBy / canReopen / contactedAt)
 // GET  /api/jobs/:id/invite-options         → { offer: { id, authorName }, jobs: InviteOptionJob[] } (D40; :id = an active offer that
 //                                             is not mine; jobs = my active public/direct listings that fit it; `invite` = O's existing engagement)
 // POST /api/jobs/:id/invite {offerId, message? (≤ 500)} → 201 { engagement: { id, status, respondBy } } (D40; :id = my active job;
@@ -271,7 +284,12 @@ export interface NotificationItem {
 //                                             contacted_at, else 409; not on an offer; also allowed on an unconfirmed invitation, which it
 //                                             revives) → { engagement: { id, status: 'pending', contactedAt } }. Notification 'contacted' to the other side.
 //                                           | {action: 'no_deal'} (D41; author or worker, 'pending' WITH contacted_at, else 409) → worker: status
-//                                             'withdrawn', author: 'declined'; hidden from lists; notification 'no_deal' to the other side.
+//                                             'withdrawn', author: 'declined'; notification 'no_deal' to the other side. Every ending
+//                                             stores engagements.ended_by (D43); ended rows stay in the lists.
+//                                           | {action: 'reopen'} (D43; only the side that ended it (legacy rows: derived, no-deal → either side), else 403;
+//                                             only from declined/withdrawn, else 409; job active and not expired, else 409) → status 'pending',
+//                                             ended_by NULL, contacted_at kept; an invitation without contact gets a new respond_by; a direct
+//                                             listing keeps the one-waiting-invitation cap (409). Notification 'reopened' to the other side.
 //                                           | {action: 'accept'|'decline'} (poster, jobs only; 409 on an offer)
 //                                           | {action: 'accept'|'decline'} (the INVITED worker of a poster-initiated engagement, pending,
 //                                             not unconfirmed; after respond_by → 409 'Lhůta na potvrzení vypršela. Ozvi se zadavateli.')
@@ -291,9 +309,10 @@ export interface NotificationItem {
 // PUT  /api/availability/:id {dateFrom, dateTo, note?} → { block } (owner only; foreign or missing id → 404;
 //                                           same validation as POST, 400 with fieldErrors)
 // DELETE /api/availability/:id              → { ok: true } (owner only, else 403)
-// DELETE /api/jobs/:id                      → { ok: true } (ADMIN_EMAILS only: 401 without session, 403 otherwise).
-//   Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
-//   accepted workers get 'job_closed'. Idempotent: an already deleted job → 200. Owner PATCH on it → 404.
+// DELETE /api/jobs/:id {reason}             → { ok: true } (ADMIN_EMAILS only: 401 without session, 403 otherwise; reason 3..500 chars, else 400
+//   fieldErrors.reason, D46). Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
+//   accepted workers get 'job_closed'; the author gets 'job_removed' with the reason (not when the admin is the author).
+//   Idempotent: an already deleted job → 200 (before the reason is checked). Owner PATCH on it → 404.
 // POST /api/jobs/:id/photo  (raw image bytes, owner) → { job }  JPEG/PNG/WebP by magic bytes (else 400), max 5 MB (413),
 //   closed or deleted job 409, 401/403/404 like PATCH, 429 (30/h), 503 { error } when R2 is not enabled. Replaces the old photo.
 // DELETE /api/jobs/:id/photo (owner) → { job } (imageUrl absent). 503 without R2.

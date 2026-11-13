@@ -48,7 +48,9 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
     void load();
   }, [load]);
 
-  const decide = async (inv: Invitation, action: 'accept' | 'decline' | 'contact' | 'no_deal') => {
+  const decide = async (inv: Invitation, action: 'accept' | 'decline' | 'contact' | 'no_deal' | 'reopen') => {
+    if (action === 'decline' && !window.confirm(`Opravdu odmítnout poptávku „${inv.job.title}“? Zadavatel dostane upozornění.`)) return;
+    if (action === 'reopen' && !window.confirm(`Vrátit poptávku „${inv.job.title}“ zpět do jednání? Zadavatel dostane upozornění.`)) return;
     setBusyId(inv.engagementId);
     setError('');
     try {
@@ -88,10 +90,13 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
           const reward = rewardDisplay(job);
           const contacted = inv.status === 'pending' && !!inv.contactedAt;
           const confirmable = inv.status === 'pending' && !inv.unconfirmed;
+          // D43: ended invitations stay listed, muted, and can be taken back by the side that ended them.
+          const ended = inv.status === 'declined' || inv.status === 'withdrawn';
+          const endedBadge = engagementBadge({ status: inv.status, initiatedBy: 'poster', contactedAt: inv.contactedAt, endedBy: inv.endedBy });
           return (
             <li
               key={inv.engagementId}
-              className="rounded-2xl border-2 border-[#111111] dark:border-stone-500 p-3.5 bg-white dark:bg-[#1C1E26] shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000]"
+              className={`${ended ? 'opacity-60 ' : ''}rounded-2xl border-2 border-[#111111] dark:border-stone-500 p-3.5 bg-white dark:bg-[#1C1E26] shadow-[3px_3px_0px_#111111] dark:shadow-[3px_3px_0px_#000000]`}
             >
               <div className="flex items-start gap-3">
                 <span
@@ -130,7 +135,13 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
               )}
 
               <div className="mt-2.5 text-xs font-extrabold text-[#111111] dark:text-stone-100">
-                {inv.status === 'accepted' ? (
+                {ended ? (
+                  <span
+                    className={`inline-block px-2.5 py-0.5 rounded-full border-2 border-[#111111] dark:border-stone-400 text-[11px] font-extrabold ${endedBadge.cls}`}
+                  >
+                    {endedBadge.label}
+                  </span>
+                ) : inv.status === 'accepted' ? (
                   <span className="text-emerald-800 dark:text-emerald-300">Potvrzeno</span>
                 ) : contacted ? (
                   <span
@@ -150,6 +161,14 @@ export const InvitationsList: React.FC<InvitationsListProps> = ({ onChanged, onL
               {job.posterContact && (
                 <div className="mt-2">
                   <ContactLinks contact={job.posterContact} />
+                </div>
+              )}
+
+              {ended && inv.canReopen && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button type="button" disabled={busyId !== null} onClick={() => void decide(inv, 'reopen')} className={secondaryBtn}>
+                    Vrátit
+                  </button>
                 </div>
               )}
 

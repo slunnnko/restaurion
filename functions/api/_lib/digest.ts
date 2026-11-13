@@ -18,8 +18,8 @@ export function pickDigestRecipients<T extends { oldestUnread: string }>(rows: T
   return [...rows].sort((a, b) => a.oldestUnread.localeCompare(b.oldestUnread)).slice(0, budget);
 }
 
-/** Event types that never go into the e-mail digest (D41). */
-export const NON_DIGEST_TYPES = ['contacted', 'no_deal'];
+/** Event types that never go into the e-mail digest (D41, D43, D46). */
+export const NON_DIGEST_TYPES = ['contacted', 'no_deal', 'reopened', 'job_removed'];
 const NON_DIGEST_SQL = NON_DIGEST_TYPES.map((t) => `'${t}'`).join(', ');
 
 const LABELS: Record<string, string> = {

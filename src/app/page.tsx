@@ -298,13 +298,14 @@ export default function Home() {
     }
   };
 
-  const handleDeleteJob = async (job: PublicJob) => {
+  const handleDeleteJob = async (job: PublicJob, reason: string) => {
     setActionError('');
     try {
-      await api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE' });
+      await api(`/api/jobs/${encodeURIComponent(job.id)}`, { method: 'DELETE', body: { reason } });
       await loadJobs();
     } catch (err) {
       handleApiError(err, 'Inzerát se nepodařilo smazat.');
+      throw err; // DeleteJobModal zůstane otevřený a ukáže chybu
     }
   };
 

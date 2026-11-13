@@ -19,7 +19,7 @@ d1() { npx wrangler d1 execute restaurion-db --local "$@" 2>&1; }
 
 echo "== reset local D1 and apply migrations"
 rm -rf .wrangler/state
-for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql migrations/0015_*.sql; do
+for f in migrations/000[1-9]_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql migrations/0013_*.sql migrations/0014_*.sql migrations/0015_*.sql migrations/0016_*.sql; do
   out=$(d1 --file="$f") || true
   echo "$out" | grep -q "ERROR" && { echo "migration $f FAILED"; echo "$out" | head -5; exit 2; }
 done
@@ -338,7 +338,7 @@ eq "accept on an offer -> 409" "$CODE" 409
 api poster2 POST /api/engagements/$EO '{"action":"decline"}'
 eq "decline on an offer -> 200" "$CODE" 200
 api poster2 GET /api/jobs/$OFFER/engagements
-eq "declined interest is hidden from the offerer's list" "$(echo "$BODY" | jq -r '.engagements | length')" 0
+eq "declined interest stays in the offerer's list as declined (D43)" "$(echo "$BODY" | jq -r '.engagements | map(.status) | join(",")')" "declined"
 api w1 GET /api/profile
 eq "an offer never books or busies anyone" "$(echo "$BODY" | jq -r '.profile.booked | length')" 0
 api w1 GET /api/jobs
@@ -434,13 +434,13 @@ eq "directOfferId on my own offer -> 403" "$CODE" 403
 api poster POST /api/jobs "$(direct_body 'Mimo termin' "$(dd 100)" "$(dd 101)")"
 eq "direct listing outside the offer's dates -> 409" "$CODE" 409
 
-echo "== D40 declined interest is hidden, re-invite stays 409"
+echo "== D40/D43 declined invitation stays listed, re-invite stays 409"
 api poster2 POST /api/engagements/$DE '{"action":"decline"}'
 eq "O declines the invitation" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/declined"
 api poster GET /api/jobs/$DJ/engagements
-eq "declined engagement is hidden from V's list" "$(echo "$BODY" | jq -r '.engagements | length')" 0
+eq "declined engagement stays in V's list (D43)" "$(echo "$BODY" | jq -r '.engagements | map(.status) | join(",")')" "declined"
 api poster2 GET /api/invitations
-eq "declined invitation is hidden from O's list" "$(echo "$BODY" | jq -r --arg j "$DJ" '[.invitations[] | select(.job.id==$j)] | length')" 0
+eq "declined invitation stays in O's list as declined with canReopen (D43)" "$(echo "$BODY" | jq -r --arg j "$DJ" '.invitations[] | select(.job.id==$j) | .status + "/" + .endedBy + "/" + (.canReopen | tostring)')" "declined/worker/true"
 api poster GET /api/notifications
 eq "V got 'invite_declined'" "$(echo "$BODY" | jq -r --arg e "$DE" '[.items[] | select(.type=="invite_declined" and .engagementId==$e)] | length')" 1
 api poster POST /api/jobs/$DJ/invite "{\"offerId\":\"$OFFER\"}"
@@ -504,7 +504,7 @@ CE=$(echo "$BODY" | jq -r '.engagements[0].id')
 api poster POST /api/engagements/$CE '{"action":"decline"}'
 eq "poster cancels his pending invitation" "$CODE" 200
 api poster2 GET /api/invitations
-eq "cancelled invitation is gone from O's list" "$(echo "$BODY" | jq -r --arg j "$DJ3" '[.invitations[] | select(.job.id==$j)] | length')" 0
+eq "cancelled invitation stays in O's list as withdrawn by the poster (D43)" "$(echo "$BODY" | jq -r --arg j "$DJ3" '.invitations[] | select(.job.id==$j) | .status + "/" + .endedBy + "/" + (.canReopen | tostring)')" "withdrawn/poster/null"
 api poster2 GET /api/notifications
 eq "O got 'invite_cancelled'" "$(echo "$BODY" | jq -r --arg e "$CE" '[.items[] | select(.type=="invite_cancelled" and .engagementId==$e)] | length')" 1
 api poster POST /api/jobs/$DJ3/invite "{\"offerId\":\"$OFFER\"}"
@@ -571,13 +571,33 @@ eq "worker's myEngagement is pending with contactedAt" "$(echo "$BODY" | jq -r -
 api poster POST /api/engagements/$KE '{"action":"no_deal"}'
 eq "poster no_deal after contact -> 200 declined" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/declined"
 api poster GET /api/jobs/$KJ/engagements
-eq "no_deal engagement is hidden from the poster's list" "$(echo "$BODY" | jq -r --arg e "$KE" '[.engagements[] | select(.id==$e)] | length')" 0
+eq "no_deal engagement stays in the poster's list with contactedAt and canReopen (D43)" "$(echo "$BODY" | jq -r --arg e "$KE" '.engagements[] | select(.id==$e) | .status + "/" + .endedBy + "/" + (.contactedAt | length > 0 | tostring) + "/" + (.canReopen | tostring)')" "declined/poster/true/true"
 api w6 GET /api/jobs
 eq "worker's myEngagement is declined and keeps contactedAt" "$(echo "$BODY" | jq -r --arg j "$KJ" '.jobs[] | select(.id==$j) | .myEngagement | .status + "/" + (.contactedAt | length > 0 | tostring)')" "declined/true"
 api w6 GET /api/notifications
 eq "worker got 'no_deal'" "$(echo "$BODY" | jq -r --arg e "$KE" '[.items[] | select(.type=="no_deal" and .engagementId==$e)] | length')" 1
 api w6 POST /api/engagements/$KE '{"action":"no_deal"}'
 eq "no_deal on a finished engagement -> 409" "$CODE" 409
+
+echo "== D43 reopen: only the side that ended it, with the right notification"
+api w6 POST /api/engagements/$KE '{"action":"reopen"}'
+eq "worker reopen of a row the poster ended -> 403" "$CODE/$(echo "$BODY" | jq -r '.error')" "403/Vrátit může jen ten, kdo jednání ukončil."
+api w4 POST /api/engagements/$KE '{"action":"reopen"}'
+eq "reopen by a stranger -> 403" "$CODE" 403
+api poster POST /api/engagements/$KE '{"action":"reopen"}'
+eq "poster reopens his no-deal -> 200 pending, contactedAt kept" "$CODE/$(echo "$BODY" | jq -r '.engagement | .status + "/" + (.contactedAt | length > 0 | tostring)')" "200/pending/true"
+api poster POST /api/engagements/$KE '{"action":"reopen"}'
+eq "reopen of a running engagement -> 409 'Tohle jednání není ukončené.'" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Tohle jednání není ukončené."
+api w6 GET /api/notifications
+eq "worker got 'reopened' with the actor name" "$(echo "$BODY" | jq -r --arg e "$KE" '[.items[] | select(.type=="reopened" and .engagementId==$e and (.actorName | length) > 0)] | length')" 1
+api poster GET /api/jobs/$KJ/engagements
+eq "reopened engagement is pending again and still contacted" "$(echo "$BODY" | jq -r --arg e "$KE" '.engagements[] | select(.id==$e) | .status + "/" + (.contactedAt | length > 0 | tostring) + "/" + (.canReopen | tostring)')" "pending/true/null"
+api poster POST /api/engagements/$KE '{"action":"no_deal"}'
+eq "poster ends it again -> declined (state restored)" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/declined"
+api poster POST /api/engagements/$DE '{"action":"reopen"}'
+eq "poster reopen of an invitation the worker declined -> 403" "$CODE" 403
+api poster2 POST /api/engagements/$DE '{"action":"reopen"}'
+eq "reopen of a direct invitation while another one waits -> 409 spam cap" "$CODE/$(echo "$BODY" | jq -r '.error')" "409/Už mu jedna poptávka čeká na potvrzení."
 mk_inv_job "Kontakt a prijeti" "$(dd 6)" "$(dd 12)" '["kámen"]'; KJ2=$JOBID
 api w6 POST /api/jobs/$KJ2/respond '{}'
 KE2=$(echo "$BODY" | jq -r '.engagement.id')
@@ -619,9 +639,17 @@ eq "poster cancel on a contacted invitation -> 409 'Použij Nedohodli jsme se.'"
 api poster2 POST /api/engagements/$KIE2 '{"action":"no_deal"}'
 eq "O no_deal -> 200 withdrawn" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/withdrawn"
 api poster2 GET /api/invitations
-eq "no_deal invitation is hidden from O's list" "$(echo "$BODY" | jq -r --arg j "$KI2" '[.invitations[] | select(.job.id==$j)] | length')" 0
+eq "no_deal invitation stays in O's list as withdrawn (D43)" "$(echo "$BODY" | jq -r --arg j "$KI2" '.invitations[] | select(.job.id==$j) | .status + "/" + .endedBy')" "withdrawn/worker"
 api poster GET /api/notifications
 eq "poster got 'no_deal' from O" "$(echo "$BODY" | jq -r --arg e "$KIE2" '[.items[] | select(.type=="no_deal" and .engagementId==$e)] | length')" 1
+api poster POST /api/engagements/$KIE2 '{"action":"reopen"}'
+eq "poster reopen of an invitation O ended -> 403" "$CODE" 403
+api poster2 POST /api/engagements/$KIE2 '{"action":"reopen"}'
+eq "O reopens his no-deal invitation -> 200 pending, contact kept" "$CODE/$(echo "$BODY" | jq -r '.engagement | .status + "/" + (.contactedAt | length > 0 | tostring)')" "200/pending/true"
+api poster GET /api/notifications
+eq "poster got 'reopened' from O" "$(echo "$BODY" | jq -r --arg e "$KIE2" '[.items[] | select(.type=="reopened" and .engagementId==$e)] | length')" 1
+api poster2 POST /api/engagements/$KIE2 '{"action":"no_deal"}'
+eq "O ends it again (state restored)" "$CODE/$(echo "$BODY" | jq -r '.engagement.status')" "200/withdrawn"
 api poster POST /api/jobs/$KI2/invite "{\"offerId\":\"$OFFER\"}"
 eq "re-invite after no_deal -> 201" "$CODE" 201
 mk_inv_job "Kontakt pozvanka 3" "$(dd 6)" "$(dd 12)" '["kámen"]'; KI3=$JOBID
@@ -749,8 +777,14 @@ api - DELETE /api/jobs/$JDEL; eq "unauth DELETE /api/jobs/:id -> 401" "$CODE" 40
 api w1 DELETE /api/jobs/$JDEL; eq "non-admin DELETE -> 403" "$CODE" 403
 api poster DELETE /api/jobs/$JDEL; eq "even the owner cannot DELETE (admin only) -> 403" "$CODE" 403
 api admin DELETE /api/jobs/nonexistent; eq "admin DELETE of a missing job -> 404" "$CODE" 404
-api admin DELETE /api/jobs/$JDEL; eq "admin DELETE of someone else's job -> 200" "$CODE" 200
+api admin DELETE /api/jobs/$JDEL; eq "admin DELETE without a reason -> 400 fieldErrors.reason (D46)" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.reason | length > 0')" "400/true"
+api admin DELETE /api/jobs/$JDEL '{"reason":"ab"}'; eq "admin DELETE with a 2-char reason -> 400" "$CODE" 400
+api admin DELETE /api/jobs/$JDEL '{"reason":"Mimo téma, jde o reklamu."}'; eq "admin DELETE of someone else's job with a reason -> 200" "$CODE" 200
+api poster GET /api/notifications
+eq "author got 'job_removed' with the reason and the title (D46)" "$(echo "$BODY" | jq -r --arg j "$JDEL" '[.items[] | select(.type=="job_removed" and .jobId==$j and .reason=="Mimo téma, jde o reklamu." and (.jobTitle | length) > 0)] | length')" 1
 api admin DELETE /api/jobs/$JDEL; eq "repeated DELETE is idempotent -> 200" "$CODE" 200
+api poster GET /api/notifications
+eq "a repeated DELETE adds no second 'job_removed'" "$(echo "$BODY" | jq -r --arg j "$JDEL" '[.items[] | select(.type=="job_removed" and .jobId==$j)] | length')" 1
 api w4 GET /api/jobs
 eq "deleted job is gone from the board" "$(echo "$BODY" | jq -r "[.jobs[] | select(.id == \"$JDEL\")] | length")" 0
 api poster GET '/api/jobs?mine=1'
@@ -906,7 +940,7 @@ PJ2=$(echo "$BODY" | jq -r '.job.id')
 photo poster POST "$PJ2" "$JARS/tiny.png"
 PURL3=$(echo "$BODY" | jq -r '.job.imageUrl')
 eq "photo of a live listing -> 200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 200
-api admin DELETE /api/jobs/$PJ2; eq "admin soft deletes the listing with a photo -> 200" "$CODE" 200
+api admin DELETE /api/jobs/$PJ2 '{"reason":"Test odstranění"}'; eq "admin soft deletes the listing with a photo -> 200" "$CODE" 200
 eq "GET the photo of a deleted listing -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 404
 
 echo "== theme preference"

@@ -32,7 +32,7 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
       `SELECT n.id, n.type, n.created_at, n.read_at, n.job_id, n.engagement_id, j.title, j.date_from, j.date_to, n.reason, pa.name AS poster_name, cb.name AS actor_name
        FROM notifications n
        LEFT JOIN jobs j ON j.id = n.job_id
-         AND (j.visibility = 'public' OR n.type = 'job_closed'
+         AND (j.visibility = 'public' OR n.type IN ('job_closed', 'job_removed')
               OR (j.visibility = 'direct' AND (j.author_id = n.profile_id OR j.direct_to = n.profile_id)))
        LEFT JOIN profiles pa ON pa.id = j.author_id
        LEFT JOIN profiles cb ON cb.id = n.actor_id
@@ -55,8 +55,8 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     ...(r.title ? { jobTitle: r.title } : {}),
     ...(r.engagement_id ? { engagementId: r.engagement_id } : {}),
     ...(r.type === 'invited' && r.poster_name ? { posterName: r.poster_name } : {}),
-    ...((r.type === 'contacted' || r.type === 'no_deal') && r.actor_name ? { actorName: r.actor_name } : {}),
-    ...(r.type === 'withdrawn' && r.reason ? { reason: r.reason } : {}),
+    ...((r.type === 'contacted' || r.type === 'no_deal' || r.type === 'reopened') && r.actor_name ? { actorName: r.actor_name } : {}),
+    ...((r.type === 'withdrawn' || r.type === 'job_removed') && r.reason ? { reason: r.reason } : {}),
     ...(r.type === 'job_match' && r.date_from && r.date_to
       ? { busyDays: countBusyDays({ dateFrom: r.date_from, dateTo: r.date_to }, busy.blocks, busy.engagements, r.job_id ?? undefined) }
       : {}),

@@ -90,7 +90,7 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
   }, [job.id]);
 
   useEffect(() => {
-    if (count === 0) return;
+    // D43: ended rows stay listed, so the list is loaded even when no engagement is running.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load, count]);
@@ -102,25 +102,28 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
           Zájemci ({count})
         </div>
       )}
-      {count === 0 && !(items && items.length > 0) ? (
-        <p className={mutedCls}>Zatím žádný zájemce.</p>
-      ) : error && items === null ? (
+      {error && items === null ? (
         <ErrorBox message={error} onRetry={() => void load()} />
       ) : items === null ? (
-        <p className={mutedCls}>Načítám zájemce…</p>
+        <p className={mutedCls}>{count === 0 ? 'Zatím žádný zájemce.' : 'Načítám zájemce…'}</p>
+      ) : items.length === 0 ? (
+        <p className={mutedCls}>Zatím žádný zájemce.</p>
       ) : (
         <ul className="flex flex-wrap gap-2">
-          {items.map((x) => (
-            <li key={x.id}>
-              <PersonChip
-                name={x.worker.name}
-                badge={isOffer ? undefined : engagementBadge(x)}
-                note={isOffer ? undefined : inviteNote(x)}
-                muted={x.status === 'declined' || x.status === 'withdrawn'}
-                onClick={() => setSelected(x)}
-              />
-            </li>
-          ))}
+          {items.map((x) => {
+            const ended = x.status === 'declined' || x.status === 'withdrawn';
+            return (
+              <li key={x.id}>
+                <PersonChip
+                  name={x.worker.name}
+                  badge={isOffer && !ended ? undefined : engagementBadge(x)}
+                  note={isOffer ? undefined : inviteNote(x)}
+                  muted={ended}
+                  onClick={() => setSelected(x)}
+                />
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -130,10 +133,14 @@ export const InterestedList: React.FC<InterestedListProps> = ({ job, onChanged, 
           engagement={selected}
           onClose={() => setSelected(null)}
           onDecided={(e) => {
-            // Odmítnutý / zrušený zájem zmizí ze seznamu (D40); přijatý zůstane.
-            const gone = e.status === 'declined' || e.status === 'withdrawn';
-            setItems((prev) => (prev ? (gone ? prev.filter((x) => x.id !== e.id) : prev.map((x) => (x.id === e.id ? e : x))) : prev));
-            setSelected(gone ? null : e);
+            // D43: ukončené jednání zůstává v seznamu (ztlumené, na konci) a jde vrátit.
+            const isEnded = (s: string) => s === 'declined' || s === 'withdrawn';
+            setItems((prev) => {
+              if (!prev) return prev;
+              const next = prev.map((x) => (x.id === e.id ? e : x));
+              return [...next.filter((x) => !isEnded(x.status)), ...next.filter((x) => isEnded(x.status))];
+            });
+            setSelected(e);
             onChanged();
           }}
         />
