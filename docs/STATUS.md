@@ -1,6 +1,6 @@
 # Restaurion – Status and handoff
 
-State on 2026-11-12. Read this first in a new session, then [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`DECISIONS.md`](DECISIONS.md).
+State on 2026-11-13. Read this first in a new session, then [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`DECISIONS.md`](DECISIONS.md).
 Update this file in place when the state changes. Do not append a history.
 
 Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
@@ -10,12 +10,12 @@ Provenance tags: `[measured <date>: <how>]`, `[inferred]`, `[decided by <who>]`.
 | Item | State |
 | :--- | :--- |
 | Branch | `mvp-core`, pushed. PR [#1](https://github.com/slunnnko/restaurion/pull/1) into `main` is open and mergeable. `[measured 2026-11-11: gh pr view 1]` |
-| Production | https://restaurion.pages.dev = Pages deployment `94699752`, built from commit `0e031a7` on `mvp-core`: D40 ("Poptat spolupráci" sends a fitting own listing or a new direct listing to the offerer, 3-day confirmation, `Poptávky pro mě` in the profile, declined interest hidden) on top of D35–D39. Migration 0014 applied on remote D1 before the deploy; backup `restaurion/backups/restaurion-db-2026-11-12-222323-pre-0014.sql`; invariant held: notifications 2 (ids, types, read_at identical), engagements 5, jobs 24, indexes kept, `engagements.respond_by` and `jobs.direct_to` present. Not yet clicked through in a browser. Smoke test: `/`, `/api/jobs` (0 direct listings on the board), `/api/directory`, `/api/auth/me` 200; `/api/profile`, `/api/notifications`, `/api/invitations` 401 without a session. `[measured 2026-11-12]` |
+| Production | https://restaurion.pages.dev = Pages deployment `054862c3`, built from commit `3377fe6` on `mvp-core`: D41 (optional `Kontakt navázán` step between interest/invitation and acceptance, `Nedohodli jsme se`) on top of D35–D40. Migration 0015 applied on remote D1 before the deploy; backup `restaurion/backups/restaurion-db-2026-11-13-074008-pre-0015.sql`; invariant held: notifications 3 (ids, types, read_at identical), engagements 5, jobs 24, profiles 9, both notification indexes kept, `notifications.type` without CHECK, `notifications.actor_id`, `engagements.contacted_at`/`contacted_by` present. Not yet clicked through in a browser. Smoke test: `/`, `/api/jobs` (15 jobs, 0 direct), `/api/directory`, `/api/auth/me` 200; `/api/profile`, `/api/notifications`, `/api/invitations`, anonymous `contact` action 401; D41 code in the live bundle. `[measured 2026-11-13]` |
 | D37 | Deployed 2026-11-12 (`aa03d38c`). `[decided by owner 2026-11-12]` |
 | D38 | Deployed 2026-11-12 (`a974766a`), migration 0013 applied on remote D1. `[decided by owner 2026-11-12]` |
 | D39 | Deployed 2026-11-12 (`56ac4992`). `[decided by owner 2026-11-12]` |
 | D40 | Deployed 2026-11-12 (`94699752`), migration 0014 applied on remote D1. `[decided by owner 2026-11-12]` |
-| D41 | Committed, not deployed; migration 0015 (`engagements.contacted_at`/`contacted_by`, `notifications` rebuilt without the `type` CHECK, plus `notifications.actor_id`) on remote D1 BEFORE the Pages deploy, with a backup first. `[decided by owner 2026-11-13]` |
+| D41 | Deployed 2026-11-13 (`054862c3`), migration 0015 applied on remote D1. `[decided by owner 2026-11-13]` |
 | Digest worker | `restaurion-digest` version `23038dda`, cron `0 6 * * *`; `RESEND_API_KEY` and `RESEND_FROM` set 2026-11-12, so the daily digest now sends mail. `[measured 2026-11-12]` |
 | D1 | Migrations `0001`–`0007` applied remotely. `0006` and `0007` were each run once after a backup; row counts of existing tables were unchanged. `[measured 2026-11-11]` |
 | Mail | Resend domain `echo.sunhaze.dev` (eu-west-1) verified; DNS records (DKIM, SPF TXT, MX, CNAME) in the `sunhaze.dev` zone, cf-scan baseline updated. Sender `Restaurion <noreply@echo.sunhaze.dev>`. Test mail and a real login-code mail reached `delivered`. Secrets: `RESEND_API_KEY` (sending-only key), `RESEND_FROM`, `ADMIN_EMAILS`, plus an unused legacy `ADMIN_PASSWORD` (no code reads it). `TEST_LOGIN_ECHO` deleted 2026-11-12. `[measured 2026-11-12: wrangler pages secret list]` |
