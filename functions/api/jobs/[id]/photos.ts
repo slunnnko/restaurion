@@ -47,7 +47,10 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
              WHERE (SELECT COUNT(*) FROM job_photos WHERE job_id = ?) < ?`,
           )
           .bind(crypto.randomUUID().replace(/-/g, ''), jobId, `${PHOTO_PREFIX}${key}`, jobId, jobId, MAX_JOB_PHOTOS),
-        db.prepare(`UPDATE jobs SET updated_at = datetime('now') WHERE id = ?`).bind(jobId),
+        // Touch only when the guarded INSERT really added the row (a refused 7th upload must not bump updated_at).
+        db
+          .prepare(`UPDATE jobs SET updated_at = datetime('now') WHERE id = ? AND EXISTS (SELECT 1 FROM job_photos WHERE job_id = ? AND url = ?)`)
+          .bind(jobId, jobId, `${PHOTO_PREFIX}${key}`),
       ]);
       if (!ins.meta?.changes) {
         await bucket.delete(key).catch(() => undefined);

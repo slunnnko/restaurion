@@ -33,7 +33,7 @@ const LABELS: Record<string, string> = {
   invite_accepted: 'Řemeslník potvrdil vaši poptávku',
   invite_declined: 'Řemeslník vaši poptávku odmítl',
   invite_cancelled: 'Poptávka byla zrušena',
-  job_removed: 'Správce odstranil tvůj inzerát',
+  job_removed: 'Správce odstranil váš inzerát',
 };
 
 interface NotificationRow {
@@ -48,7 +48,7 @@ export function buildDigestHtml(items: NotificationRow[], appUrl: string): strin
     .map(
       (n) =>
         n.type === 'job_removed'
-          ? `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS.job_removed)}</b>${n.title ? ` „${escapeHtml(n.title)}“` : ''}. Důvod: ${escapeHtml(n.reason ?? '')}</li>`
+          ? `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS.job_removed)}</b>${n.title ? ` „${escapeHtml(n.title)}“` : ''}.${n.reason?.trim() ? ` Důvod: ${escapeHtml(n.reason)}` : ''}</li>`
           : `<li style="margin-bottom:6px;"><b>${escapeHtml(LABELS[n.type] ?? n.type)}</b>${n.title ? `: ${escapeHtml(n.title)}` : ''}</li>`
     )
     .join('');

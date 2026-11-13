@@ -31,5 +31,5 @@ test('digest html escapes user text', () => {
 
 test('buildDigestHtml: job_removed shows the title and the escaped reason (D46)', () => {
   const html = buildDigestHtml([{ id: '1', type: 'job_removed', title: 'Okna', reason: 'Spam <b>x</b>' }], 'https://x.test');
-  assert.match(html, /Správce odstranil tvůj inzerát<\/b> „Okna“\. Důvod: Spam &lt;b&gt;x&lt;\/b&gt;/);
+  assert.match(html, /Správce odstranil váš inzerát<\/b> „Okna“\. Důvod: Spam &lt;b&gt;x&lt;\/b&gt;/);
 });
