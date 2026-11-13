@@ -15,3 +15,6 @@ ALTER TABLE profiles ADD COLUMN licence_scope TEXT;
 ALTER TABLE profiles ADD COLUMN licence_registry_id TEXT;
 -- registry holder name from the detail page (only when verified), shown next to the badge
 ALTER TABLE profiles ADD COLUMN licence_registry_name TEXT;
+-- One verified profile per registry record (D49 'taken'); enforced here so parallel checks cannot both verify it.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_licence_registry_verified
+  ON profiles(licence_registry_id) WHERE licence_verified = 1;

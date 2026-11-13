@@ -207,19 +207,28 @@ export async function runLicenceCheck(
       .run();
     return;
   }
-  const ok = out.result === 'verified';
-  await db
-    .prepare(
-      `UPDATE profiles SET licence_verified = ?, licence_check_result = ?, licence_scope = ?, licence_registry_id = ?,
-         licence_registry_name = ?, licence_checked_at = datetime('now') WHERE ${unchanged}`
-    )
-    .bind(
-      ok ? 1 : 0,
-      out.result,
-      ok ? JSON.stringify(out.scope ?? []) : null,
-      ok ? out.registryId ?? null : null,
-      ok ? out.registryName ?? null : null,
-      ...guard
-    )
-    .run();
+  const write = (o: LicenceCheckOutcome) => {
+    const ok = o.result === 'verified';
+    return db
+      .prepare(
+        `UPDATE profiles SET licence_verified = ?, licence_check_result = ?, licence_scope = ?, licence_registry_id = ?,
+           licence_registry_name = ?, licence_checked_at = datetime('now') WHERE ${unchanged}`
+      )
+      .bind(
+        ok ? 1 : 0,
+        o.result,
+        ok ? JSON.stringify(o.scope ?? []) : null,
+        ok ? o.registryId ?? null : null,
+        ok ? o.registryName ?? null : null,
+        ...guard
+      )
+      .run();
+  };
+  try {
+    await write(out);
+  } catch (err) {
+    // The partial unique index (0017) is the real guard: a parallel check that verified the same record first wins.
+    if (out.result !== 'verified' || !/UNIQUE constraint failed/i.test(String(err))) throw err;
+    await write({ result: 'taken' });
+  }
 }
