@@ -8,3 +8,21 @@
 -- ==============================================================================
 
 ALTER TABLE engagements ADD COLUMN ended_by TEXT;
+
+-- job_photos (D45): up to 6 photos per listing (limit enforced in code, MAX_JOB_PHOTOS). `url` is '/api/photos/<r2 key>'.
+-- jobs.image_url stays for compatibility but is no longer written; the backfill copies it as photo position 0.
+-- CREATE ... IF NOT EXISTS makes the table part safe to repeat; the backfill only inserts for jobs with no photo row yet.
+CREATE TABLE IF NOT EXISTS job_photos (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES jobs(id),
+  url TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_job_photos_job ON job_photos(job_id, position);
+
+INSERT INTO job_photos (id, job_id, url, position)
+SELECT lower(hex(randomblob(16))), j.id, j.image_url, 0
+FROM jobs j
+WHERE j.image_url IS NOT NULL AND j.image_url <> ''
+  AND NOT EXISTS (SELECT 1 FROM job_photos p WHERE p.job_id = j.id);

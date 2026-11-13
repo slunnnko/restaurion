@@ -1,6 +1,7 @@
 // Detekce typu fotky inzerátu podle prvních bajtů (hlavičce Content-Type se nevěří).
 
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+export { MAX_JOB_PHOTOS } from '../../../src/lib/limits.ts';
 export const PHOTO_PREFIX = '/api/photos/';
 
 export type PhotoType = 'image/jpeg' | 'image/png' | 'image/webp';

@@ -2,6 +2,7 @@
 
 import { CRAFT_CATEGORIES } from '../../../src/lib/crafts.ts';
 import { formatRewardText } from '../../../src/lib/format.ts';
+import { MAX_DESCRIPTION } from '../../../src/lib/limits.ts';
 import { phoneDigits } from '../../../src/lib/phone.ts';
 import { daysInRange } from '../../../src/lib/matching.ts';
 import { isIsoDate, jsonResponse, todayUtc } from '../_shared.ts';
@@ -254,7 +255,7 @@ export function validateNewJob(body: Record<string, unknown>): { errors: FieldEr
   const crafts = validCraftIds(body.crafts) ?? [];
 
   if (title.length < 5 || title.length > 120) errors.title = 'Název musí mít 5 až 120 znaků.';
-  if (description.length > 2000) errors.description = 'Popis může mít nejvýše 2000 znaků.';
+  if (description.length > MAX_DESCRIPTION) errors.description = 'Popis může mít nejvýše 5000 znaků.';
   if (!JOB_TYPES.includes(body.jobType as string)) errors.jobType = 'Vyberte typ zakázky.';
   // An offer ("Nabízím se") has no object: status is fixed and the name is dropped.
   const isOffer = body.jobType === 'craftsman_available';

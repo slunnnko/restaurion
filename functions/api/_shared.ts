@@ -482,6 +482,8 @@ export interface JobRow {
   monument_status: string;
   monument_name: string | null;
   image_url: string | null;
+  /** JSON array of { id, url } from job_photos (subquery in JOB_SELECT), ordered by position. */
+  photos_json: string | null;
   required_crafts_json: string;
   region: string;
   city: string;
@@ -516,7 +518,9 @@ export interface JobRow {
 
 export const JOB_SELECT = `
   SELECT j.id, j.author_id, j.title, j.description, j.job_type, j.monument_status, j.monument_name,
-         j.image_url, j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
+         j.image_url,
+         (SELECT json_group_array(json_object('id', p.id, 'url', p.url)) FROM (SELECT id, url FROM job_photos WHERE job_id = j.id ORDER BY position, created_at, id) p) AS photos_json,
+         j.required_crafts_json, j.region, j.city, j.date_from, j.date_to, j.budget_note,
          j.reward_type, j.reward_amount, j.reward_currency, j.reward_scope,
          j.status, j.visibility, j.direct_to, dt.name AS direct_to_name, j.created_at, j.expires_at,
          a.name AS a_name, a.directory_group AS a_group,
@@ -554,7 +558,14 @@ function directInviteOf(row: JobRow): NonNullable<PublicJob['directInvite']> {
   };
 }
 
+/** Photos of a job row (D45), in display order; empty when the job has none. */
+export function jobRowPhotos(row: Pick<JobRow, 'photos_json'>): { id: string; url: string }[] {
+  return safeJsonParse<{ id: string; url: string }[]>(row.photos_json ?? '[]', []);
+}
+
 export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
+  const photos = jobRowPhotos(row);
+  const imageUrl = photos[0]?.url ?? row.image_url;
   return {
     id: row.id,
     title: row.title,
@@ -562,7 +573,8 @@ export function mapJobRow(row: JobRow, viewer?: JobViewer): PublicJob {
     jobType: row.job_type as PublicJob['jobType'],
     monumentStatus: row.monument_status as PublicJob['monumentStatus'],
     ...(row.monument_name ? { monumentName: row.monument_name } : {}),
-    ...(row.image_url ? { imageUrl: row.image_url } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(photos.length > 0 ? { photos } : {}),
     crafts: jobRowCrafts(row),
     region: row.region,
     city: row.city,

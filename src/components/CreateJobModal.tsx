@@ -19,11 +19,11 @@ import {
   labelCls,
   primaryBtn,
   secondaryBtn,
-  dangerBtn,
 } from './ui';
 import { INVITE_RESPOND_DAYS } from '@/lib/matching';
+import { MAX_JOB_PHOTOS } from '@/lib/limits';
 import { HammerLogo } from './HammerLogo';
-import { ShieldCheck, CheckCircle2, UserCheck } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, UserCheck, X } from 'lucide-react';
 
 interface CreateJobModalProps {
   onClose: () => void;
@@ -93,46 +93,61 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notified, setNotified] = useState<number | null>(null);
-  // Photo: `photo` is a downscaled blob waiting for upload; `removePhoto` marks the existing one for deletion (edit).
-  const [photo, setPhoto] = useState<Blob | null>(null);
-  const [photoPreview, setPhotoPreview] = useState('');
-  const [removePhoto, setRemovePhoto] = useState(false);
+  // Photos (D45, up to 6): `newPhotos` are downscaled blobs waiting for upload; `removedIds` marks existing photos for deletion (edit).
+  const existingPhotos = editJob?.photos ?? (editJob?.imageUrl ? [{ id: 'legacy', url: editJob.imageUrl }] : []);
+  const [newPhotos, setNewPhotos] = useState<{ key: string; blob: Blob; preview: string }[]>([]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [photoError, setPhotoError] = useState('');
   const [photoWarning, setPhotoWarning] = useState('');
-  const previewRef = useRef('');
-  useEffect(() => () => URL.revokeObjectURL(previewRef.current), []);
-  const setPhotoBlob = (blob: Blob | null) => {
-    URL.revokeObjectURL(previewRef.current);
-    previewRef.current = blob ? URL.createObjectURL(blob) : '';
-    setPhoto(blob);
-    setPhotoPreview(previewRef.current);
-  };
-  const shownPhoto = photoPreview || (!removePhoto && editJob?.imageUrl) || '';
+  const previewsRef = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      previewsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    },
+    [],
+  );
+  const keptPhotos = existingPhotos.filter((p) => !removedIds.includes(p.id));
+  const photoSlots = MAX_JOB_PHOTOS - keptPhotos.length - newPhotos.length;
 
-  const pickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const pickPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (files.length === 0) return;
     setPhotoError('');
-    try {
-      setPhotoBlob(await downscaleImage(file));
-      setRemovePhoto(false);
-    } catch (err) {
-      setPhotoError(err instanceof Error ? err.message : 'Fotku se nepodařilo zpracovat.');
+    const accepted: { key: string; blob: Blob; preview: string }[] = [];
+    for (const file of files.slice(0, Math.max(photoSlots, 0))) {
+      try {
+        const blob = await downscaleImage(file);
+        const preview = URL.createObjectURL(blob);
+        previewsRef.current.push(preview);
+        accepted.push({ key: preview, blob, preview });
+      } catch (err) {
+        setPhotoError(err instanceof Error ? err.message : 'Fotku se nepodařilo zpracovat.');
+      }
     }
+    if (files.length > photoSlots) setPhotoError(`Inzerát může mít nejvýše ${MAX_JOB_PHOTOS} fotek.`);
+    if (accepted.length > 0) setNewPhotos((cur) => [...cur, ...accepted]);
   };
 
-  const clearPhoto = () => {
-    setPhotoBlob(null);
+  const removeNewPhoto = (key: string) => {
+    setNewPhotos((cur) => cur.filter((p) => p.key !== key));
+    URL.revokeObjectURL(key);
+    previewsRef.current = previewsRef.current.filter((u) => u !== key);
     setPhotoError('');
-    if (editJob?.imageUrl) setRemovePhoto(true);
   };
 
-  /** Non-blocking: the listing is already saved when this fails. */
-  const syncPhoto = async (jobId: string, hadPhoto: boolean): Promise<string> => {
+  const removeExistingPhoto = (id: string) => {
+    setRemovedIds((cur) => [...cur, id]);
+    setPhotoError('');
+  };
+
+  const photosChanged = newPhotos.length > 0 || removedIds.length > 0;
+
+  /** Non-blocking: the listing is already saved when this fails. Deletes first (frees slots), then uploads one by one. */
+  const syncPhotos = async (jobId: string): Promise<string> => {
     try {
-      if (photo) await uploadJobPhoto(jobId, photo);
-      else if (removePhoto && hadPhoto) await deleteJobPhoto(jobId);
+      for (const id of removedIds) await deleteJobPhoto(jobId, id);
+      for (const p of newPhotos) await uploadJobPhoto(jobId, p.blob);
       return '';
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) return err.message;
@@ -186,8 +201,8 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         if (Object.keys(body).length > 0) {
           await api<{ job: PublicJob }>(`/api/jobs/${encodeURIComponent(editJob.id)}`, { method: 'PATCH', body });
         }
-        const warning = photo || removePhoto ? await syncPhoto(editJob.id, Boolean(editJob.imageUrl)) : '';
-        if (Object.keys(body).length > 0 || photo || removePhoto) onSaved?.();
+        const warning = photosChanged ? await syncPhotos(editJob.id) : '';
+        if (Object.keys(body).length > 0 || photosChanged) onSaved?.();
         if (warning) {
           setPhotoWarning(warning);
           setNotified(-1);
@@ -212,7 +227,7 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
           ...(directOffer ? { directOfferId: directOffer.id } : {}),
         },
       });
-      if (photo) setPhotoWarning(await syncPhoto(data.job.id, false));
+      if (newPhotos.length > 0) setPhotoWarning(await syncPhotos(data.job.id));
       setNotified(data.notified);
       onCreated();
     } catch (err) {
@@ -510,28 +525,45 @@ export const CreateJobModal: React.FC<CreateJobModalProps> = ({
         </div>
 
         <div>
-          <span className={labelCls}>Fotka (nepovinné)</span>
+          <span className={labelCls}>Fotky (nepovinné, nejvýše {MAX_JOB_PHOTOS})</span>
           <div className="flex flex-wrap items-center gap-3">
-            {shownPhoto && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={shownPhoto}
-                alt="Náhled fotky"
-                className="w-24 h-16 object-cover rounded-xl border-2 border-[#111111] dark:border-stone-500"
-              />
-            )}
-            <label className={`${secondaryBtn} cursor-pointer`}>
-              {shownPhoto ? 'Vybrat jinou' : 'Vybrat fotku'}
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={pickPhoto} className="sr-only" />
-            </label>
-            {shownPhoto && (
-              <button type="button" onClick={clearPhoto} className={dangerBtn}>
-                Odebrat
-              </button>
+            {keptPhotos.map((p) => (
+              <div key={p.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.url} alt="Fotka inzerátu" className="w-24 h-16 object-cover rounded-xl border-2 border-[#111111] dark:border-stone-500" />
+                <button
+                  type="button"
+                  onClick={() => removeExistingPhoto(p.id)}
+                  aria-label="Odebrat fotku"
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full border-2 border-[#111111] bg-white text-[#111111] flex items-center justify-center cursor-pointer hover:bg-red-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {newPhotos.map((p) => (
+              <div key={p.key} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.preview} alt="Náhled fotky" className="w-24 h-16 object-cover rounded-xl border-2 border-[#111111] dark:border-stone-500" />
+                <button
+                  type="button"
+                  onClick={() => removeNewPhoto(p.key)}
+                  aria-label="Odebrat fotku"
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full border-2 border-[#111111] bg-white text-[#111111] flex items-center justify-center cursor-pointer hover:bg-red-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {photoSlots > 0 && (
+              <label className={`${secondaryBtn} cursor-pointer`}>
+                {keptPhotos.length + newPhotos.length > 0 ? 'Přidat další' : 'Vybrat fotky'}
+                <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={pickPhotos} className="sr-only" />
+              </label>
             )}
           </div>
           <p className="mt-1 text-[11px] font-semibold text-stone-600 dark:text-stone-400">
-            JPEG, PNG nebo WebP. Fotka se před nahráním zmenší.
+            JPEG, PNG nebo WebP. Fotky se před nahráním zmenší. První fotka je na kartě.
           </p>
           {photoError && <p className="mt-1 text-xs font-bold text-red-700 dark:text-red-400">{photoError}</p>}
         </div>

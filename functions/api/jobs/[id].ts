@@ -26,6 +26,7 @@ import {
 } from '../_lib/validate.ts';
 import type { FieldErrors } from '../_lib/validate.ts';
 import { notifyJobMatches } from '../_lib/data.ts';
+import { MAX_DESCRIPTION } from '../../../src/lib/limits.ts';
 
 /**
  * PATCH /api/jobs/:id (jen zadavatel): title, description, rewardType/rewardAmount/rewardCurrency/rewardScope, dateFrom, dateTo, crafts, region, city,
@@ -72,7 +73,7 @@ export async function onRequestPatch(context: PagesContext): Promise<Response> {
   }
   if ('description' in body) {
     const description = str(body.description);
-    if (description.length > 2000) errors.description = 'Popis může mít nejvýše 2000 znaků.';
+    if (description.length > MAX_DESCRIPTION) errors.description = 'Popis může mít nejvýše 5000 znaků.';
     sets.push('description = ?');
     binds.push(description);
   }

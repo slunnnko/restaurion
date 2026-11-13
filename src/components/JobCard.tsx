@@ -10,8 +10,9 @@ import { engagementBadge } from './engagementStatus';
 import { ActionMenu, MenuAction, iconBtn } from './ActionMenu';
 import { InterestedList, PersonChip } from './InterestedList';
 import { WithdrawModal } from './WithdrawModal';
+import { JobDetailModal } from './JobDetailModal';
 import { DeleteJobModal } from './DeleteJobModal';
-import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, UserCheck, Pencil, Trash2, X } from 'lucide-react';
+import { MapPin, Calendar, Coins, ShieldCheck, Church, ArrowRight, UserCheck, Pencil, Trash2, X, Images } from 'lucide-react';
 import { HammerLogo } from './HammerLogo';
 
 interface JobCardProps {
@@ -30,6 +31,8 @@ interface JobCardProps {
   isAdmin?: boolean;
   /** D46: správce zadává důvod, který dostane autor. Při chybě vyhodí výjimku (modal ji ukáže). */
   onDeleteJob?: (job: PublicJob, reason: string) => Promise<void>;
+  /** D44: otevře detail inzerátu hned po zobrazení karty (odkaz `?job=<id>`). */
+  autoOpenDetail?: boolean;
 }
 
 const tileShadowBorder = 'border-2 border-[#111111] shadow-[2px_2px_0px_#111111] dark:shadow-[2px_2px_0px_#000000]';
@@ -77,8 +80,10 @@ export const JobCard: React.FC<JobCardProps> = ({
   viewerName = '',
   isAdmin = false,
   onDeleteJob,
+  autoOpenDetail = false,
 }) => {
   const [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState<{ index: number } | null>(autoOpenDetail ? { index: 0 } : null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
@@ -99,6 +104,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   const noDeal = !job.isMine && !isOffer && !!eng?.contactedAt && (engStatus === 'declined' || engStatus === 'withdrawn');
   // D43: an ended engagement stays visible as a muted chip in the "Tvůj zájem" section; the ending side may take it back.
   const endedEng = !job.isMine && !isOffer && eng && (eng.status === 'declined' || eng.status === 'withdrawn') ? eng : null;
+  const photoCount = job.photos?.length ?? (job.imageUrl ? 1 : 0);
   const invites = job.myInvites ?? [];
   const inviteState: 'pending' | 'accepted' | null = !isOffer
     ? null
@@ -133,6 +139,16 @@ export const JobCard: React.FC<JobCardProps> = ({
         setActionError(err instanceof ApiError ? err.message : 'Akci se nepodařilo provést.');
       }
     });
+
+  // D44: stejná primární akce jako dole na kartě (a ve stejném pořadí podmínek), aby ji nabízel i detail.
+  const primaryLabel =
+    job.isMine || engStatus === 'declined' || isInvitedToMe
+      ? null
+      : isOffer
+        ? 'Poptat spolupráci'
+        : engStatus === 'pending' || engStatus === 'accepted'
+          ? null
+          : 'Mám zájem';
 
   const handleClose = () => {
     if (!window.confirm('Opravdu chceš inzerát ukončit? Zmizí z nástěnky.')) return;
@@ -204,13 +220,25 @@ export const JobCard: React.FC<JobCardProps> = ({
       <div>
         <div className={`h-2.5 w-full border-b-2 border-[#111111] dark:border-stone-500 ${info.topStripClass}`} />
         {job.imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={job.imageUrl}
-            alt={job.title}
-            loading="lazy"
-            className="aspect-[16/9] w-full object-cover border-b-2 border-[#111111] dark:border-stone-500 bg-stone-200 dark:bg-[#252834]"
-          />
+          <button
+            type="button"
+            onClick={() => setDetail({ index: 0 })}
+            aria-label={`Zobrazit celý inzerát: ${job.title}`}
+            className="relative block w-full cursor-pointer"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={job.imageUrl}
+              alt={job.title}
+              loading="lazy"
+              className="aspect-[16/9] w-full object-cover border-b-2 border-[#111111] dark:border-stone-500 bg-stone-200 dark:bg-[#252834]"
+            />
+            {photoCount > 1 && (
+              <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border-2 border-[#111111] bg-[#FFFDF7] text-[#111111] text-[11px] font-extrabold shadow-[2px_2px_0px_#111111]">
+                <Images className="w-3.5 h-3.5" />+{photoCount - 1}
+              </span>
+            )}
+          </button>
         )}
 
         <div className="p-5 pb-0">
@@ -254,7 +282,9 @@ export const JobCard: React.FC<JobCardProps> = ({
               <BadgeIcon className="w-5 h-5" />
             </div>
             <h3 className="font-serif font-bold text-lg text-[#111111] dark:text-white leading-snug break-words min-w-0">
-              {job.title}
+              <button type="button" onClick={() => setDetail({ index: 0 })} className="text-left hover:underline cursor-pointer">
+                {job.title}
+              </button>
             </h3>
           </div>
 
@@ -266,9 +296,16 @@ export const JobCard: React.FC<JobCardProps> = ({
           )}
 
           {job.description?.trim() && (
-            <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 mb-4 leading-relaxed font-medium">
-              {job.description}
-            </p>
+            <div className="mb-4">
+              <p className="text-sm text-stone-800 dark:text-stone-300 line-clamp-3 leading-relaxed font-medium">{job.description}</p>
+              <button
+                type="button"
+                onClick={() => setDetail({ index: 0 })}
+                className="mt-1 text-xs font-extrabold text-[#111111] dark:text-[#FEF08A] underline underline-offset-2 cursor-pointer"
+              >
+                Zobrazit celý inzerát
+              </button>
+            </div>
           )}
 
           <div className="flex flex-wrap gap-1.5 mb-4">
@@ -495,6 +532,29 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         )}
       </div>
+      {detail && (
+        <JobDetailModal
+          job={job}
+          typeInfo={info}
+          startIndex={detail.index}
+          onClose={() => setDetail(null)}
+          onLogin={() => {
+            setDetail(null);
+            onLogin();
+          }}
+          primaryAction={
+            primaryLabel
+              ? {
+                  label: primaryLabel,
+                  onClick: () => {
+                    setDetail(null);
+                    onRespond(job);
+                  },
+                }
+              : undefined
+          }
+        />
+      )}
       {deleteOpen && onDeleteJob && (
         <DeleteJobModal title={job.title} onClose={() => setDeleteOpen(false)} onConfirm={(reason) => onDeleteJob(job, reason)} />
       )}

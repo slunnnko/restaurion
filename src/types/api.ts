@@ -89,7 +89,9 @@ export interface PublicJob {
   jobType: MvpJobType;
   monumentStatus: MvpMonumentStatus;
   monumentName?: string;
-  imageUrl?: string; // optional photo: '/api/photos/jobs/<jobId>/<uuid>.<ext>' (owner upload, D34); legacy rows may hold an old URL
+  imageUrl?: string; // first photo (compat, D45): '/api/photos/jobs/<jobId>/<uuid>.<ext>' (owner upload, D34); legacy rows may hold an old URL
+  /** D45: up to 6 photos in display order (first = card photo). Absent when the listing has none. */
+  photos?: { id: string; url: string }[];
   crafts: string[]; // craft category ids
   region: string;
   city: string;
@@ -249,7 +251,7 @@ export interface NotificationItem {
 //                                             offers (jobType 'craftsman_available'); posterContact only when logged in
 // GET  /api/jobs?mine=1                    → { jobs: PublicJob[] } the caller's own jobs (public AND direct) and offers, status 'active' and
 //                                             'closed', regardless of dates, newest first, max 100; 401 without a session
-// POST /api/jobs  {title, description?, jobType, monumentStatus?, monumentName?, crafts[], region, city,
+// POST /api/jobs  {title, description? (max 5000 characters, D45), jobType, monumentStatus?, monumentName?, crafts[], region, city,
 //                  dateFrom, dateTo, rewardType?, rewardAmount?, rewardCurrency?, rewardScope?, directOfferId?}  → 201 { job: PublicJob, notified: number }
 //   directOfferId (D40): the job is created with visibility 'direct' (not on the board), direct_to = the offer's author, NO
 //   matching notifications, and an invitation (engagement initiated_by 'poster', respond_by = today + 3) plus an 'invited'
@@ -313,9 +315,10 @@ export interface NotificationItem {
 //   fieldErrors.reason, D46). Soft delete of any job or offer (visibility 'deleted', status 'archived'; the row stays in D1). Pending and
 //   accepted workers get 'job_closed'; the author gets 'job_removed' with the reason (not when the admin is the author).
 //   Idempotent: an already deleted job → 200 (before the reason is checked). Owner PATCH on it → 404.
-// POST /api/jobs/:id/photo  (raw image bytes, owner) → { job }  JPEG/PNG/WebP by magic bytes (else 400), max 5 MB (413),
-//   closed or deleted job 409, 401/403/404 like PATCH, 429 (30/h), 503 { error } when R2 is not enabled. Replaces the old photo.
-// DELETE /api/jobs/:id/photo (owner) → { job } (imageUrl absent). 503 without R2.
+// POST /api/jobs/:id/photos  (raw image bytes, owner) → { job }  adds ONE photo (D45): JPEG/PNG/WebP by magic bytes (else 400),
+//   max 5 MB (413), max 6 photos per listing (409 'Inzerát už má 6 fotek.'), closed or deleted job 409, 401/403/404 like PATCH,
+//   429 (30/h), 503 { error } when R2 is not enabled.
+// DELETE /api/jobs/:id/photos/:photoId (owner) → { job } without that photo; unknown photo 404. 503 without R2.
 // GET  /api/photos/jobs/<jobId>/<uuid>.<ext> → the image (public, immutable cache); 404 when missing, 503 without R2.
 // GET  /api/notifications                   → { items: NotificationItem[], unread: number }
 // POST /api/notifications/read {ids?: string[]} (no ids = all) → { unread: number }

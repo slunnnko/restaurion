@@ -1,4 +1,4 @@
-// Fotka inzerátu: zmenšení v prohlížeči před nahráním a odeslání na /api/jobs/:id/photo.
+// Fotka inzerátu: zmenšení v prohlížeči před nahráním a odeslání na /api/jobs/:id/photos (D45: až 6 fotek).
 
 import type { PublicJob } from '@/types/api';
 import { ApiError } from './api';
@@ -37,10 +37,10 @@ export async function downscaleImage(file: File): Promise<Blob> {
   return blob;
 }
 
-async function photoRequest(jobId: string, init: RequestInit): Promise<PublicJob> {
+async function photoRequest(url: string, init: RequestInit): Promise<PublicJob> {
   let res: Response;
   try {
-    res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/photo`, { ...init, credentials: 'same-origin', cache: 'no-store' });
+    res = await fetch(url, { ...init, credentials: 'same-origin', cache: 'no-store' });
   } catch {
     throw new ApiError(0, 'Server není dostupný. Zkontroluj připojení a zkus to znovu.');
   }
@@ -56,6 +56,7 @@ async function photoRequest(jobId: string, init: RequestInit): Promise<PublicJob
 
 /** Raw bytes with the blob's own Content-Type (the server decides by magic bytes anyway). */
 export const uploadJobPhoto = (jobId: string, blob: Blob) =>
-  photoRequest(jobId, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
+  photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos`, { method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
 
-export const deleteJobPhoto = (jobId: string) => photoRequest(jobId, { method: 'DELETE' });
+export const deleteJobPhoto = (jobId: string, photoId: string) =>
+  photoRequest(`/api/jobs/${encodeURIComponent(jobId)}/photos/${encodeURIComponent(photoId)}`, { method: 'DELETE' });

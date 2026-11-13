@@ -3,7 +3,7 @@ import type { PagesContext } from '../_shared.ts';
 import { PHOTO_PREFIX } from '../_lib/photo.ts';
 
 /**
- * GET /api/photos/jobs/<jobId>/<uuid>.<ext> → image, only while the job is not deleted and still points at this key.
+ * GET /api/photos/jobs/<jobId>/<uuid>.<ext> → image, only while the job is not deleted and still lists this key (job_photos, or legacy image_url).
  * Cache is 1 day (not immutable) so the photo of a moderated listing disappears within a day.
  */
 export async function onRequestGet(context: PagesContext): Promise<Response> {
@@ -17,8 +17,9 @@ export async function onRequestGet(context: PagesContext): Promise<Response> {
     return jsonResponse({ error: 'Fotka nenalezena.' }, 404);
   }
 
-  const live = await env.DB.prepare(`SELECT 1 AS ok FROM jobs WHERE id = ? AND visibility <> 'deleted' AND image_url = ?`)
-    .bind(parts[1], `${PHOTO_PREFIX}${key}`)
+  const live = await env.DB.prepare(`SELECT 1 AS ok FROM jobs j WHERE j.id = ? AND j.visibility <> 'deleted'
+       AND (j.image_url = ? OR EXISTS (SELECT 1 FROM job_photos p WHERE p.job_id = j.id AND p.url = ?))`)
+    .bind(parts[1], `${PHOTO_PREFIX}${key}`, `${PHOTO_PREFIX}${key}`)
     .first();
   if (!live) return jsonResponse({ error: 'Fotka nenalezena.' }, 404);
 

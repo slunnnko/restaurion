@@ -896,10 +896,13 @@ PNG_B64='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwG
 printf '%s' "$PNG_B64" | base64 -d > "$JARS/tiny.png"
 echo 'this is not an image, just text' > "$JARS/not-image.txt"
 head -c 6000000 /dev/zero > "$JARS/big.bin"
-# photo <user> METHOD <jobId> [file] -> body in $BODY, status in $CODE (raw bytes, header deliberately says image/png)
+# photo <user> METHOD <jobId> [file|photoId] -> body in $BODY, status in $CODE (raw bytes, header deliberately says image/png)
+# POST <jobId> <file> adds a photo; DELETE <jobId> <photoId> removes one.
 photo() {
-  local args=(-s -o "$JARS/body" -w '%{http_code}' -X "$2" "$BASE/api/jobs/$3/photo" -b "$JARS/$1.jar" -c "$JARS/$1.jar")
-  [ -n "${4:-}" ] && args+=(-H 'Content-Type: image/png' --data-binary "@$4")
+  local url="$BASE/api/jobs/$3/photos"
+  [ "$2" = DELETE ] && url="$url/${4:-none}"
+  local args=(-s -o "$JARS/body" -w '%{http_code}' -X "$2" "$url" -b "$JARS/$1.jar" -c "$JARS/$1.jar")
+  [ "$2" = POST ] && [ -n "${4:-}" ] && args+=(-H 'Content-Type: image/png' --data-binary "@$4")
   CODE=$(curl "${args[@]}"); BODY=$(cat "$JARS/body")
 }
 api poster POST /api/jobs "{\"title\":\"Nabidka s fotkou\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
@@ -907,7 +910,9 @@ PJ=$(echo "$BODY" | jq -r '.job.id')
 photo poster POST "$PJ" "$JARS/tiny.png"
 eq "owner uploads a PNG -> 200" "$CODE" 200
 PURL=$(echo "$BODY" | jq -r '.job.imageUrl')
+PID1=$(echo "$BODY" | jq -r '.job.photos[0].id')
 case "$PURL" in /api/photos/jobs/*) check "imageUrl starts with /api/photos/jobs/ ($PURL)" 0;; *) check "imageUrl starts with /api/photos/jobs/ (got '$PURL')" 1;; esac
+eq "photos[0].url equals imageUrl" "$(echo "$BODY" | jq -r '.job.photos[0].url')" "$PURL"
 curl -s -D "$JARS/hdr" -o "$JARS/got.png" -w '%{http_code}' "$BASE$PURL" > "$JARS/code"
 eq "GET the photo without a session -> 200" "$(cat "$JARS/code")" 200
 eq "photo content-type is image/png" "$(grep -i '^content-type:' "$JARS/hdr" | tr -d '\r' | awk '{print tolower($2)}')" "image/png"
@@ -923,17 +928,31 @@ photo poster POST "$PJ" "$JARS/big.bin"
 eq "> 5 MB -> 413" "$CODE" 413
 photo poster2 POST "$PJ" "$JARS/tiny.png"
 eq "other user upload -> 403" "$CODE" 403
-photo poster2 DELETE "$PJ"
+photo poster2 DELETE "$PJ" "$PID1"
 eq "other user delete -> 403" "$CODE" 403
-curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/jobs/$PJ/photo" --data-binary "@$JARS/tiny.png" > "$JARS/code"
+curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/jobs/$PJ/photos" --data-binary "@$JARS/tiny.png" > "$JARS/code"
 eq "upload without session -> 401" "$(cat "$JARS/code")" 401
 photo poster POST "$PJ" "$JARS/tiny.png"
-PURL2=$(echo "$BODY" | jq -r '.job.imageUrl')
-eq "replacing gives a new URL" "$([ "$PURL2" != "$PURL" ] && echo yes)" yes
-eq "the replaced photo is gone from R2" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL")" 404
-photo poster DELETE "$PJ"
-eq "owner deletes the photo -> 200, imageUrl gone" "$CODE/$(echo "$BODY" | jq -r '.job.imageUrl // "none"')" "200/none"
-eq "GET the deleted photo -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL2")" 404
+PID2=$(echo "$BODY" | jq -r '.job.photos[1].id')
+PURL2=$(echo "$BODY" | jq -r '.job.photos[1].url')
+eq "second upload -> 200, job.photos has 2, imageUrl stays the first" "$CODE/$(echo "$BODY" | jq -r '.job.photos | length')/$([ "$(echo "$BODY" | jq -r '.job.imageUrl')" = "$PURL" ] && echo same)" "200/2/same"
+eq "second photo differs from the first" "$([ "$PURL2" != "$PURL" ] && echo yes)" yes
+api poster GET /api/jobs
+eq "the board returns both photos in order" "$(echo "$BODY" | jq -r --arg id "$PJ" '[.jobs[] | select(.id == $id) | .photos[].id] | join(",")')" "$PID1,$PID2"
+for i in 3 4 5 6; do photo poster POST "$PJ" "$JARS/tiny.png"; done
+eq "6th upload -> 200 with 6 photos" "$CODE/$(echo "$BODY" | jq -r '.job.photos | length')" "200/6"
+photo poster POST "$PJ" "$JARS/tiny.png"
+eq "7th upload -> 409 (limit 6)" "$CODE" 409
+photo poster DELETE "$PJ" "does-not-exist"
+eq "delete of an unknown photo -> 404" "$CODE" 404
+photo poster DELETE "$PJ" "$PID1"
+eq "owner deletes the first photo -> 200, 5 left, imageUrl moves to the next" "$CODE/$(echo "$BODY" | jq -r '.job.photos | length')/$(echo "$BODY" | jq -r '.job.imageUrl')" "200/5/$PURL2"
+eq "the deleted photo is gone from R2" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL")" 404
+eq "the other photo is still served" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL2")" 200
+for pid in $(echo "$BODY" | jq -r '.job.photos[].id'); do photo poster DELETE "$PJ" "$pid"; done
+eq "deleting the last photo -> 200, imageUrl and photos gone" "$CODE/$(echo "$BODY" | jq -r '.job.imageUrl // "none"')/$(echo "$BODY" | jq -r '.job.photos // "none"')" "200/none/none"
+photo poster POST "$PJ" "$JARS/tiny.png"
+eq "after deleting all, a new upload works again" "$CODE/$(echo "$BODY" | jq -r '.job.photos | length')" "200/1"
 
 api poster POST /api/jobs "{\"title\":\"Nabidka s fotkou ke smazani\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
 PJ2=$(echo "$BODY" | jq -r '.job.id')
@@ -942,6 +961,11 @@ PURL3=$(echo "$BODY" | jq -r '.job.imageUrl')
 eq "photo of a live listing -> 200" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 200
 api admin DELETE /api/jobs/$PJ2 '{"reason":"Test odstranění"}'; eq "admin soft deletes the listing with a photo -> 200" "$CODE" 200
 eq "GET the photo of a deleted listing -> 404" "$(curl -s -o /dev/null -w '%{http_code}' "$BASE$PURL3")" 404
+
+api poster POST /api/jobs "{\"title\":\"Dlouhy popis\",\"description\":\"$(printf 'x%.0s' $(seq 1 5000))\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+eq "description of 5000 characters -> 201" "$CODE" 201
+api poster POST /api/jobs "{\"title\":\"Prilis dlouhy popis\",\"description\":\"$(printf 'x%.0s' $(seq 1 5001))\",\"jobType\":\"craftsman_available\",\"crafts\":[\"kámen\"],\"region\":\"Praha\",\"city\":\"Praha\",\"dateFrom\":\"$R_FROM\",\"dateTo\":\"$R_TO\"}"
+eq "description of 5001 characters -> 400 fieldErrors.description" "$CODE/$(echo "$BODY" | jq -r '.fieldErrors.description != null')" "400/true"
 
 echo "== theme preference"
 api pwreset GET /api/auth/me

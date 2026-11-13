@@ -59,6 +59,11 @@ export default function Home() {
   const [unread, setUnread] = useState(0);
   const [profileHint, setProfileHint] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  // D44: `?job=<id>` opens the detail of that listing once the board data is loaded (and only if it is in it).
+  const [deepLinkId, setDeepLinkId] = useState<string | null>(null);
+  const deepLinkPending = useRef<string | null>(
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('job'),
+  );
 
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -349,6 +354,19 @@ export default function Home() {
     setTimeout(() => setHighlightId((cur) => (cur === jobId ? null : cur)), 3500);
   };
 
+  useEffect(() => {
+    const id = deepLinkPending.current;
+    if (!id || jobsLoading) return;
+    deepLinkPending.current = null;
+    const job = jobs.find((j) => j.id === id);
+    if (!job) return;
+    setView('board');
+    setTab(job.jobType === 'craftsman_available' ? 'offers' : 'jobs');
+    setFilters(initialFilters);
+    setDeepLinkId(id);
+    setTimeout(() => setDeepLinkId((cur) => (cur === id ? null : cur)), 1000);
+  }, [jobs, jobsLoading]);
+
   const boardJobs = useMemo(() => jobs.filter((j) => j.jobType !== 'craftsman_available'), [jobs]);
   const offers = useMemo(() => jobs.filter((j) => j.jobType === 'craftsman_available'), [jobs]);
   const tabJobs = tab === 'offers' ? offers : boardJobs;
@@ -577,6 +595,7 @@ export default function Home() {
                       viewerName={user ? user.name || user.email : ''}
                       isAdmin={user?.isAdmin === true}
                       onDeleteJob={handleDeleteJob}
+                      autoOpenDetail={deepLinkId === job.id}
                     />
                   ))}
                 </div>
