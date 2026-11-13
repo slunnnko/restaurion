@@ -137,6 +137,7 @@ test('stripTitles: dotted tokens, dot-less list, commas, whitespace', () => {
   assert.equal(stripTitles('  Jan   Novák Ph.D., MBA '), 'Jan Novák');
   assert.equal(stripTitles('Eva Nováková CSc'), 'Eva Nováková');
   assert.equal(stripTitles('Ing.'), '');
+  assert.equal(stripTitles('Ma Ba DiS'), 'Ma Ba'); // case-sensitive: Ma / Ba can be surnames
   assert.equal(stripTitles('Marie Anna'), 'Marie Anna');
 });
 

@@ -208,7 +208,11 @@ export async function runLicenceCheck(
   if (out.result === 'unavailable') {
     await db
       // licence_checked_at stays untouched, so the cron retries it on its next run.
-      .prepare(`UPDATE profiles SET licence_check_result = 'unavailable' WHERE ${unchanged}`)
+      // A definitive failure (orange flag, D52) is kept: an outage must not clear it.
+      .prepare(
+        `UPDATE profiles SET licence_check_result = 'unavailable' WHERE ${unchanged}
+           AND (licence_check_result IS NULL OR licence_check_result NOT IN ('not_found', 'name_mismatch', 'ambiguous', 'taken'))`
+      )
       .bind(...guard)
       .run();
     return;
